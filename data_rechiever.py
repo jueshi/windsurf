@@ -5,6 +5,12 @@ This script provides functionality for downloading, updating, and visualizing st
 
 CHANGELOG:
 ---------
+v1.3.0 (2025-01-02):
+- Added `visualize_multiple_tickers()` method to create subplots for multiple stocks
+- Implemented dynamic subplot layout with max 3 columns
+- Enhanced visualization to support multiple tickers in a single plot
+- Improved error handling for multi-ticker visualization
+
 v1.2.0 (2025-01-02):
 - Improved column handling to dynamically support different data formats
 - Switched to tab-separated (.tsv) files for data storage
@@ -38,7 +44,7 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import logging
 import numpy as np
-from typing import Optional, List
+from typing import Optional, List, Any
 
 # Configure logging
 logging.basicConfig(
@@ -262,6 +268,83 @@ class StockDataManager:
         except Exception as e:
             logging.error(f"Error visualizing data for {ticker}: {e}")
 
+    def visualize_multiple_tickers(self, 
+                              tickers: List[str], 
+                              column: str = 'Close', 
+                              title: Optional[str] = None) -> None:
+        """
+        Create a subplot visualization of stock data for multiple tickers.
+        
+        Args:
+            tickers (List[str]): List of stock ticker symbols
+            column (str, optional): Column to plot. Defaults to 'Close'.
+            title (Optional[str], optional): Custom plot title
+        """
+        try:
+            # Determine subplot layout
+            n_tickers = len(tickers)
+            rows = (n_tickers + 2) // 3  # Ceiling division to get rows
+            cols = min(n_tickers, 3)  # Max 3 columns
+            
+            # Create subplot figure
+            plt.figure(figsize=(15, 5 * rows))
+            
+            # Plot each ticker
+            for idx, ticker in enumerate(tickers, 1):
+                # Create subplot
+                plt.subplot(rows, cols, idx)
+                
+                # Read data
+                data_path = self._get_data_path(ticker)
+                stock_data = pd.read_csv(data_path, sep='\t')
+                
+                # Convert Date column to datetime
+                stock_data['Date'] = pd.to_datetime(stock_data['Date'])
+                
+                # Convert numeric columns to float
+                numeric_columns = [
+                    col for col in ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume'] 
+                    if col in stock_data.columns
+                ]
+                
+                for col in numeric_columns:
+                    stock_data[col] = pd.to_numeric(stock_data[col], errors='coerce')
+                
+                # Validate data
+                if stock_data.empty:
+                    logging.warning(f"No data found for {ticker}")
+                    continue
+                
+                # If specified column is not available, use the first numeric column
+                if column not in stock_data.columns:
+                    if not numeric_columns:
+                        logging.warning("No numeric columns available for plotting")
+                        continue
+                    column = numeric_columns[0]
+                    logging.info(f"Defaulting to column: {column}")
+                
+                # Plot the data
+                plt.plot(stock_data['Date'], stock_data[column], label=ticker)
+                
+                # Set title and labels
+                plt.title(f'{ticker} Stock {column} Prices')
+                plt.xlabel('Date')
+                plt.ylabel(f'{column} Price ($)')
+                plt.xticks(rotation=45)
+                plt.grid(True)
+                plt.legend()
+            
+            # Adjust layout and add overall title
+            plt.tight_layout()
+            if title:
+                plt.suptitle(title, fontsize=16)
+            
+            # Show the plot
+            plt.show()
+        
+        except Exception as e:
+            logging.error(f"Error visualizing data for multiple tickers: {e}")
+
 def main():
     """
     Demonstrate stock data management functionalities.
@@ -279,10 +362,9 @@ def main():
         
         # Update data
         updated_data = stock_manager.update_data(ticker)
-        
-        # Visualize data
-        if updated_data is not None:
-            stock_manager.visualize_data(ticker)
+    
+    # Visualize multiple tickers
+    stock_manager.visualize_multiple_tickers(tickers)
 
 if __name__ == '__main__':
     main()
