@@ -8,6 +8,14 @@ Change Log:
 - Maintained core technical indicator calculations
 - Implemented ensemble prediction using model averaging
 - Added performance metrics (MSE, MAE, R2 Score)
+2025-01-16:
+- Added rolling predictions for validation period
+- Parameterized prediction days (PREDICTION_DAYS)
+- Added visualization of prediction bands
+- Reduced prediction horizon to 5 days
+- Added error analysis for each future day
+- Improved plot formatting and readability
+- Added configurable plot density (PLOT_EVERY_N_PREDICTIONS)
 
 """
 
