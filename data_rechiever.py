@@ -5,6 +5,19 @@ This script provides functionality for downloading, updating, and visualizing st
 
 CHANGELOG:
 ---------
+v1.11.0 (2025-01-02):
+- Enhanced data update mechanism to prevent unnecessary file writes
+- Added strict checks to only update local files when genuinely new data is available
+- Improved logging to distinguish between no new data and update scenarios
+- Reduced file I/O operations and potential disk wear
+
+v1.10.0 (2025-01-02):
+- Enhanced data update mechanism to check local data freshness
+- Implemented intelligent data update strategy
+- Added logic to only download new data if local data is outdated
+- Reduced unnecessary API calls and improved data retrieval efficiency
+- Maintained data continuity by appending only new data points
+
 v1.9.0 (2025-01-02):
 - Enhanced main function to visualize daily, weekly, and monthly charts for all tickers
 - Automated visualization process for multiple stock tickers
@@ -76,7 +89,7 @@ Last Updated: 2025-01-02
 import os
 import pandas as pd
 import yfinance as yf
-from datetime import datetime
+from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 import logging
 import numpy as np
@@ -255,41 +268,77 @@ class StockDataManager:
             ticker = ticker.upper()
             data_path = self._get_data_path(ticker)
             
-            # Download new data
-            initial_data = yf.download(
+            # Check if local file exists
+            if not os.path.exists(data_path):
+                # If no local file, perform initial download
+                return self.initial_download(ticker)
+            
+            # Read existing local data
+            existing_data = pd.read_csv(data_path, sep='\t')
+            
+            # Convert Date column to datetime
+            existing_data['Date'] = pd.to_datetime(existing_data['Date'])
+            
+            # Get the latest date in local data
+            latest_local_date = existing_data['Date'].max()
+            
+            # Check if data is already up to date (within 1 day)
+            if (datetime.today() - latest_local_date).days <= 1:
+                logging.info(f"Data for {ticker} is up to date")
+                return existing_data
+            
+            # Download new data from the day after the latest local date
+            start_date = (latest_local_date + timedelta(days=1)).strftime('%Y-%m-%d')
+            new_data = yf.download(
                 ticker, 
-                start='1980-01-01',
+                start=start_date,
                 end=datetime.today(),
                 progress=False
             )
             
             # Validate downloaded data
-            if initial_data.empty:
-                logging.warning(f"No data downloaded for {ticker}")
-                return None
+            if new_data.empty:
+                logging.info(f"No new data available for {ticker}")
+                return existing_data
             
             # Reset index to make Date a column
-            stock_data_reset = initial_data.reset_index()
+            new_data_reset = new_data.reset_index()
             
-            # Dynamically create output columns 
-            columns_order = ['Date', 'Open', 'High', 'Low', 'Close']
+            # Ensure consistent column order and names
+            columns_order = ['Date', 'Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
             
-            # Add Volume if it exists
-            if 'Volume' in stock_data_reset.columns:
-                columns_order.append('Volume')
+            # Prepare new data with consistent columns
+            new_data_processed = new_data_reset.rename(columns={
+                'Date': 'Date', 
+                'Open': 'Open', 
+                'High': 'High', 
+                'Low': 'Low', 
+                'Close': 'Close', 
+                'Adj Close': 'Adj Close', 
+                'Volume': 'Volume'
+            })
             
-            # Add Adj Close if it exists
-            if 'Adj Close' in stock_data_reset.columns:
-                columns_order.append('Adj Close')
+            # Select and order columns
+            new_data_processed = new_data_processed[[col for col in columns_order if col in new_data_processed.columns]]
             
-            # Select columns that exist in the dataframe
-            output_data = stock_data_reset[[col for col in columns_order if col in stock_data_reset.columns]]
+            # Combine existing and new data
+            combined_data = pd.concat([existing_data, new_data_processed], ignore_index=True)
             
-            # Save data to local file using tab separator
-            output_data.to_csv(data_path, sep='\t', index=False)
-            logging.info(f"Data for {ticker} updated successfully")
+            # Remove duplicate dates, keeping the last entry
+            combined_data = combined_data.drop_duplicates(subset='Date', keep='last')
             
-            return initial_data
+            # Sort by date
+            combined_data = combined_data.sort_values('Date')
+            
+            # Only save if there are actually new data points
+            if len(combined_data) > len(existing_data):
+                # Save data to local file using tab separator
+                combined_data.to_csv(data_path, sep='\t', index=False)
+                logging.info(f"Data for {ticker} updated successfully")
+                return combined_data
+            else:
+                logging.info(f"No new data to update for {ticker}")
+                return existing_data
         
         except Exception as e:
             logging.error(f"Error updating data for {ticker}: {e}")
@@ -415,7 +464,7 @@ class StockDataManager:
     def resample_data(self, 
                        ticker: str, 
                        resample_freq: str = 'W', 
-                       column: str = 'Close') -> pd.DataFrame:
+                       column: str = 'Close') -> pd.Series:
         """
         Resample stock data to a different frequency.
         
@@ -426,33 +475,28 @@ class StockDataManager:
                 Common options:
                 - 'D': Daily
                 - 'W': Weekly
-                - 'M': Monthly
+                - 'ME': Monthly end
                 - 'Q': Quarterly
             column (str, optional): Column to resample. Defaults to 'Close'.
         
         Returns:
-            pd.DataFrame: Resampled stock data
+            pd.Series: Resampled stock data
         """
         try:
-            # Load data
+            # Load stock data
             stock_data = self._load_stock_data(ticker)
             
-            # Validate data
-            if stock_data.empty:
-                logging.warning(f"No data found for {ticker}")
-                return pd.DataFrame()
-            
-            # Set Date as index
+            # Set Date as index for resampling
             stock_data.set_index('Date', inplace=True)
             
-            # Resample the data
+            # Resample data
             resampled_data = stock_data[column].resample(resample_freq).last()
             
             return resampled_data
         
         except Exception as e:
             logging.error(f"Error resampling data for {ticker}: {e}")
-            return pd.DataFrame()
+            return pd.Series()
 
     def visualize_daily_vs_weekly(self, 
                                   ticker: str, 
@@ -477,7 +521,7 @@ class StockDataManager:
             
             # Resample to weekly and monthly data
             weekly_data = self.resample_data(ticker, resample_freq='W', column=column)
-            monthly_data = self.resample_data(ticker, resample_freq='M', column=column)
+            monthly_data = self.resample_data(ticker, resample_freq='ME', column=column)
             
             # Create side-by-side plots
             fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(30, 7))
@@ -516,7 +560,7 @@ class StockDataManager:
             
 
             # Show the plot
-            plt.show()
+            # plt.show()
         
         except Exception as e:
             logging.error(f"Error visualizing data for {ticker}: {e}")
@@ -528,11 +572,11 @@ def main():
     # Initialize stock data manager
     stock_manager = StockDataManager()
     
-    # List of tickers to process
-    tickers = ['DIA' 'SPY', 'QQQ', 'IWM', 'GLD','AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'META', 'NVDA', 'BRK-B','AVGO',
-               'COST','MCD','BABA','AMD','NIO','AFRM','CQQQ','SPYX','SPYV','SPYU','CRM','ADI','TXN','AAOI','EWS','NKE',
-               'AMZA','YINN','JD','BIDU','TNA','TECS','TECL','INTC','TSM','LRCX','MRVL','SPMO','WDC']
-    # tickers = ['BRK/B','BRK-B','LRCX','MRVL','SPMO','WDC']    
+    # # List of tickers to process
+    # tickers = ['QQQ', 'IWM', 'GLD','AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'META', 'NVDA', 'BRK-B','AVGO',
+    #            'COST','MCD','BABA','AMD','NIO','AFRM','CQQQ','SPYX','SPYV','SPYU','CRM','ADI','TXN','AAOI','EWS','NKE',
+    #            'AMZA','YINN','JD','BIDU','TNA','TECS','TECL','INTC','TSM','LRCX','MRVL','SPMO','WDC']
+    tickers = ['BRK-B','LRCX','MRVL']    
     # Process each ticker
     for ticker in tickers:
         # Perform initial download (if not already done)
