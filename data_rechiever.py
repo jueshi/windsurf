@@ -640,49 +640,13 @@ class StockDataManager:
                 f.write(html_content)
 
             # Open the report in Microsoft Edge
-            webbrowser.register('edge', None, webbrowser.BackgroundBrowser(r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'))
-            webbrowser.get('edge').open(f'file://{report_path}')
+            # webbrowser.register('edge', None, webbrowser.BackgroundBrowser(r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'))
+            # webbrowser.get('edge').open(f'file://{report_path}')
 
             logging.info(f"Generated stock analysis report at {report_path}")
 
         except Exception as e:
             logging.error(f"Error generating HTML report: {e}")
-
-    def get_name(self, var):
-        """
-        Get the name of a variable (for debugging/logging purposes)
-        
-        Args:
-            var: Variable to get the name of
-        
-        Returns:
-            str: Name of the variable or a default string
-        """
-        try:
-            # Try to get the name from the caller's locals
-            import inspect
-            
-            # Walk through the call stack
-            for frame_record in inspect.stack()[1:]:
-                frame = frame_record[0]
-                local_vars = frame.f_locals
-                
-                # Look for variable names that match the input
-                for name, value in local_vars.items():
-                    # Check if the value is the exact list passed
-                    if value is var or (isinstance(value, list) and value == var):
-                        return name
-            
-            # If no name found, fallback to list contents
-            if isinstance(var, list) and all(isinstance(x, str) for x in var):
-                return '_'.join(sorted(var))
-            
-            # Most conservative fallback
-            return 'stock_data_' + '_'.join(map(str, var)) if var else 'unknown_tickers'
-        
-        except Exception as e:
-            logging.error(f"Error in get_name: {e}")
-            return 'stock_data_unknown'
 
     def process_stock_data(self, tickers=[], name=None):
         """
@@ -751,10 +715,9 @@ def main():
                'AMZA','YINN','JD','BIDU','TNA','TECS','TECL','INTC','TSM','LRCX','MRVL','SPMO','WDC']
      
     new_highs1 = ["CSCO", "V", "MA", "AXP", "SAP", "TSM", "AMZN", "JPM", "NFLX", "GOOGL", "GOOG", "META", "AAPL", "WMT", "BAC", "AVGO", "MCD", "PG", "IBM", "BRK-B"]
-    new_highs2 = ["MS", "NOW", "BRK-A", "NVDA", "COST", "ACN", "WFC", "CRM", "DIS", "MSFT", "TMUS", "HD", "CVX", "ABBV", "BX", "JNJ", "XOM", "KO", "ORCL", "PEP"]    
-    
+    new_highs2 = ["MS", "NOW", "BRK-A", "NVDA", "COST", "ACN", "WFC", "CRM", "DIS", "MSFT", "TMUS", "HD", "CVX", "ABBV", "BX", "JNJ", "XOM", "KO", "ORCL", "PEP"]        
     # Combine and remove duplicates
-    # tickers = list(set(tickers0 + tickers1 + tickers2))
+    new_highs = list(set(new_highs1 + new_highs2))
     
     test_tickers = ['BRK-B','LRCX','MRVL']   
     # tickers = ["PSTR"]
@@ -762,7 +725,10 @@ def main():
     '''use AI to gennerate a pythhon list of stock tickers from the table below.'''
 
     # Process stock data
-    stock_manager.process_stock_data(tickers=test_tickers, name='test_tickers')
+    stock_manager.process_stock_data(tickers=Jues401k)
+    stock_manager.process_stock_data(tickers=new_highs, name='new_highs')
+    # stock_manager.process_stock_data(tickers=test_tickers)
+
 
 if __name__ == '__main__':
     main()
