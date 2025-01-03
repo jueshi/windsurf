@@ -498,70 +498,62 @@ class StockDataManager:
             logging.error(f"Error resampling data for {ticker}: {e}")
             return pd.Series()
 
-    def visualize_daily_vs_weekly(self, 
-                                  ticker: str, 
-                                  column: str = 'Close', 
-                                  title: Optional[str] = None) -> None:
+    def visualize_daily_vs_weekly(self, ticker: str, column: str = 'Close') -> None:
         """
-        Create a visualization of daily, weekly, and monthly stock data.
+        Visualize daily and weekly stock prices for a given ticker
         
         Args:
             ticker (str): Stock ticker symbol
-            column (str, optional): Column to plot. Defaults to 'Close'.
-            title (Optional[str], optional): Custom plot title
+            column (str, optional): Price column to visualize. Defaults to 'Close'.
         """
         try:
-            # Load daily data
+            # Load daily and weekly data
             daily_data = self._load_stock_data(ticker)
-            
-            # Validate data
-            if daily_data.empty:
-                logging.warning(f"No data found for {ticker}")
-                return
-            
-            # Resample to weekly and monthly data
             weekly_data = self.resample_data(ticker, resample_freq='W', column=column)
-            monthly_data = self.resample_data(ticker, resample_freq='ME', column=column)
             
-            # Create side-by-side plots
+            # Ensure datetime indices
+            daily_data['Date'] = pd.to_datetime(daily_data['Date'])
+            daily_data.set_index('Date', inplace=True)
+            weekly_data.index = pd.to_datetime(weekly_data.index)
+            
+            # Create figure with three subplots
             fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(30, 7))
             
-            # Plot daily data
-            ax1.semilogy(daily_data['Date'], daily_data[column])
-            ax1.set_title(f'{ticker} Daily {column} Prices')
+            # Plot daily data for recent year
+            recent_year_data = daily_data[daily_data.index > daily_data.index.max() - pd.Timedelta(days=365)]
+            ax1.semilogy(recent_year_data.index, recent_year_data[column])
+            ax1.set_title(f'{ticker} Recent Year Daily {column} Prices')
             ax1.set_xlabel('Date')
             ax1.set_ylabel(f'{column} Price ($)')
             ax1.tick_params(axis='x', rotation=45)
-            ax1.grid(True)
+            ax1.grid(True, which='both', ls='-', alpha=0.5)
             
-            # Plot weekly data
-            ax2.semilogy(weekly_data.index, weekly_data.values)
-            ax2.set_title(f'{ticker} Weekly {column} Prices')
+            # Plot weekly data for recent 5 years
+            recent_5_years_data = weekly_data[weekly_data.index > weekly_data.index.max() - pd.Timedelta(days=1825)]
+            ax2.semilogy(recent_5_years_data.index, recent_5_years_data.values)
+            ax2.set_title(f'{ticker} Recent 5 Years Weekly {column} Prices')
             ax2.set_xlabel('Date')
             ax2.set_ylabel(f'{column} Price ($)')
             ax2.tick_params(axis='x', rotation=45)
-            ax2.grid(True)
+            ax2.grid(True, which='both', ls='-', alpha=0.5)
             
             # Plot monthly data
-            ax3.semilogy(monthly_data.index, monthly_data.values)
-            ax3.set_title(f'{ticker} Monthly {column} Prices')
+            monthly_data = self.resample_data(ticker, resample_freq='ME', column=column)
+            monthly_data.index = pd.to_datetime(monthly_data.index)
+            recent_10_years_data = monthly_data[monthly_data.index > monthly_data.index.max() - pd.Timedelta(days=3650)]
+            ax3.semilogy(recent_10_years_data.index, recent_10_years_data.values)
+            ax3.set_title(f'{ticker} Recent 10 Years Monthly {column} Prices')
             ax3.set_xlabel('Date')
             ax3.set_ylabel(f'{column} Price ($)')
             ax3.tick_params(axis='x', rotation=45)
-            ax3.grid(True)
+            ax3.grid(True, which='both', ls='-', alpha=0.5)
             
-            # Adjust layout and add overall title
+            # Adjust layout and save figure
             plt.tight_layout()
-            if title:
-                plt.suptitle(title, fontsize=16)
-            
-            # Save the plot to the stock_data folder
             plt.savefig(os.path.join(STOCK_DATA_DIR, f'{ticker}_{column}_daily_weekly_monthly.png'), dpi=300)
+            plt.close(fig)
             
-
-
-            # Show the plot
-            # plt.show()
+            logging.info(f"Generated visualization for {ticker}")
         
         except Exception as e:
             logging.error(f"Error visualizing data for {ticker}: {e}")
