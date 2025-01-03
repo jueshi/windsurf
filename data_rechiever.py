@@ -456,7 +456,7 @@ class StockDataManager:
             plt.savefig(os.path.join(STOCK_DATA_DIR, f'{tickers[0]}_stock_prices.png'), dpi=300, bbox_inches='tight')
 
             # Show the plot
-            plt.show()
+            # plt.show()
         
         except Exception as e:
             logging.error(f"Error visualizing data for multiple tickers: {e}")
@@ -559,38 +559,143 @@ class StockDataManager:
             plt.savefig(os.path.join(STOCK_DATA_DIR, f'{ticker}_{column}_daily_weekly_monthly.png'), dpi=300)
             
 
+
             # Show the plot
             # plt.show()
         
         except Exception as e:
             logging.error(f"Error visualizing data for {ticker}: {e}")
 
+    def generate_html_report(self, plots_dir=STOCK_DATA_DIR):
+        """
+        Generate an HTML report with embedded stock plots
+        
+        Args:
+            plots_dir (str, optional): Directory containing plot images. Defaults to STOCK_DATA_DIR.
+        """
+        try:
+            # Import required libraries
+            import os
+            import glob
+            import webbrowser
+
+            # Create HTML content
+            html_content = """
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <title>Stock Price Analysis Report</title>
+                <style>
+                    body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
+                    h1 { color: #333; text-align: center; }
+                    .plot-container { 
+                        display: flex; 
+                        flex-wrap: wrap; 
+                        justify-content: center; 
+                        gap: 20px; 
+                        margin-top: 20px; 
+                    }
+                    .plot-item { 
+                        text-align: center; 
+                        max-width: 100%; 
+                    }
+                    .plot-item img { 
+                        max-width: 100%; 
+                        height: auto; 
+                        border: 1px solid #ddd; 
+                        border-radius: 5px; 
+                    }
+                </style>
+            </head>
+            <body>
+                <h1>Stock Price Analysis Report</h1>
+                <div class="plot-container">
+            """
+
+            # Find all PNG files in the plots directory
+            plot_files = glob.glob(os.path.join(plots_dir, '*_stock_prices.png'))
+            plot_files += glob.glob(os.path.join(plots_dir, '*_daily_weekly_monthly.png'))
+
+            # Add plots to HTML
+            for plot_file in plot_files:
+                # Extract ticker name from filename
+                ticker = os.path.basename(plot_file).split('_')[0]
+                html_content += f"""
+                    <div class="plot-item">
+                        <h2>{ticker} Stock Prices</h2>
+                        <img src="{plot_file}" alt="{ticker} Stock Price Plot">
+                    </div>
+                """
+
+            # Close HTML tags
+            html_content += """
+                </div>
+            </body>
+            </html>
+            """
+
+            # Save HTML report
+            report_path = os.path.join('C:/Users/juesh/OneDrive/Documents/windsurf/', 'stock_analysis_report.html')
+            with open(report_path, 'w') as f:
+                f.write(html_content)
+
+            # Open the report in Microsoft Edge
+            webbrowser.register('edge', None, webbrowser.BackgroundBrowser(r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'))
+            webbrowser.get('edge').open(f'file://{report_path}')
+
+            logging.info(f"Generated stock analysis report at {report_path}")
+
+        except Exception as e:
+            logging.error(f"Error generating HTML report: {e}")
+
+    def process_stock_data(self, tickers):
+        """
+        Process and visualize stock data for multiple tickers
+        
+        Args:
+            tickers (list): List of stock tickers to process
+        """
+        try:
+            # Update and process data for each ticker
+            for ticker in tickers:
+                # Download and update stock data
+                self.update_data(ticker)
+                
+                # Visualize stock prices
+                self.visualize_multiple_tickers([ticker])
+                
+                # Visualize daily, weekly, and monthly data
+                self.visualize_daily_vs_weekly(ticker)
+            
+            # Generate HTML report after processing all tickers
+            self.generate_html_report()
+        
+        except Exception as e:
+            logging.error(f"Error processing stock data: {e}")
+
 def main():
-    """
-    Demonstrate stock data management functionalities.
-    """
-    # Initialize stock data manager
+    # Initialize stock manager
     stock_manager = StockDataManager()
     
-    # # List of tickers to process
-    # tickers = ['QQQ', 'IWM', 'GLD','AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'META', 'NVDA', 'BRK-B','AVGO',
-    #            'COST','MCD','BABA','AMD','NIO','AFRM','CQQQ','SPYX','SPYV','SPYU','CRM','ADI','TXN','AAOI','EWS','NKE',
-    #            'AMZA','YINN','JD','BIDU','TNA','TECS','TECL','INTC','TSM','LRCX','MRVL','SPMO','WDC']
-    tickers = ['BRK-B','LRCX','MRVL']    
-    # Process each ticker
-    for ticker in tickers:
-        # Perform initial download (if not already done)
-        initial_data = stock_manager.initial_download(ticker)
-        
-        # Update data
-        updated_data = stock_manager.update_data(ticker)
+    # List of tickers to process
+    tickers0 = ['ALAB','PSTR','QQQ', 'IWM', 'GLD','AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'META', 'NVDA', 'BRK-B','AVGO',
+               'COST','MCD','BABA','AMD','NIO','AFRM','CQQQ','SPYX','SPYV','SPYU','CRM','ADI','TXN','AAOI','EWS','NKE',
+               'AMZA','YINN','JD','BIDU','TNA','TECS','TECL','INTC','TSM','LRCX','MRVL','SPMO','WDC']
+     
+    tickers1 = ["CSCO", "V", "MA", "AXP", "SAP", "TSM", "AMZN", "JPM", "NFLX", "GOOGL", "GOOG", "META", "AAPL", "WMT", "BAC", "AVGO", "MCD", "PG", "IBM", "BRK-B"]
+    tickers2 = ["MS", "NOW", "BRK-A", "NVDA", "COST", "ACN", "WFC", "CRM", "DIS", "MSFT", "TMUS", "HD", "CVX", "ABBV", "BX", "JNJ", "XOM", "KO", "ORCL", "PEP"]    
     
-    # Visualize multiple tickers
-    stock_manager.visualize_multiple_tickers(tickers)
+    # Combine and remove duplicates
+    # tickers = list(set(tickers0 + tickers1 + tickers2))
     
-    # Visualize daily, weekly, and monthly charts for each ticker
-    for ticker in tickers:
-        stock_manager.visualize_daily_vs_weekly(ticker)
+    tickers = ['BRK-B','LRCX','MRVL']   
+    # tickers = ["PSTR"]
+    
+    '''use AI to gennerate a pythhon list of stock tickers from the table below.'''
+
+    # Process stock data
+    stock_manager.process_stock_data(tickers)
 
 if __name__ == '__main__':
     main()
