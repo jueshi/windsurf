@@ -5,6 +5,12 @@ This script provides functionality for downloading, updating, and visualizing st
 
 CHANGELOG:
 ---------
+v1.8.0 (2025-01-02):
+- Extended stock price visualization to include monthly price charts
+- Enhanced multi-frequency price visualization with daily, weekly, and monthly views
+- Increased figure width to accommodate three subplots
+- Maintained logarithmic y-axis scaling across all frequency views
+
 v1.7.0 (2025-01-02):
 - Introduced logarithmic (semilogy) scaling for stock price visualizations
 - Enhanced price chart readability by using logarithmic y-axis
@@ -444,7 +450,7 @@ class StockDataManager:
                                   column: str = 'Close', 
                                   title: Optional[str] = None) -> None:
         """
-        Create a side-by-side visualization of daily and weekly stock data.
+        Create a visualization of daily, weekly, and monthly stock data.
         
         Args:
             ticker (str): Stock ticker symbol
@@ -460,11 +466,12 @@ class StockDataManager:
                 logging.warning(f"No data found for {ticker}")
                 return
             
-            # Resample to weekly data
+            # Resample to weekly and monthly data
             weekly_data = self.resample_data(ticker, resample_freq='W', column=column)
+            monthly_data = self.resample_data(ticker, resample_freq='M', column=column)
             
             # Create side-by-side plots
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 7))
+            fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(30, 7))
             
             # Plot daily data
             ax1.semilogy(daily_data['Date'], daily_data[column])
@@ -482,6 +489,14 @@ class StockDataManager:
             ax2.tick_params(axis='x', rotation=45)
             ax2.grid(True)
             
+            # Plot monthly data
+            ax3.semilogy(monthly_data.index, monthly_data.values)
+            ax3.set_title(f'{ticker} Monthly {column} Prices')
+            ax3.set_xlabel('Date')
+            ax3.set_ylabel(f'{column} Price ($)')
+            ax3.tick_params(axis='x', rotation=45)
+            ax3.grid(True)
+            
             # Adjust layout and add overall title
             plt.tight_layout()
             if title:
@@ -491,7 +506,7 @@ class StockDataManager:
             plt.show()
         
         except Exception as e:
-            logging.error(f"Error visualizing daily vs weekly data for {ticker}: {e}")
+            logging.error(f"Error visualizing data for {ticker}: {e}")
 
 def main():
     """
