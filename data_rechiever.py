@@ -5,6 +5,31 @@ This script provides functionality for downloading, updating, and visualizing st
 
 CHANGELOG:
 ---------
+v1.7.0 (2025-01-02):
+- Introduced logarithmic (semilogy) scaling for stock price visualizations
+- Enhanced price chart readability by using logarithmic y-axis
+- Improved visualization of percentage changes and exponential trends
+- Updated daily and weekly price charts to use logarithmic scaling
+
+v1.6.0 (2025-01-02):
+- Significantly improved data loading robustness
+- Added comprehensive checks for data sufficiency
+- Enhanced error handling for various data loading scenarios
+- Implemented more intelligent column mapping and fallback mechanisms
+- Added index reset to ensure consistent data processing
+
+v1.5.0 (2025-01-02):
+- Improved data loading robustness with dynamic column handling
+- Added flexible column selection in data loading
+- Enhanced error handling for inconsistent data formats
+- Implemented more resilient data parsing mechanism
+
+v1.4.0 (2025-01-02):
+- Added `resample_data()` method to support different time frequency aggregations
+- Implemented `visualize_daily_vs_weekly()` method for side-by-side price comparisons
+- Added flexible resampling with support for daily, weekly, monthly, and quarterly views
+- Enhanced visualization capabilities with multi-frequency plotting
+
 v1.3.0 (2025-01-02):
 - Added `visualize_multiple_tickers()` method to create subplots for multiple stocks
 - Implemented dynamic subplot layout with max 3 columns
@@ -86,6 +111,57 @@ class StockDataManager:
             str: Full path to the ticker's data file
         """
         return os.path.join(self.data_dir, f'{ticker.upper()}_stock_data.tsv')
+    
+    def _load_stock_data(self, ticker: str) -> pd.DataFrame:
+        """
+        Load stock data from a file.
+        
+        Args:
+            ticker (str): Stock ticker symbol
+        
+        Returns:
+            pd.DataFrame: Loaded stock data
+        """
+        try:
+            # Read data
+            data_path = self._get_data_path(ticker)
+            stock_data = pd.read_csv(data_path, sep='\t', header=None)
+            
+            # Handle empty or insufficient data
+            if len(stock_data) <= 3:
+                logging.warning(f"Insufficient data for {ticker}")
+                return pd.DataFrame()
+            
+            # Remove header rows
+            stock_data = stock_data.iloc[3:]
+            
+            # Reset index
+            stock_data.reset_index(drop=True, inplace=True)
+            
+            # Dynamically create column names
+            default_columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
+            
+            # Use actual columns if they match the expected number
+            if len(stock_data.columns) == len(default_columns):
+                stock_data.columns = default_columns
+            else:
+                # Fallback to using available columns
+                stock_data.columns = default_columns[:len(stock_data.columns)]
+            
+            # Convert Date column to datetime
+            stock_data['Date'] = pd.to_datetime(stock_data['Date'])
+            
+            # Convert numeric columns to float
+            numeric_columns = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
+            for col in numeric_columns:
+                if col in stock_data.columns:
+                    stock_data[col] = pd.to_numeric(stock_data[col], errors='coerce')
+            
+            return stock_data
+        
+        except Exception as e:
+            logging.error(f"Error loading data for {ticker}: {e}")
+            return pd.DataFrame()
     
     def initial_download(self, 
                          ticker: str, 
@@ -221,21 +297,8 @@ class StockDataManager:
             title (Optional[str], optional): Custom plot title
         """
         try:
-            # Read data
-            data_path = self._get_data_path(ticker)
-            stock_data = pd.read_csv(data_path, sep='\t')
-            
-            # Convert Date column to datetime
-            stock_data['Date'] = pd.to_datetime(stock_data['Date'])
-            
-            # Convert numeric columns to float
-            numeric_columns = [
-                col for col in ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume'] 
-                if col in stock_data.columns
-            ]
-            
-            for col in numeric_columns:
-                stock_data[col] = pd.to_numeric(stock_data[col], errors='coerce')
+            # Load data
+            stock_data = self._load_stock_data(ticker)
             
             # Validate data
             if stock_data.empty:
@@ -243,6 +306,7 @@ class StockDataManager:
                 return
             
             # If specified column is not available, use the first numeric column
+            numeric_columns = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
             if column not in stock_data.columns:
                 if not numeric_columns:
                     logging.warning("No numeric columns available for plotting")
@@ -294,21 +358,8 @@ class StockDataManager:
                 # Create subplot
                 plt.subplot(rows, cols, idx)
                 
-                # Read data
-                data_path = self._get_data_path(ticker)
-                stock_data = pd.read_csv(data_path, sep='\t')
-                
-                # Convert Date column to datetime
-                stock_data['Date'] = pd.to_datetime(stock_data['Date'])
-                
-                # Convert numeric columns to float
-                numeric_columns = [
-                    col for col in ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume'] 
-                    if col in stock_data.columns
-                ]
-                
-                for col in numeric_columns:
-                    stock_data[col] = pd.to_numeric(stock_data[col], errors='coerce')
+                # Load data
+                stock_data = self._load_stock_data(ticker)
                 
                 # Validate data
                 if stock_data.empty:
@@ -316,6 +367,7 @@ class StockDataManager:
                     continue
                 
                 # If specified column is not available, use the first numeric column
+                numeric_columns = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
                 if column not in stock_data.columns:
                     if not numeric_columns:
                         logging.warning("No numeric columns available for plotting")
@@ -345,6 +397,102 @@ class StockDataManager:
         except Exception as e:
             logging.error(f"Error visualizing data for multiple tickers: {e}")
 
+    def resample_data(self, 
+                       ticker: str, 
+                       resample_freq: str = 'W', 
+                       column: str = 'Close') -> pd.DataFrame:
+        """
+        Resample stock data to a different frequency.
+        
+        Args:
+            ticker (str): Stock ticker symbol
+            resample_freq (str, optional): Resampling frequency. 
+                Defaults to 'W' (weekly). 
+                Common options:
+                - 'D': Daily
+                - 'W': Weekly
+                - 'M': Monthly
+                - 'Q': Quarterly
+            column (str, optional): Column to resample. Defaults to 'Close'.
+        
+        Returns:
+            pd.DataFrame: Resampled stock data
+        """
+        try:
+            # Load data
+            stock_data = self._load_stock_data(ticker)
+            
+            # Validate data
+            if stock_data.empty:
+                logging.warning(f"No data found for {ticker}")
+                return pd.DataFrame()
+            
+            # Set Date as index
+            stock_data.set_index('Date', inplace=True)
+            
+            # Resample the data
+            resampled_data = stock_data[column].resample(resample_freq).last()
+            
+            return resampled_data
+        
+        except Exception as e:
+            logging.error(f"Error resampling data for {ticker}: {e}")
+            return pd.DataFrame()
+
+    def visualize_daily_vs_weekly(self, 
+                                  ticker: str, 
+                                  column: str = 'Close', 
+                                  title: Optional[str] = None) -> None:
+        """
+        Create a side-by-side visualization of daily and weekly stock data.
+        
+        Args:
+            ticker (str): Stock ticker symbol
+            column (str, optional): Column to plot. Defaults to 'Close'.
+            title (Optional[str], optional): Custom plot title
+        """
+        try:
+            # Load daily data
+            daily_data = self._load_stock_data(ticker)
+            
+            # Validate data
+            if daily_data.empty:
+                logging.warning(f"No data found for {ticker}")
+                return
+            
+            # Resample to weekly data
+            weekly_data = self.resample_data(ticker, resample_freq='W', column=column)
+            
+            # Create side-by-side plots
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 7))
+            
+            # Plot daily data
+            ax1.semilogy(daily_data['Date'], daily_data[column])
+            ax1.set_title(f'{ticker} Daily {column} Prices')
+            ax1.set_xlabel('Date')
+            ax1.set_ylabel(f'{column} Price ($)')
+            ax1.tick_params(axis='x', rotation=45)
+            ax1.grid(True)
+            
+            # Plot weekly data
+            ax2.semilogy(weekly_data.index, weekly_data.values)
+            ax2.set_title(f'{ticker} Weekly {column} Prices')
+            ax2.set_xlabel('Date')
+            ax2.set_ylabel(f'{column} Price ($)')
+            ax2.tick_params(axis='x', rotation=45)
+            ax2.grid(True)
+            
+            # Adjust layout and add overall title
+            plt.tight_layout()
+            if title:
+                plt.suptitle(title, fontsize=16)
+            
+            # Show the plot
+            plt.show()
+        
+        except Exception as e:
+            logging.error(f"Error visualizing daily vs weekly data for {ticker}: {e}")
+
 def main():
     """
     Demonstrate stock data management functionalities.
@@ -364,7 +512,10 @@ def main():
         updated_data = stock_manager.update_data(ticker)
     
     # Visualize multiple tickers
-    stock_manager.visualize_multiple_tickers(tickers)
+    # stock_manager.visualize_multiple_tickers(tickers)
+    
+    # Visualize daily vs weekly for first ticker
+    stock_manager.visualize_daily_vs_weekly(tickers[0])
 
 if __name__ == '__main__':
     main()
