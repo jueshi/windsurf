@@ -5,6 +5,11 @@ This script provides functionality for downloading, updating, and visualizing st
 
 CHANGELOG:
 ---------
+v1.9.0 (2025-01-02):
+- Enhanced main function to visualize daily, weekly, and monthly charts for all tickers
+- Automated visualization process for multiple stock tickers
+- Improved script flexibility for comprehensive stock data analysis
+
 v1.8.0 (2025-01-02):
 - Extended stock price visualization to include monthly price charts
 - Enhanced multi-frequency price visualization with daily, weekly, and monthly views
@@ -381,8 +386,9 @@ class StockDataManager:
                     column = numeric_columns[0]
                     logging.info(f"Defaulting to column: {column}")
                 
+                
                 # Plot the data
-                plt.plot(stock_data['Date'], stock_data[column], label=ticker)
+                plt.semilogy(stock_data['Date'], stock_data[column], label=ticker)
                 
                 # Set title and labels
                 plt.title(f'{ticker} Stock {column} Prices')
@@ -397,6 +403,9 @@ class StockDataManager:
             if title:
                 plt.suptitle(title, fontsize=16)
             
+            # Save the plot
+            plt.savefig(os.path.join(STOCK_DATA_DIR, f'{tickers[0]}_stock_prices.png'), dpi=300, bbox_inches='tight')
+
             # Show the plot
             plt.show()
         
@@ -502,6 +511,10 @@ class StockDataManager:
             if title:
                 plt.suptitle(title, fontsize=16)
             
+            # Save the plot to the stock_data folder
+            plt.savefig(os.path.join(STOCK_DATA_DIR, f'{ticker}_{column}_daily_weekly_monthly.png'), dpi=300)
+            
+
             # Show the plot
             plt.show()
         
@@ -516,8 +529,10 @@ def main():
     stock_manager = StockDataManager()
     
     # List of tickers to process
-    tickers = ['AAPL', 'GOOGL', 'MSFT']
-    
+    tickers = ['DIA' 'SPY', 'QQQ', 'IWM', 'GLD','AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'META', 'NVDA', 'BRK-B','AVGO',
+               'COST','MCD','BABA','AMD','NIO','AFRM','CQQQ','SPYX','SPYV','SPYU','CRM','ADI','TXN','AAOI','EWS','NKE',
+               'AMZA','YINN','JD','BIDU','TNA','TECS','TECL','INTC','TSM','LRCX','MRVL','SPMO','WDC']
+    # tickers = ['BRK/B','BRK-B','LRCX','MRVL','SPMO','WDC']    
     # Process each ticker
     for ticker in tickers:
         # Perform initial download (if not already done)
@@ -527,10 +542,11 @@ def main():
         updated_data = stock_manager.update_data(ticker)
     
     # Visualize multiple tickers
-    # stock_manager.visualize_multiple_tickers(tickers)
+    stock_manager.visualize_multiple_tickers(tickers)
     
-    # Visualize daily vs weekly for first ticker
-    stock_manager.visualize_daily_vs_weekly(tickers[0])
+    # Visualize daily, weekly, and monthly charts for each ticker
+    for ticker in tickers:
+        stock_manager.visualize_daily_vs_weekly(ticker)
 
 if __name__ == '__main__':
     main()
