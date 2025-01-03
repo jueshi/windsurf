@@ -112,16 +112,19 @@ class StockDataManager:
     
     Attributes:
         data_dir (str): Directory to store stock data files
+        plot_save_path (str): Path to save plots
     """
     
-    def __init__(self, data_dir: str = STOCK_DATA_DIR):
+    def __init__(self, data_dir: str = STOCK_DATA_DIR, plot_save_path: str = STOCK_DATA_DIR):
         """
         Initialize the StockDataManager.
         
         Args:
             data_dir (str, optional): Directory to store stock data. Defaults to STOCK_DATA_DIR.
+            plot_save_path (str, optional): Path to save plots. Defaults to STOCK_DATA_DIR.
         """
         self.data_dir = data_dir
+        self.plot_save_path = plot_save_path
         os.makedirs(self.data_dir, exist_ok=True)
     
     def _get_data_path(self, ticker: str) -> str:
@@ -453,7 +456,7 @@ class StockDataManager:
                 plt.suptitle(title, fontsize=16)
             
             # Save the plot
-            plt.savefig(os.path.join(STOCK_DATA_DIR, f'{tickers[0]}_stock_prices.png'), dpi=300, bbox_inches='tight')
+            plt.savefig(os.path.join(self.plot_save_path, f'{"_".join(tickers)}_stock_prices.png'), dpi=300, bbox_inches='tight')
 
             # Show the plot
             # plt.show()
@@ -550,7 +553,7 @@ class StockDataManager:
             
             # Adjust layout and save figure
             plt.tight_layout()
-            plt.savefig(os.path.join(STOCK_DATA_DIR, f'{ticker}_{column}_daily_weekly_monthly.png'), dpi=300)
+            plt.savefig(os.path.join(self.plot_save_path, f'{ticker}_{column}_daily_weekly_monthly.png'), dpi=300)
             plt.close(fig)
             
             logging.info(f"Generated visualization for {ticker}")
@@ -558,14 +561,18 @@ class StockDataManager:
         except Exception as e:
             logging.error(f"Error visualizing data for {ticker}: {e}")
 
-    def generate_html_report(self, plots_dir=STOCK_DATA_DIR):
+    def generate_html_report(self, plots_dir=None):
         """
         Generate an HTML report with embedded stock plots
         
         Args:
-            plots_dir (str, optional): Directory containing plot images. Defaults to STOCK_DATA_DIR.
+            plots_dir (str, optional): Directory containing plot images. Defaults to current plot_save_path.
         """
         try:
+            # Use current plot_save_path if no directory specified
+            if plots_dir is None:
+                plots_dir = self.plot_save_path
+
             # Import required libraries
             import os
             import glob
@@ -616,7 +623,7 @@ class StockDataManager:
                 html_content += f"""
                     <div class="plot-item">
                         <h2>{ticker} Stock Prices</h2>
-                        <img src="{plot_file}" alt="{ticker} Stock Price Plot">
+                        <img src="{os.path.basename(plot_file)}" alt="{ticker} Stock Price Plot">
                     </div>
                 """
 
@@ -628,7 +635,7 @@ class StockDataManager:
             """
 
             # Save HTML report
-            report_path = os.path.join('C:/Users/juesh/OneDrive/Documents/windsurf/', 'stock_analysis_report.html')
+            report_path = os.path.abspath(os.path.join(plots_dir, 'stock_analysis_report.html'))
             with open(report_path, 'w') as f:
                 f.write(html_content)
 
@@ -641,27 +648,95 @@ class StockDataManager:
         except Exception as e:
             logging.error(f"Error generating HTML report: {e}")
 
-    def process_stock_data(self, tickers):
+    def get_name(self, var):
+        """
+        Get the name of a variable (for debugging/logging purposes)
+        
+        Args:
+            var: Variable to get the name of
+        
+        Returns:
+            str: Name of the variable or a default string
+        """
+        try:
+            # Try to get the name from the caller's locals
+            import inspect
+            
+            # Walk through the call stack
+            for frame_record in inspect.stack()[1:]:
+                frame = frame_record[0]
+                local_vars = frame.f_locals
+                
+                # Look for variable names that match the input
+                for name, value in local_vars.items():
+                    # Check if the value is the exact list passed
+                    if value is var or (isinstance(value, list) and value == var):
+                        return name
+            
+            # If no name found, fallback to list contents
+            if isinstance(var, list) and all(isinstance(x, str) for x in var):
+                return '_'.join(sorted(var))
+            
+            # Most conservative fallback
+            return 'stock_data_' + '_'.join(map(str, var)) if var else 'unknown_tickers'
+        
+        except Exception as e:
+            logging.error(f"Error in get_name: {e}")
+            return 'stock_data_unknown'
+
+    def process_stock_data(self, tickers=[], name=None):
         """
         Process and visualize stock data for multiple tickers
         
         Args:
             tickers (list): List of stock tickers to process
+            name (str, optional): Custom name for the data folder. Defaults to None.
         """
+        # Validate input
+        if not tickers:
+            logging.warning("No tickers provided for processing")
+            return
+
+        # Determine folder name
+        if name:
+            folder_name = name
+        else:
+            # Try to get the variable name from the caller's locals
+            import inspect
+            try:
+                frame = inspect.currentframe().f_back
+                for var_name, var_value in frame.f_locals.items():
+                    if var_value is tickers:
+                        folder_name = var_name
+                        break
+                else:
+                    # Fallback to sorted tickers
+                    folder_name = '_'.join(sorted(tickers))
+            except Exception:
+                # Most conservative fallback
+                folder_name = '_'.join(sorted(tickers))
+
+        # Create subfolder 
+        folder_path = os.path.join('stock_data', folder_name)
+        os.makedirs(folder_path, exist_ok=True)
+
+        # Create a new stock manager with the specific plot save path
+        stock_manager = StockDataManager(plot_save_path=folder_path)
+
         try:
             # Update and process data for each ticker
             for ticker in tickers:
                 # Download and update stock data
-                self.update_data(ticker)
+                stock_manager.update_data(ticker)
                 
                 # Visualize stock prices
-                self.visualize_multiple_tickers([ticker])
+                stock_manager.visualize_multiple_tickers([ticker])
                 
                 # Visualize daily, weekly, and monthly data
-                self.visualize_daily_vs_weekly(ticker)
+                stock_manager.visualize_daily_vs_weekly(ticker)
             
             # Generate HTML report after processing all tickers
-            self.generate_html_report()
+            stock_manager.generate_html_report()
         
         except Exception as e:
             logging.error(f"Error processing stock data: {e}")
@@ -671,23 +746,23 @@ def main():
     stock_manager = StockDataManager()
     
     # List of tickers to process
-    tickers0 = ['ALAB','PSTR','QQQ', 'IWM', 'GLD','AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'META', 'NVDA', 'BRK-B','AVGO',
+    Jues401k = ['ALAB','PSTR','QQQ', 'IWM', 'GLD','AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'META', 'NVDA', 'BRK-B','AVGO',
                'COST','MCD','BABA','AMD','NIO','AFRM','CQQQ','SPYX','SPYV','SPYU','CRM','ADI','TXN','AAOI','EWS','NKE',
                'AMZA','YINN','JD','BIDU','TNA','TECS','TECL','INTC','TSM','LRCX','MRVL','SPMO','WDC']
      
-    tickers1 = ["CSCO", "V", "MA", "AXP", "SAP", "TSM", "AMZN", "JPM", "NFLX", "GOOGL", "GOOG", "META", "AAPL", "WMT", "BAC", "AVGO", "MCD", "PG", "IBM", "BRK-B"]
-    tickers2 = ["MS", "NOW", "BRK-A", "NVDA", "COST", "ACN", "WFC", "CRM", "DIS", "MSFT", "TMUS", "HD", "CVX", "ABBV", "BX", "JNJ", "XOM", "KO", "ORCL", "PEP"]    
+    new_highs1 = ["CSCO", "V", "MA", "AXP", "SAP", "TSM", "AMZN", "JPM", "NFLX", "GOOGL", "GOOG", "META", "AAPL", "WMT", "BAC", "AVGO", "MCD", "PG", "IBM", "BRK-B"]
+    new_highs2 = ["MS", "NOW", "BRK-A", "NVDA", "COST", "ACN", "WFC", "CRM", "DIS", "MSFT", "TMUS", "HD", "CVX", "ABBV", "BX", "JNJ", "XOM", "KO", "ORCL", "PEP"]    
     
     # Combine and remove duplicates
     # tickers = list(set(tickers0 + tickers1 + tickers2))
     
-    tickers = ['BRK-B','LRCX','MRVL']   
+    test_tickers = ['BRK-B','LRCX','MRVL']   
     # tickers = ["PSTR"]
     
     '''use AI to gennerate a pythhon list of stock tickers from the table below.'''
 
     # Process stock data
-    stock_manager.process_stock_data(tickers)
+    stock_manager.process_stock_data(tickers=test_tickers, name='test_tickers')
 
 if __name__ == '__main__':
     main()
