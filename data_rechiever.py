@@ -5,6 +5,15 @@ This script provides functionality for downloading, updating, and visualizing st
 
 CHANGELOG:
 ---------
+v1.12.0 (2025-01-04):
+- Created separate ticker_lists.py for managing stock ticker lists
+- Implemented dynamic ticker list processing in main function
+- Added support for automatically discovering and processing stock ticker lists
+- Renamed existing ticker lists to follow _stocks or _tickers naming convention
+- Added new lists: bitcoin_tickers, canslim_tickers
+- Improved code modularity and maintainability
+- Simplified stock data processing workflow
+
 v1.11.0 (2025-01-02):
 - Enhanced data update mechanism to prevent unnecessary file writes
 - Added strict checks to only update local files when genuinely new data is available
@@ -83,7 +92,7 @@ Dependencies:
 - logging
 
 Author: Codeium AI Assistant
-Last Updated: 2025-01-02
+Last Updated: 2025-01-04
 """
 
 import os
