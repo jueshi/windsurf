@@ -94,6 +94,8 @@ import matplotlib.pyplot as plt
 import logging
 import numpy as np
 from typing import Optional, List, Any
+import webbrowser
+from ticker_lists import *
 
 # Configure logging
 logging.basicConfig(
@@ -396,7 +398,7 @@ class StockDataManager:
             logging.error(f"Error visualizing data for {ticker}: {e}")
 
     def visualize_multiple_tickers(self, 
-                              tickers: List[str], 
+                              tickers: List[str], folder_name: str,
                               column: str = 'Close', 
                               title: Optional[str] = None) -> None:
         """
@@ -456,7 +458,7 @@ class StockDataManager:
                 plt.suptitle(title, fontsize=16)
             
             # Save the plot
-            plt.savefig(os.path.join(self.plot_save_path, f'{"_".join(tickers)}_stock_prices.png'), dpi=300, bbox_inches='tight')
+            plt.savefig(os.path.join(self.plot_save_path, f'{folder_name}_stock_prices.png'), dpi=300, bbox_inches='tight')
 
             # Show the plot
             # plt.show()
@@ -520,7 +522,7 @@ class StockDataManager:
             weekly_data.index = pd.to_datetime(weekly_data.index)
             
             # Create figure with three subplots
-            fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(30, 7))
+            fig, (ax3, ax2, ax1) = plt.subplots(1, 3, figsize=(30, 7))
             
             # Plot daily data for recent year
             recent_year_data = daily_data[daily_data.index > daily_data.index.max() - pd.Timedelta(days=365)]
@@ -640,8 +642,8 @@ class StockDataManager:
                 f.write(html_content)
 
             # Open the report in Microsoft Edge
-            # webbrowser.register('edge', None, webbrowser.BackgroundBrowser(r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'))
-            # webbrowser.get('edge').open(f'file://{report_path}')
+            webbrowser.register('edge', None, webbrowser.BackgroundBrowser(r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'))
+            webbrowser.get('edge').open(f'file://{report_path}')
 
             logging.info(f"Generated stock analysis report at {report_path}")
 
@@ -666,10 +668,11 @@ class StockDataManager:
             folder_name = name
         else:
             # Try to get the variable name from the caller's locals
-            import inspect
+            # import inspect #use when ticker_list is defined inside the main function so it's not globale
             try:
-                frame = inspect.currentframe().f_back
-                for var_name, var_value in frame.f_locals.items():
+                # frame = inspect.currentframe().f_back
+                # for var_name, var_value in frame.f_locals.items():
+                for var_name, var_value in globals().items(): #ticker_list is globale variable now
                     if var_value is tickers:
                         folder_name = var_name
                         break
@@ -693,11 +696,11 @@ class StockDataManager:
                 # Download and update stock data
                 stock_manager.update_data(ticker)
                 
-                # Visualize stock prices
-                stock_manager.visualize_multiple_tickers([ticker])
-                
                 # Visualize daily, weekly, and monthly data
                 stock_manager.visualize_daily_vs_weekly(ticker)
+            
+            # Visualize stock prices
+            stock_manager.visualize_multiple_tickers(tickers, folder_name)            
             
             # Generate HTML report after processing all tickers
             stock_manager.generate_html_report()
@@ -706,28 +709,39 @@ class StockDataManager:
             logging.error(f"Error processing stock data: {e}")
 
 def main():
+    r'''use AI to gennerate a pythhon list of stock tickers from content in clipboard.
+    C:\Users\juesh\OneDrive\Documents\cursor\AI_ticker_extractor.py'''
+
     # Initialize stock manager
     stock_manager = StockDataManager()
     
-    # List of tickers to process
-    Jues401k = ['ALAB','PSTR','QQQ', 'IWM', 'GLD','AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'META', 'NVDA', 'BRK-B','AVGO',
-               'COST','MCD','BABA','AMD','NIO','AFRM','CQQQ','SPYX','SPYV','SPYU','CRM','ADI','TXN','AAOI','EWS','NKE',
-               'AMZA','YINN','JD','BIDU','TNA','TECS','TECL','INTC','TSM','LRCX','MRVL','SPMO','WDC']
-     
-    new_highs1 = ["CSCO", "V", "MA", "AXP", "SAP", "TSM", "AMZN", "JPM", "NFLX", "GOOGL", "GOOG", "META", "AAPL", "WMT", "BAC", "AVGO", "MCD", "PG", "IBM", "BRK-B"]
-    new_highs2 = ["MS", "NOW", "BRK-A", "NVDA", "COST", "ACN", "WFC", "CRM", "DIS", "MSFT", "TMUS", "HD", "CVX", "ABBV", "BX", "JNJ", "XOM", "KO", "ORCL", "PEP"]        
-    # Combine and remove duplicates
-    new_highs = list(set(new_highs1 + new_highs2))
+    # Dynamically find all stock ticker lists
+    ticker_lists = [var for var in globals() 
+                    if isinstance(globals()[var], list) 
+                    and (var.endswith('_stocks') or var.endswith('_tickers'))
+                    and var != 'ticker_lists']
     
-    test_tickers = ['BRK-B','LRCX','MRVL']   
-    # tickers = ["PSTR"]
+    print(f"Found {len(ticker_lists)} ticker lists")
+    for ticker_list in ticker_lists:
+        print(f"Processing {ticker_list}: {len(globals()[ticker_list])} tickers")
+        # Uncomment the next line when ready to process
+        # stock_manager.process_stock_data(globals()[ticker_list])
+        
+    # test_tickers = ['BRK-B','LRCX','MRVL']   
     
-    '''use AI to gennerate a pythhon list of stock tickers from the table below.'''
-
     # Process stock data
-    stock_manager.process_stock_data(tickers=Jues401k)
-    stock_manager.process_stock_data(tickers=new_highs, name='new_highs')
+    # stock_manager.process_stock_data(tickers=top_sectors)
+    # stock_manager.process_stock_data(tickers=recent_analyst_upgrades)
+    # stock_manager.process_stock_data(tickers=ibd_50_stocks)
+    # stock_manager.process_stock_data(tickers=zacks_rank_1_stocks)
+    # stock_manager.process_stock_data(tickers=positive_earnings_surprise_stocks)
+    # stock_manager.process_stock_data(tickers=Jues401k)
+    # stock_manager.process_stock_data(tickers=new_highs, name='new_highs')
+    # stock_manager.process_stock_data(tickers=new_lows)
     # stock_manager.process_stock_data(tickers=test_tickers)
+    # stock_manager.process_stock_data(tickers=bitcoin_tickers)
+    stock_manager.process_stock_data(tickers=canslim_tickers)
+    
 
 
 if __name__ == '__main__':
