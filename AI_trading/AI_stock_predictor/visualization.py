@@ -74,10 +74,10 @@ def plot_predictions(
         validation_predictions = []
         validation_y_test = []
         
-        # Iterate through validation indices to get predictions
+        # Iterate through predictions to get dates and values
         for i in range(len(normalized_predictions)):
-            # Get the prediction date (window_size days after start of window)
-            pred_date = stock_dates[first_validation_index + i + window_size]
+            # Get the prediction date 
+            pred_date = stock_dates[first_validation_index + i + window_size - 1]
             
             # Only add if date is in validation period
             if pred_date >= first_validation_date:

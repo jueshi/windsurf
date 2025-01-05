@@ -44,6 +44,29 @@
 - Sliding window approach now generates predictions for every date in validation period
 - Future predictions range and accuracy improved
 
+## [2025-01-04] - Comprehensive Validation Period Extension
+
+### Changed
+- Significantly improved sliding window generation in `data_preprocessing.py`
+  - Extended validation period to cover the entire last trading day
+  - Removed artificial constraints on prediction window generation
+  - Increased total validation windows from 163 to 193
+
+### Fixed
+- Resolved indexing issues in `visualization.py`
+  - Corrected date alignment for prediction visualization
+  - Ensured accurate representation of prediction dates
+  - Fixed potential index out of bounds errors
+
+### Performance
+- Validation period now spans from 2024-04-01 to 2025-01-03
+- Maintained low prediction errors across extended validation period
+- Improved prediction coverage and accuracy
+
+### Notes
+- Sliding window approach now generates predictions for every possible date
+- Visualization now accurately represents predictions for the entire validation period
+
 ## [1.0.0] - Initial Release
 - Initial project setup
 - Basic stock prediction pipeline

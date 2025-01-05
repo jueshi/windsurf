@@ -100,21 +100,21 @@ def create_sliding_windows(data, window_size=60, forecast_horizon=30):
     # Create sliding windows
     X, y, validation_indices, validation_prices, validation_dates = [], [], [], [], []
     
-    # Iterate through the validation period to create sliding windows
-    for i in range(train_split, len(normalized_data) - window_size - forecast_horizon + 1):
+    # Iterate through the entire period after training split to create sliding windows
+    for i in range(train_split, len(normalized_data) - window_size + 1):
         # Extract input window
         X_window = normalized_data[i-window_size:i]
         
         # Extract target (next day's closing price)
-        y_window = normalized_data[i+window_size, 0]  # Assuming first column is Close price
+        y_window = normalized_data[i+window_size-1, 0]  # Assuming first column is Close price
         
         X.append(X_window)
         y.append(y_window)
         
         # Track validation indices, prices, and dates
         validation_indices.append(i)
-        validation_prices.append(data_array[i+window_size, 0])  # Original close price
-        validation_dates.append(data.index[i+window_size])
+        validation_prices.append(data_array[i+window_size-1, 0])  # Original close price
+        validation_dates.append(data.index[i+window_size-1])
     
     # Convert to numpy arrays
     X = np.array(X)
@@ -196,3 +196,69 @@ def train_test_split_custom(data, test_size=0.2, shuffle=False):
     test_data = data[split_idx:]
     
     return train_data, test_data
+
+def split_data(df, train_end_date=None, validation_start_date=None, validation_end_date=None):
+    """
+    Split data into training and validation sets based on dates
+    
+    Args:
+        df (pd.DataFrame): Input stock price dataframe
+        train_end_date (str or pd.Timestamp, optional): Last date of training period 
+        validation_start_date (str or pd.Timestamp, optional): First date of validation period
+        validation_end_date (str or pd.Timestamp, optional): Last date of validation period
+    
+    Returns:
+        tuple: (X_train, y_train, X_test, y_test, train_dates, test_dates)
+    """
+    import pandas as pd
+    import numpy as np
+    
+    # Convert dates to pandas Timestamp if they are strings
+    if isinstance(train_end_date, str):
+        train_end_date = pd.Timestamp(train_end_date)
+    if isinstance(validation_start_date, str):
+        validation_start_date = pd.Timestamp(validation_start_date)
+    if isinstance(validation_end_date, str):
+        validation_end_date = pd.Timestamp(validation_end_date)
+    
+    # If no train_end_date specified, use the last date of the dataset minus 1 year
+    if train_end_date is None:
+        train_end_date = df.index[-1] - pd.DateOffset(years=1)
+    
+    # If no validation_start_date specified, use the day after train_end_date
+    if validation_start_date is None:
+        validation_start_date = train_end_date + pd.Timedelta(days=1)
+    
+    # If no validation_end_date specified, use the last date of the dataset
+    if validation_end_date is None:
+        validation_end_date = df.index[-1]
+    
+    # Create masks for training and validation periods
+    train_mask = (df.index <= train_end_date)
+    validation_mask = (df.index >= validation_start_date) & (df.index <= validation_end_date)
+    
+    # Split data
+    train_data = df[train_mask]
+    validation_data = df[validation_mask]
+    
+    # Print data range and split details
+    print("\n===== Data Range and Sliding Window Analysis =====")
+    print("Full Dataset:")
+    print(f"  Total Data Points: {len(df)}")
+    print(f"  Date Range: {df.index[0]} to {df.index[-1]}")
+    print(f"  Total Duration: {(df.index[-1] - df.index[0]).days} days")
+    
+    print("\nData Split Details:")
+    print("  Training Period:")
+    print(f"    Start: {df.index[0]}")
+    print(f"    End: {train_end_date}")
+    print(f"    Duration: {(train_end_date - df.index[0]).days} days")
+    print(f"    Data Points: {len(train_data)}")
+    
+    print("  Validation Period:")
+    print(f"    Start: {validation_start_date}")
+    print(f"    End: {validation_end_date}")
+    print(f"    Duration: {(validation_end_date - validation_start_date).days} days")
+    print(f"    Data Points: {len(validation_data)}")
+    
+    return train_data, validation_data
