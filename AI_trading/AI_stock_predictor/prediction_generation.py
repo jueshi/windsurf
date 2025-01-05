@@ -4,24 +4,114 @@ import pandas as pd
 from datetime import datetime
 import json
 import os
+from sklearn.preprocessing import MinMaxScaler
 
-def generate_predictions(model, X_test, scaler, forecast_horizon):
-    """Generate predictions using PyTorch model"""
-    model.eval()
-    with torch.no_grad():
-        X_test_tensor = torch.FloatTensor(X_test)
-        predictions = model(X_test_tensor)
-        
-        # Ensure predictions are numpy array
-        predictions_np = predictions.numpy()
-        
-        # Reshape predictions to match scaler
-        predictions_reshaped = predictions_np.reshape(-1, 1)
-        
-        # Inverse transform predictions
-        predictions_rescaled = scaler.inverse_transform(predictions_reshaped)
+def generate_predictions(model, X_test, forecast_horizon=30, scalers=None):
+    """
+    Generate predictions using the trained model
     
-    return predictions_rescaled
+    Args:
+        model (torch.nn.Module): Trained LSTM model
+        X_test (np.ndarray): Input test data
+        forecast_horizon (int): Number of future time steps to predict
+        scalers (list, optional): List of scalers used for normalization
+    
+    Returns:
+        tuple: Test predictions and future predictions
+    """
+    # Set model to evaluation mode
+    model.eval()
+    
+    # Ensure input is torch tensor
+    X_test_tensor = torch.FloatTensor(X_test)
+    
+    # Disable gradient computation
+    with torch.no_grad():
+        # Predict for the entire test set (validation period)
+        test_predictions = []
+        
+        # Slide through the entire test data
+        for i in range(len(X_test)):
+            # Get current sequence
+            current_sequence = X_test[i]
+            
+            # Convert to tensor and predict
+            current_sequence_tensor = torch.FloatTensor(current_sequence).unsqueeze(0)
+            current_prediction = model(current_sequence_tensor).numpy()[0]
+            
+            # Store prediction
+            test_predictions.append(current_prediction)
+        
+        # Convert to numpy array
+        test_predictions = np.array(test_predictions)
+        
+        # Prepare for future predictions beyond validation period
+        last_sequence = X_test[-1]  # Last sequence from test data
+        future_predictions = []
+        
+        # Predict future time steps
+        for _ in range(forecast_horizon):
+            # Convert last sequence to tensor
+            last_seq_tensor = torch.FloatTensor(last_sequence).unsqueeze(0)
+            
+            # Predict next time step
+            next_pred = model(last_seq_tensor).numpy()[0]
+            future_predictions.append(next_pred)
+            
+            # Update last sequence by removing first time step and adding prediction
+            last_sequence = np.roll(last_sequence, -1, axis=0)
+            last_sequence[-1] = next_pred
+    
+    # Print diagnostic information
+    print("\nPrediction Generation Diagnostics:")
+    print("Input test data shape:", X_test.shape)
+    print("Test predictions shape:", test_predictions.shape)
+    print("Future predictions shape:", len(future_predictions))
+    
+    print("\nTest Predictions Range:")
+    print("Min:", np.min(test_predictions))
+    print("Max:", np.max(test_predictions))
+    print("Mean:", np.mean(test_predictions))
+    
+    print("\nFuture Predictions Range:")
+    print("Min:", np.min(future_predictions))
+    print("Max:", np.max(future_predictions))
+    print("Mean:", np.mean(future_predictions))
+    
+    return test_predictions, np.array(future_predictions)
+
+def rescale_predictions(predictions, original_data, scaler):
+    """
+    Rescale predictions to original data range
+    
+    Args:
+        predictions (np.ndarray): Normalized predictions
+        original_data (np.ndarray): Original stock price data
+        scaler (MinMaxScaler): Scaler used for normalization
+    
+    Returns:
+        np.ndarray: Rescaled predictions
+    """
+    try:
+        # Ensure predictions are 2D for inverse_transform
+        if predictions.ndim == 1:
+            predictions = predictions.reshape(-1, 1)
+        
+        # Inverse transform using the scaler
+        if scaler:
+            rescaled_predictions = scaler.inverse_transform(predictions)
+        else:
+            # Fallback manual scaling if no scaler
+            min_price = np.min(original_data[:, 0])
+            max_price = np.max(original_data[:, 0])
+            rescaled_predictions = predictions * (max_price - min_price) + min_price
+        
+        return rescaled_predictions.flatten()
+    
+    except Exception as e:
+        print(f"Error during rescaling: {e}")
+        # Fallback to original predictions if scaling fails
+        return predictions.flatten()
 
 def calculate_confidence_intervals(predictions, confidence_level=0.95):
     """Calculate confidence intervals for predictions"""
@@ -41,35 +131,31 @@ def calculate_confidence_intervals(predictions, confidence_level=0.95):
     }
 
 def assess_risk(predictions, stock_data):
-    """Assess risk based on predictions and historical data"""
-    # Ensure predictions is a numpy array
-    predictions = np.array(predictions).flatten()
+    """
+    Assess risk based on model predictions
     
-    # Calculate volatility (standard deviation of returns)
-    historical_returns = stock_data['Close'].pct_change()
-    volatility = historical_returns.std()
+    Args:
+        predictions (np.ndarray): Model predictions
+        stock_data (pd.DataFrame): Original stock data
     
-    # Calculate prediction volatility
-    prediction_volatility = np.std(predictions)
+    Returns:
+        dict: Risk assessment metrics
+    """
+    # Convert predictions to float
+    predictions = np.array(predictions, dtype=float)
     
-    # Simple risk scoring mechanism
-    risk_score = (volatility + prediction_volatility) / 2
+    # Volatility calculation
+    returns = stock_data['Close'].pct_change()
     
-    # Categorize risk level
-    if risk_score < 0.05:
-        risk_level = 'Low'
-    elif risk_score < 0.1:
-        risk_level = 'Medium'
-    else:
-        risk_level = 'High'
-    
-    return {
-        'volatility': float(volatility),
-        'max_drawdown': float(historical_returns.min()),
-        'risk_score': float(risk_score),
-        'risk_level': risk_level,
-        'prediction_volatility': float(prediction_volatility)
+    # Ensure numeric values
+    risk_metrics = {
+        'volatility': float(returns.std()),
+        'max_drawdown': float((returns.cummax() - returns).max()),
+        'prediction_variance': float(np.var(predictions)),
+        'prediction_range': float(np.max(predictions) - np.min(predictions))
     }
+    
+    return risk_metrics
 
 def log_predictions(predictions, confidence_intervals, risk_assessment, ticker):
     """Log predictions to a JSON file"""
@@ -88,9 +174,8 @@ def log_predictions(predictions, confidence_intervals, risk_assessment, ticker):
         'risk_assessment': {
             'volatility': risk_assessment.get('volatility', 0),
             'max_drawdown': risk_assessment.get('max_drawdown', 0),
-            'risk_score': risk_assessment.get('risk_score', 0),
-            'risk_level': risk_assessment.get('risk_level', 'Unknown'),
-            'prediction_volatility': risk_assessment.get('prediction_volatility', 0)
+            'prediction_variance': risk_assessment.get('prediction_variance', 0),
+            'prediction_range': risk_assessment.get('prediction_range', 0)
         }
     }
     
