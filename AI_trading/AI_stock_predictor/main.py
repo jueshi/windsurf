@@ -8,6 +8,7 @@ from model import StockPricePredictionModel
 from prediction_generation import generate_predictions, calculate_confidence_intervals, assess_risk, rescale_predictions
 from visualization import plot_predictions, plot_prediction_error, plot_risk_assessment, save_plots
 from training import train_model
+import pandas as pd
 
 # command to run it: venv\Scripts\python.exe main.py AAPL --epochs 100 --window_size 60 --forecast_horizon 30
 def main(ticker, epochs=100, batch_size=32, window_size=60, forecast_horizon=30):
@@ -39,7 +40,7 @@ def main(ticker, epochs=100, batch_size=32, window_size=60, forecast_horizon=30)
         cleaned_stock_data = clean_stock_data(stock_data)
         
         # Create sliding windows
-        X_train, X_test, y_train, y_test, scalers, validation_indices, validation_prices, original_data = create_sliding_windows(
+        X_train, X_test, y_train, y_test, scalers, validation_indices, validation_prices, original_data, train_split = create_sliding_windows(
             cleaned_stock_data, 
             window_size=window_size, 
             forecast_horizon=forecast_horizon
@@ -114,22 +115,31 @@ def main(ticker, epochs=100, batch_size=32, window_size=60, forecast_horizon=30)
         
         # Step 5: Visualization
         print("5. Creating visualizations...")
-        prediction_plot = plot_predictions(
-            stock_data, 
-            normalized_predictions, 
-            normalized_future_predictions, 
-            y_test, 
-            scalers[0], 
-            ticker,
-            validation_indices=validation_indices,
-            window_size=window_size
+        y_test_rescaled = rescale_predictions(y_test, original_data, scalers[0])
+        
+        # Create validation dates
+        validation_dates = stock_data.index[train_split:train_split+len(y_test_rescaled)]
+        
+        # Calculate future dates starting from the next trading day after the last day
+        last_trading_day = stock_data.index[-1]
+        future_dates = pd.date_range(
+            start=last_trading_day + pd.offsets.BDay(1), 
+            periods=forecast_horizon
+        )
+        
+        plot_predictions(
+            actual_prices=y_test_rescaled, 
+            predicted_prices=predictions_rescaled, 
+            future_predictions=future_predictions_rescaled,
+            future_dates=future_dates,
+            validation_dates=validation_dates,
+            ticker=ticker
         )
         
         error_plot = plot_prediction_error(stock_data, predictions_rescaled, {}, X_train, X_test, y_train, y_test)
         risk_plot = plot_risk_assessment(risk_assessment)
         
         # Save results
-        save_plots(prediction_plot, f'{ticker}_predictions')
         save_plots(error_plot, f'{ticker}_prediction_error')
         save_plots(risk_plot, f'{ticker}_risk_assessment')
         

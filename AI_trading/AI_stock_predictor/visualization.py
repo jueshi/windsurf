@@ -3,185 +3,69 @@ import numpy as np
 import pandas as pd
 import os
 from sklearn.preprocessing import MinMaxScaler
+import torch
 
-def plot_predictions(
-    stock_data, 
-    normalized_predictions, 
-    normalized_future_predictions, 
-    y_test, 
-    scaler, 
-    ticker,
-    validation_indices=None,
-    window_size=60
-):
+def plot_predictions(actual_prices, predicted_prices, future_predictions=None, future_dates=None, 
+                    validation_dates=None, ticker='Stock', save_path='stock_prediction.png'):
     """
-    Create a comprehensive plot of actual vs predicted stock prices
+    Create a comprehensive visualization of actual vs predicted prices with optional future predictions
     
     Args:
-        stock_data (pd.DataFrame): Original stock price data
-        normalized_predictions (np.ndarray): Normalized test predictions
-        normalized_future_predictions (np.ndarray): Normalized future predictions
-        y_test (np.ndarray): Actual test target values
-        scaler (MinMaxScaler): Scaler used for normalization
-        ticker (str): Stock ticker symbol
-        validation_indices (list, optional): Indices for validation windows
-        window_size (int): Size of the input window
-    
-    Returns:
-        matplotlib.figure.Figure: Prediction visualization plot
+        actual_prices (np.array): Actual stock prices during validation period
+        predicted_prices (np.array): Predicted stock prices for validation period
+        future_predictions (np.array, optional): Predicted future stock prices
+        future_dates (pd.DatetimeIndex, optional): Dates for future predictions
+        validation_dates (pd.DatetimeIndex, optional): Dates for validation period
+        ticker (str, optional): Stock ticker symbol
+        save_path (str, optional): Path to save the plot
     """
-    import matplotlib.pyplot as plt
-    import numpy as np
-    import pandas as pd
+    plt.figure(figsize=(16, 8))
     
     # Ensure inputs are numpy arrays
-    normalized_predictions = np.array(normalized_predictions).flatten()
-    normalized_future_predictions = np.array(normalized_future_predictions).flatten()
-    y_test = np.array(y_test).flatten()
+    actual_prices = np.array(actual_prices).flatten()
+    predicted_prices = np.array(predicted_prices).flatten()
     
-    # Convert validation_indices to list if it's not already
-    if validation_indices is not None and not isinstance(validation_indices, list):
-        validation_indices = list(validation_indices)
+    # Validation period plot
+    plt.subplot(2, 1, 1)
+    plt.title(f'{ticker} Stock Price: Actual vs Predicted (Validation Period)', fontsize=15)
+    plt.plot(validation_dates, actual_prices, label='Actual Prices', color='blue')
+    plt.plot(validation_dates, predicted_prices, label='Predicted Prices', color='red', linestyle='--')
+    plt.xlabel('Date')
+    plt.ylabel('Price ($)')
+    plt.legend()
+    plt.grid(True)
     
-    # Extract dates and prices from stock data
-    stock_dates = np.array(stock_data.index)
-    stock_prices = stock_data['Close'].values
+    # Future predictions plot
+    plt.subplot(2, 1, 2)
+    plt.title(f'{ticker} Stock Price: Future Predictions', fontsize=15)
     
-    # Rescale predictions
-    predictions_rescaled = scaler.inverse_transform(normalized_predictions.reshape(-1, 1)).flatten()
-    future_predictions_rescaled = scaler.inverse_transform(normalized_future_predictions.reshape(-1, 1)).flatten()
-    y_test_rescaled = scaler.inverse_transform(y_test.reshape(-1, 1)).flatten()
+    # Combine validation and future dates
+    if future_predictions is not None and future_dates is not None:
+        # Extend actual prices to include last validation price for continuity
+        extended_actual = np.concatenate([actual_prices, [actual_prices[-1]]])
+        extended_dates = np.concatenate([validation_dates, [validation_dates[-1]], future_dates])
+        
+        # Ensure dates and prices are the same length
+        if len(extended_dates) > len(extended_actual):
+            extended_dates = extended_dates[:len(extended_actual)]
+        elif len(extended_actual) > len(extended_dates):
+            extended_actual = extended_actual[:len(extended_dates)]
+        
+        # Plot extended actual prices and future predictions
+        plt.plot(extended_dates, extended_actual, label='Actual Prices', color='blue')
+        plt.plot(future_dates, future_predictions, label='Future Predictions', color='green', linestyle='--')
+        
+        plt.xlabel('Date')
+        plt.ylabel('Price ($)')
+        plt.legend()
+        plt.grid(True)
     
-    # Create figure with two subplots
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(16, 12), sharex=True)
-    
-    # Calculate first prediction target date
-    if validation_indices and len(validation_indices) > 0:
-        # Get the first day of the validation period
-        first_validation_index = validation_indices[0]
-        first_validation_date = stock_dates[first_validation_index]
-        
-        # Filter stock data from the first validation date
-        mask = stock_dates >= first_validation_date
-        filtered_stock_dates = stock_dates[mask]
-        filtered_stock_prices = stock_prices[mask]
-        
-        # Top subplot: Full price chart with predictions
-        ax1.plot(filtered_stock_dates, filtered_stock_prices, label='Actual Price', color='blue', linewidth=2)
-        
-        # Prepare prediction dates and values
-        prediction_dates = []
-        validation_predictions = []
-        validation_y_test = []
-        
-        # Iterate through predictions to get dates and values
-        for i in range(len(normalized_predictions)):
-            # Get the prediction date 
-            pred_date = stock_dates[first_validation_index + i + window_size - 1]
-            
-            # Only add if date is in validation period
-            if pred_date >= first_validation_date:
-                prediction_dates.append(pred_date)
-                validation_predictions.append(predictions_rescaled[i])
-                validation_y_test.append(y_test_rescaled[i])
-        
-        # Convert to numpy arrays
-        prediction_dates = np.array(prediction_dates)
-        validation_predictions_rescaled = np.array(validation_predictions)
-        validation_y_test_rescaled = np.array(validation_y_test)
-        
-        # Plot validation predictions
-        ax1.scatter(
-            prediction_dates, 
-            validation_predictions_rescaled, 
-            color='red', 
-            label='Validation Predictions', 
-            marker='x', 
-            s=100
-        )
-        
-        # Plot actual validation prices
-        ax1.scatter(
-            prediction_dates, 
-            validation_y_test_rescaled, 
-            color='green', 
-            label='Actual Validation Prices', 
-            marker='o', 
-            s=50, 
-            alpha=0.7
-        )
-    
-        # Future predictions
-        if len(future_predictions_rescaled) > 0:
-            # Calculate future prediction dates
-            future_start_date = filtered_stock_dates[-1] + pd.Timedelta(days=1)
-            future_dates = pd.date_range(
-                start=future_start_date, 
-                periods=len(future_predictions_rescaled)
-            )
-            
-            ax1.scatter(
-                future_dates, 
-                future_predictions_rescaled, 
-                color='purple', 
-                label='Future Predictions (Next 30 Days)', 
-                marker='x', 
-                s=100
-            )
-            
-            # Annotate the start and end of future predictions
-            ax1.annotate(
-                f'Future Prediction Start: {future_dates[0].date()}', 
-                xy=(future_dates[0], future_predictions_rescaled[0]), 
-                xytext=(10, 10), 
-                textcoords='offset points', 
-                ha='left', 
-                va='bottom',
-                fontsize=9,
-                color='purple'
-            )
-            ax1.annotate(
-                f'Future Prediction End: {future_dates[-1].date()}', 
-                xy=(future_dates[-1], future_predictions_rescaled[-1]), 
-                xytext=(10, -10), 
-                textcoords='offset points', 
-                ha='left', 
-                va='top',
-                fontsize=9,
-                color='purple'
-            )
-        
-        ax1.set_title(f'{ticker} Stock Price: Actual vs Predicted', fontsize=16)
-        ax1.set_ylabel('Price ($)', fontsize=12)
-        ax1.legend(loc='best')
-        ax1.grid(True, linestyle='--', alpha=0.7)
-        
-        # Bottom subplot: Prediction Errors
-        # Calculate prediction errors
-        prediction_errors = np.abs(validation_y_test_rescaled - validation_predictions_rescaled)
-        
-        # Plot prediction errors
-        ax2.bar(
-            prediction_dates, 
-            prediction_errors, 
-            color='orange', 
-            alpha=0.6, 
-            label='Prediction Errors'
-        )
-        
-        ax2.set_title('Prediction Errors', fontsize=16)
-        ax2.set_xlabel('Date', fontsize=12)
-        ax2.set_ylabel('Absolute Error ($)', fontsize=12)
-        ax2.legend(loc='best')
-        ax2.grid(True, linestyle='--', alpha=0.7)
-    
-    # Rotate and align the tick labels
-    plt.gcf().autofmt_xdate()
-    
-    # Tight layout
     plt.tight_layout()
     
-    return fig
+    # Save or show the plot
+    if save_path:
+        plt.savefig(f'plots/{save_path}')
+    plt.show()
 
 def plot_prediction_error(
     stock_data, 

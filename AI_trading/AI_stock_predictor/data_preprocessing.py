@@ -38,8 +38,11 @@ def create_sliding_windows(data, window_size=60, forecast_horizon=30):
     Returns:
         tuple: Preprocessed input features (X), target values (y), scalers, validation indices, and original data
     """
-    # Convert to numpy array for easier manipulation
-    data_array = data.to_numpy()
+    # Calculate train/validation split
+    train_split = int(len(data) * 0.8)
+    
+    # Concatenate training and validation data to create a continuous dataset
+    full_data_array = data.to_numpy()
     
     # Print comprehensive date range information
     print("\n===== Data Range and Sliding Window Analysis =====")
@@ -47,9 +50,6 @@ def create_sliding_windows(data, window_size=60, forecast_horizon=30):
     print(f"  Total Data Points: {len(data)}")
     print(f"  Date Range: {data.index[0]} to {data.index[-1]}")
     print(f"  Total Duration: {(data.index[-1] - data.index[0]).days} days")
-    
-    # Calculate train/validation split
-    train_split = int(len(data_array) * 0.8)
     
     # Detailed split information
     print("\nData Split Details:")
@@ -72,13 +72,13 @@ def create_sliding_windows(data, window_size=60, forecast_horizon=30):
     
     # Initialize scalers for each column
     scalers = []
-    normalized_data = np.zeros_like(data_array, dtype=float)
+    normalized_data = np.zeros_like(full_data_array, dtype=float)
     
     # Custom scaling to preserve price relationships
-    for i in range(data_array.shape[1]):
+    for i in range(full_data_array.shape[1]):
         # Skip scaling for binary or categorical columns
-        if len(np.unique(data_array[:, i])) <= 2:
-            normalized_data[:, i] = data_array[:, i]
+        if len(np.unique(full_data_array[:, i])) <= 2:
+            normalized_data[:, i] = full_data_array[:, i]
             scalers.append(None)
             continue
         
@@ -87,12 +87,12 @@ def create_sliding_windows(data, window_size=60, forecast_horizon=30):
         
         # Fit and transform, handling potential edge cases
         try:
-            normalized_data[:, i] = scaler.fit_transform(data_array[:, i].reshape(-1, 1)).flatten()
+            normalized_data[:, i] = scaler.fit_transform(full_data_array[:, i].reshape(-1, 1)).flatten()
         except ValueError:
             # Fallback to manual normalization if MinMaxScaler fails
-            min_val = np.min(data_array[:, i])
-            max_val = np.max(data_array[:, i])
-            normalized_data[:, i] = (data_array[:, i] - min_val) / (max_val - min_val)
+            min_val = np.min(full_data_array[:, i])
+            max_val = np.max(full_data_array[:, i])
+            normalized_data[:, i] = (full_data_array[:, i] - min_val) / (max_val - min_val)
             scaler = None
         
         scalers.append(scaler)
@@ -100,21 +100,23 @@ def create_sliding_windows(data, window_size=60, forecast_horizon=30):
     # Create sliding windows
     X, y, validation_indices, validation_prices, validation_dates = [], [], [], [], []
     
-    # Iterate through the entire period after training split to create sliding windows
-    for i in range(train_split, len(normalized_data) - window_size + 1):
-        # Extract input window
-        X_window = normalized_data[i-window_size:i]
-        
-        # Extract target (next day's closing price)
-        y_window = normalized_data[i+window_size-1, 0]  # Assuming first column is Close price
-        
-        X.append(X_window)
-        y.append(y_window)
-        
-        # Track validation indices, prices, and dates
-        validation_indices.append(i)
-        validation_prices.append(data_array[i+window_size-1, 0])  # Original close price
-        validation_dates.append(data.index[i+window_size-1])
+    # Start from the first validation point and use a rolling window
+    for i in range(train_split, len(normalized_data)):
+        # Ensure we have a full window of historical data
+        if i - window_size >= 0:
+            # Extract input window (including training data)
+            X_window = normalized_data[i-window_size:i]
+            
+            # Extract target (current day's closing price)
+            y_window = normalized_data[i, 0]  # Assuming first column is Close price
+            
+            X.append(X_window)
+            y.append(y_window)
+            
+            # Track validation indices, prices, and dates
+            validation_indices.append(i)
+            validation_prices.append(full_data_array[i, 0])  # Original close price
+            validation_dates.append(data.index[i])
     
     # Convert to numpy arrays
     X = np.array(X)
@@ -132,12 +134,12 @@ def create_sliding_windows(data, window_size=60, forecast_horizon=30):
     print("\nSliding Window Validation Details:")
     print("  Validation Window Information:")
     print(f"    First Validation Window:")
-    print(f"      Input Window: {data.index[validation_indices[0]]} to {data.index[validation_indices[0]+window_size-1]}")
+    print(f"      Input Window: {data.index[validation_indices[0]-window_size]} to {data.index[validation_indices[0]]}")
     print(f"      Prediction Date: {validation_dates[0]}")
     print(f"      Prediction Price: {validation_prices[0]:.2f}")
     
     print(f"    Last Validation Window:")
-    print(f"      Input Window: {data.index[validation_indices[-1]]} to {data.index[validation_indices[-1]+window_size-1]}")
+    print(f"      Input Window: {data.index[validation_indices[-1]-window_size]} to {data.index[validation_indices[-1]]}")
     print(f"      Prediction Date: {validation_dates[-1]}")
     print(f"      Prediction Price: {validation_prices[-1]:.2f}")
     
@@ -148,7 +150,7 @@ def create_sliding_windows(data, window_size=60, forecast_horizon=30):
     
     print("\n===== End of Sliding Window Analysis =====")
     
-    return X_train, X_test, y_train, y_test, scalers, validation_indices, validation_prices, data_array
+    return X_train, X_test, y_train, y_test, scalers, validation_indices, validation_prices, full_data_array, train_split
 
 def normalize_data(X, scaler=None):
     """Normalize input data"""
