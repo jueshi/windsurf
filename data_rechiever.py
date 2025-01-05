@@ -5,6 +5,13 @@ This script provides functionality for downloading, updating, and visualizing st
 
 CHANGELOG:
 ---------
+v1.13.0 (2025-01-04):
+- Enhanced AI_ticker_extractor.py to automatically parse and process stock tickers
+- Added support for dynamically extracting and saving stock tickers from clipboard
+- Improved regex pattern for ticker extraction
+- Renamed extracted tickers to follow naming convention
+- Added robust error handling for ticker parsing
+
 v1.12.0 (2025-01-04):
 - Created separate ticker_lists.py for managing stock ticker lists
 - Implemented dynamic ticker list processing in main function
@@ -749,7 +756,8 @@ def main():
     # stock_manager.process_stock_data(tickers=new_lows)
     # stock_manager.process_stock_data(tickers=test_tickers)
     # stock_manager.process_stock_data(tickers=bitcoin_tickers)
-    stock_manager.process_stock_data(tickers=canslim_tickers)
+    # stock_manager.process_stock_data(tickers=canslim_tickers)
+    stock_manager.process_stock_data(tickers=finvize_tickers)
     
 
 

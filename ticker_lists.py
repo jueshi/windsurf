@@ -128,3 +128,26 @@ positive_earnings_surprise_stocks = [
 bitcoin_tickers = ["btc-usd",'ETH-USD','XRP-USD','SOL-USD']
 
 canslim_tickers = ["APP", "FIX", "HWM", "NVDA", "TSM", "VRT"]
+
+finvize_tickers = [
+    "FCUV", "NITO", "CRNC", "KITT", "ACON", "TGL", "ATHE", "KLTR", "ATOM", "NVA", 
+    "MBOT", "MFI", "SCPX", "SQ", "EMKR", "NYC", "PTLE", "CCM", "ALUR", "VRME", 
+    "DOGZ", "HOLO", "NUKK", "EZGO", "STAI", "SISI", "LATG", "MMLP", "IIPR", 
+    "ACAD", "NTRA", "PSEC", "ZYME", "INTU", "IOT", "BUXX", "ARMP", "GBIL", 
+    "HSRT", "ARKG", "LJAN", "FLRN", "NVCT", "SGOV", "OCTZ", "FLJJ", "AORT", 
+    "BNIX", "YIBO", "GCI", "CLIP", "CLGN", "MXE", "SAGE", "CTEC", "JPMO", 
+    "ARTV", "LUX", "LSH", "EVSB", "TXSS", "PSFO", "PWP", "DWSH", "CCG", "FORD", 
+    "OPER", "LEA", "DINO", "MUR", "BOWN", "AVIE", "GJUN", "RKLB", "FTNT", 
+    "BUFD", "RM", "EXPI", "MFUT", "SUGP", "NOMD", "ELLO", "RES", "BVN", "PBT", 
+    "MED", "AMBI", "NSA", "LU", "IDEC", "ASPC", "INLF", "RAIN", "ONEG", "WLAC", 
+    "NTWO", "PHH", "HIT", "TDACU", "FACT", "RANGU", "TAVI", "YAAS", "GSRT", 
+    "LSE", "NCEW"
+]
+
+newHigh_stock_tickers = [
+    "FLJJ", "XMAR", "MAYW", "MARW", "DYCQ", "QCAP", "MLACU", "TJUL", "DFEB", "BALT",
+    "XDAP", "CPNJ", "PBP", "GMAR", "UMAY", "PMAY", "GAPR", "XBAP", "EMPB", "DAPR"
+]
+
+newLow_tickers = ['KZIA', 'SID', 'SSTK', 'BF-A', 'ABEV', 'CCS', 'ADBE', 'BHP', 'BUD', 'KOF', 'ZROZ', 'AVY']
+
