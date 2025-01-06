@@ -579,6 +579,192 @@ class StockDataManager:
         except Exception as e:
             logging.error(f"Error visualizing data for {ticker}: {e}")
 
+    def plot_multiple_tickers(self, tickers):
+        # First, download initial data for all tickers
+        for ticker in tickers:
+            self.update_data(ticker)
+        
+        # Define time frames
+        time_frames = [
+            ('1 Year', pd.Timestamp.today() - pd.Timedelta(days=365), pd.Timestamp.today()),
+            ('5 Years', pd.Timestamp.today() - pd.Timedelta(days=365*5), pd.Timestamp.today()),
+            ('All Available Data', None, None)
+        ]
+        
+        # Create a figure with three subplots
+        fig, (ax3, ax2, ax1) = plt.subplots(1, 3, figsize=(30, 7))
+        
+        # Color palette for distinct lines
+        colors = [
+            '#1f77b4',  # blue
+            '#ff7f0e',  # orange
+            '#2ca02c',  # green
+            '#d62728',  # red
+            '#9467bd',  # purple
+            '#8c564b',  # brown
+            '#e377c2',  # pink
+            '#7f7f7f',  # gray
+            '#bcbd22',  # olive
+            '#17becf'   # cyan
+        ]
+        
+        # Extend colors if needed
+        if len(tickers) > len(colors):
+            import colorsys
+            
+            # Generate additional colors
+            def generate_distinct_colors(n):
+                HSV_tuples = [(x*1.0/n, 0.5, 0.5) for x in range(n)]
+                return [colorsys.hsv_to_rgb(*x) for x in HSV_tuples]
+            
+            additional_colors = generate_distinct_colors(len(tickers) - len(colors))
+            # Convert RGB to hex
+            additional_colors = ['#%02x%02x%02x' % tuple(int(x*255) for x in color) for color in additional_colors]
+            colors.extend(additional_colors)
+        
+        # First pass: load original data
+        ticker_data = {}
+        global_earliest_start = pd.Timestamp.max
+
+        for ticker in tickers:
+            try:
+                # Load data from file
+                data = self._load_stock_data(ticker)
+                
+                # Convert Date column to datetime and set as index
+                data['Date'] = pd.to_datetime(data['Date'])
+                data.set_index('Date', inplace=True)
+                
+                # Convert Close column to numeric, removing any non-numeric characters
+                data['Close'] = pd.to_numeric(data['Close'].replace({'$': ''}, regex=True), errors='coerce')
+                
+                # Update global earliest start date
+                global_earliest_start = min(global_earliest_start, data.index.min())
+                
+                # Store the original data
+                ticker_data[ticker] = data
+                
+                # Print original data date range for debugging
+                print(f"{ticker} original data date range: {data.index.min()} to {data.index.max()}")
+            
+            except Exception as e:
+                print(f"Error processing {ticker}: {e}")
+
+        # Second pass: pad data for each ticker
+        padded_ticker_data = {}
+
+        for ticker in tickers:
+            data = ticker_data[ticker]
+            
+            # Find the first trading day of the original data
+            first_trading_day = data.index.min()
+            
+            # Create a date range from global earliest start to the first trading day
+            pre_trading_dates = pd.date_range(start=global_earliest_start, end=first_trading_day - pd.Timedelta(days=1), freq='D')
+            
+            # Find the first price in the original data
+            first_price = data['Close'].iloc[0]
+            
+            # Create a padded series for the pre-trading period
+            pre_trading_series = pd.Series(index=pre_trading_dates, data=first_price, dtype=float)
+            
+            # Combine pre-trading series with original data
+            padded_series = pd.concat([pre_trading_series, data['Close']])
+            
+            # Store padded data
+            padded_ticker_data[ticker] = padded_series
+            
+            # Print padded data info
+            print(f"{ticker} padded data date range: {padded_series.index.min()} to {padded_series.index.max()}")
+            print(f"{ticker} padded data length: {len(padded_series)}")
+            
+            # Save padded data to CSV
+            # padded_series.to_csv(f"{ticker}_padded_data.csv")
+
+        # Third pass: plot charts for different time frames
+        for idx, (label, start_date, end_date) in enumerate(time_frames):
+            # Select the appropriate axis
+            ax = [ax1, ax2, ax3][idx]
+            
+            # Initialize an empty DataFrame to store aligned data
+            df_aligned = pd.DataFrame()
+            
+            for ticker in tickers:
+                # Filter padded data within specified date range
+                if start_date is None or end_date is None:
+                    start_date = padded_ticker_data[ticker].index.min()
+                    end_date = padded_ticker_data[ticker].index.max()
+                
+                filtered_data = padded_ticker_data[ticker].loc[start_date:end_date]
+                
+                # Add to aligned DataFrame
+                df_aligned[ticker] = filtered_data
+            
+            # Normalize prices to starting value of 100
+            df_normalized = df_aligned / df_aligned.iloc[0] * 100
+            
+            # Plot each ticker's normalized data
+            for i, ticker in enumerate(df_normalized.columns):
+                # Plot the line
+                ax.plot(df_normalized.index, df_normalized[ticker], 
+                        label=ticker, color=colors[i], linewidth=2)
+                
+                # Add ticker name at the end of the line
+                last_price = df_normalized[ticker].iloc[-1]
+                last_date = df_normalized.index[-1]
+                
+                # Add a small offset to the x and y positions to prevent overlap
+                x_offset = pd.Timedelta(days=10)
+                y_offset = last_price * 0.02  # 2% offset
+                
+                comment = tickers_comment_dict.get(ticker, '')
+                ticker_or_comment = ticker if comment == '' else f'{comment}'
+                
+                ax.annotate(f' {ticker_or_comment} ({last_price:.0f}%) ', 
+                            xy=(last_date, last_price), 
+                            xytext=(last_date + x_offset, last_price + y_offset),
+                            fontsize=10, 
+                            color=colors[i],
+                            va='bottom')
+            
+            ax.set_title(f'{label} Stock Price Performance (Normalized to 100)', fontsize=16)
+            ax.set_xlabel('Date', fontsize=12)
+            ax.set_ylabel('Normalized Price (Log Scale)', fontsize=12)
+            ax.set_yscale('log')  # Set Y-axis to logarithmic scale
+            
+            # Create legend labels with comments
+            legend_labels = []
+            for ticker in df_normalized.columns:
+                comment = tickers_comment_dict.get(ticker, '')
+                legend_labels.append(f'{ticker} {comment}'.strip())
+            
+            ax.legend(legend_labels, fontsize=10, loc='upper left', bbox_to_anchor=(0, 1.1))
+            
+            ax.grid(True, linestyle='--', alpha=0.7)
+            
+            # Ensure x-axis ticks are not too crowded
+            plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+        
+        # Adjust layout and add overall title
+        plt.tight_layout()
+        plt.subplots_adjust(top=0.85)  # Make room for the legend
+        fig.suptitle('Stock Price Performance Comparison', fontsize=20, y=1.02)
+        
+        # Ensure the plots directory exists
+        os.makedirs('plots', exist_ok=True)
+        
+        # Determine folder name
+        ticker_list_name = self._get_folder_name(tickers)        
+        plot_path = os.path.join('plots', f'{ticker_list_name}_comparison.png')
+        
+        # Save the plot
+        plt.savefig(plot_path, bbox_inches='tight', dpi=300)
+        print(f"Plot saved to {plot_path}")
+        
+        # Show the plot
+        plt.show()
+
+
     def generate_html_report(self, plots_dir=None):
         """
         Generate an HTML report with embedded stock plots
@@ -680,24 +866,8 @@ class StockDataManager:
             return
 
         # Determine folder name
-        if name:
-            folder_name = name
-        else:
-            # Try to get the variable name from the caller's locals
-            # import inspect #use when ticker_list is defined inside the main function so it's not globale
-            try:
-                # frame = inspect.currentframe().f_back
-                # for var_name, var_value in frame.f_locals.items():
-                for var_name, var_value in globals().items(): #ticker_list is globale variable now
-                    if var_value is tickers:
-                        folder_name = var_name
-                        break
-                else:
-                    # Fallback to sorted tickers
-                    folder_name = '_'.join(sorted(tickers))
-            except Exception:
-                # Most conservative fallback
-                folder_name = '_'.join(sorted(tickers))
+        folder_name = self._get_folder_name(tickers, name)
+
 
         # Create subfolder 
         folder_path = os.path.join('stock_data', folder_name)
@@ -723,6 +893,24 @@ class StockDataManager:
         
         except Exception as e:
             logging.error(f"Error processing stock data: {e}")
+
+    def _get_folder_name(self, tickers, name=None):
+        if name:
+            return name
+        else:
+            # Try to get the variable name from the caller's locals
+            try:
+                # frame = inspect.currentframe().f_back
+                # for var_name, var_value in frame.f_locals.items():
+                for var_name, var_value in globals().items(): #ticker_list is globale variable now
+                    if var_value is tickers:
+                        return var_name
+                else:
+                    # Fallback to sorted tickers
+                    return '_'.join(sorted(tickers))
+            except Exception:
+                # Most conservative fallback
+                return '_'.join(sorted(tickers))
 
 def main():
     r'''use AI to gennerate a pythhon list of stock tickers from content in clipboard.
@@ -757,7 +945,9 @@ def main():
     # stock_manager.process_stock_data(tickers=test_tickers)
     # stock_manager.process_stock_data(tickers=bitcoin_tickers)
     # stock_manager.process_stock_data(tickers=canslim_tickers)
-    stock_manager.process_stock_data(tickers=finvize_tickers)
+    # stock_manager.process_stock_data(tickers=finvize_tickers) 
+    # stock_manager.process_stock_data(tickers=chinese_stocks_tickers)
+    stock_manager.process_stock_data(tickers=daily_watch_tickers)
     
 
 

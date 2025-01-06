@@ -5,6 +5,45 @@ This script provides a comprehensive visualization of stock performance
 for multiple tickers across different time frames.
 
 Changelog:
+- 2025-01-05: v1.8.0
+  * Implemented separate data padding pass
+  * Enhanced data consistency across all time frames
+  * Added optional CSV export for padded data
+  * Improved global start date alignment
+
+- 2025-01-05: v1.7.0
+  * Implemented global earliest start date alignment
+  * Added padding for tickers using their oldest available price
+  * Enhanced data consistency across different tickers
+  * Improved historical data representation
+
+- 2025-01-05: v1.6.0
+  * Restored 1-year and 5-year charts
+  * Fixed data filtering for specific time frames
+  * Ensured consistent plotting across all time periods
+
+- 2025-01-05: v1.5.0
+  * Implemented true line charts without any fill
+  * Ensured clean, precise line representation of stock performance
+  * Refined plot styling for maximum clarity
+
+- 2025-01-05: v1.4.0
+  * Removed area fill under the curve
+  * Simplified plot styling
+  * Focused on clean line representation of stock performance
+
+- 2025-01-05: v1.3.0
+  * Added padding for tickers with missing data periods
+  * Used first trading day price to fill gaps in historical data
+  * Improved data alignment across different tickers
+  * Enhanced visualization of comparative stock performance
+
+- 2025-01-05: v1.2.0
+  * Added support for full historical data comparison
+  * Extended visualization to include all-time stock performance
+  * Adjusted subplot layout to accommodate three time frames
+  * Improved handling of tickers with different data ranges
+
 - 2025-01-05: v1.1.0
   * Added support for 1-year and 5-year stock price performance comparison
   * Implemented subplot visualization for easy comparison
@@ -26,96 +65,28 @@ Customize the stock_tickers list to compare different stocks.
 """
 
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
 from data_rechiever import StockDataManager
 import os
+from ticker_lists import *
 
-# Create a list of tickers
-stock_tickers = ['AAPL', 'MSFT', 'GOOG', 'TSLA']
-
-# Process the tickers
+# Add support for Chinese characters
+plt.rcParams['font.family'] = 'Microsoft YaHei'  # Windows Chinese font
+plt.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei']  # Fallback fonts
+plt.rcParams['axes.unicode_minus'] = False  # Resolve minus sign display issue
 
 class StockDataManagerExt(StockDataManager):
-    def plot_multiple_tickers(self, tickers):
-        # First, download initial data for all tickers
-        for ticker in tickers:
-            self.initial_download(ticker)
-        
-        # Define time frames
-        time_frames = [
-            ('1 Year', pd.Timestamp.today() - pd.Timedelta(days=365), pd.Timestamp.today()),
-            ('5 Years', pd.Timestamp.today() - pd.Timedelta(days=365*5), pd.Timestamp.today())
-        ]
-        
-        # Create a figure with two subplots
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 12))
-        
-        # Iterate through time frames
-        for idx, (label, start_date, end_date) in enumerate(time_frames):
-            # Select the appropriate axis
-            ax = ax1 if idx == 0 else ax2
-            
-            # Initialize an empty DataFrame
-            df = pd.DataFrame()
-            
-            for ticker in tickers:
-                try:
-                    # Load data from file
-                    data = self._load_stock_data(ticker)
-                    
-                    # Convert Date column to datetime and set as index
-                    data['Date'] = pd.to_datetime(data['Date'])
-                    data.set_index('Date', inplace=True)
-                    
-                    # Convert Close column to numeric, removing any non-numeric characters
-                    data['Close'] = pd.to_numeric(data['Close'].replace({'$': ''}, regex=True), errors='coerce')
-                    
-                    # Print data date range for debugging
-                    print(f"{ticker} {label} data date range: {data.index.min()} to {data.index.max()}")
-                    
-                    # Filter data within date range
-                    filtered_data = data.loc[(data.index >= start_date) & (data.index <= end_date)]
-                    
-                    # Print filtered data info
-                    print(f"{ticker} {label} filtered data length: {len(filtered_data)}")
-                    
-                    # Only add if filtered data is not empty
-                    if not filtered_data.empty:
-                        df[ticker] = filtered_data['Close']
-                except Exception as e:
-                    print(f"Error processing {ticker}: {e}")
-            
-            # Check if DataFrame is empty
-            if df.empty:
-                print(f"No data available for the {label} time frame.")
-                continue
-            
-            # Normalize prices to starting value of 100
-            df_normalized = df / df.iloc[0] * 100
-            
-            # Plot on the selected axis
-            df_normalized.plot(ax=ax)
-            ax.set_title(f'{label} Stock Price Performance (Normalized to 100)')
-            ax.set_xlabel('Date')
-            ax.set_ylabel('Normalized Price')
-            ax.legend(tickers)
-            ax.grid(True)
-        
-        # Adjust layout and add overall title
-        plt.tight_layout()
-        fig.suptitle('Stock Price Performance Comparison', fontsize=16, y=1.02)
-        
-        # Ensure the plots directory exists
-        os.makedirs('plots', exist_ok=True)
-        
-        # Save the plot
-        plot_path = os.path.join('plots', 'multi_ticker_performance_comparison.png')
-        plt.savefig(plot_path, bbox_inches='tight')
-        print(f"Plot saved to {plot_path}")
-        
-        # Show the plot
-        plt.show()
+    '''moved the plot_multiple_tickers function to root class'''
+    pass
+# Create a list of tickers
+stock_tickers = ['AAPL', 'MSFT', 'GOOG', 'TSLA','ALAB','INTC','NVDA','AVGO','AMD','AMZN']
 
+# Process the tickers
 stock_manager = StockDataManagerExt()
 
-stock_manager.plot_multiple_tickers(tickers=stock_tickers)
+# stock_manager.plot_multiple_tickers(tickers=stock_tickers)
+stock_manager.plot_multiple_tickers(tickers=chinese_stocks_tickers)
+# stock_manager.plot_multiple_tickers(tickers=FUNDS_stocks)
+# stock_manager.plot_multiple_tickers(tickers=China_FUNDS_stocks)
