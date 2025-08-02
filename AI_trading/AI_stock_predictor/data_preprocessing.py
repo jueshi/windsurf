@@ -101,22 +101,25 @@ def create_sliding_windows(data, window_size=60, forecast_horizon=30):
     X, y, validation_indices, validation_prices, validation_dates = [], [], [], [], []
     
     # Start from the first validation point and use a rolling window
-    for i in range(train_split, len(normalized_data)):
+    for i in range(train_split, len(normalized_data) - 4):
         # Ensure we have a full window of historical data
         if i - window_size >= 0:
             # Extract input window (including training data)
             X_window = normalized_data[i-window_size:i]
             
-            # Extract target (current day's closing price)
-            y_window = normalized_data[i, 0]  # Assuming first column is Close price
+            # Extract target (5 days ahead closing price)
+            y_window = normalized_data[i + 4, 0]  # 5 days ahead closing price
+            
+            # Store actual 5-day ahead price for validation
+            actual_5day_price = full_data_array[i + 4, 0]
             
             X.append(X_window)
             y.append(y_window)
             
             # Track validation indices, prices, and dates
             validation_indices.append(i)
-            validation_prices.append(full_data_array[i, 0])  # Original close price
-            validation_dates.append(data.index[i])
+            validation_prices.append(actual_5day_price)
+            validation_dates.append(data.index[i + 4])  # Date of the 5-day ahead price
     
     # Convert to numpy arrays
     X = np.array(X)
@@ -135,18 +138,18 @@ def create_sliding_windows(data, window_size=60, forecast_horizon=30):
     print("  Validation Window Information:")
     print(f"    First Validation Window:")
     print(f"      Input Window: {data.index[validation_indices[0]-window_size]} to {data.index[validation_indices[0]]}")
-    print(f"      Prediction Date: {validation_dates[0]}")
-    print(f"      Prediction Price: {validation_prices[0]:.2f}")
+    print(f"      5-Day Ahead Prediction Date: {validation_dates[0]}")
+    print(f"      5-Day Ahead Prediction Price: {validation_prices[0]:.2f}")
     
     print(f"    Last Validation Window:")
     print(f"      Input Window: {data.index[validation_indices[-1]-window_size]} to {data.index[validation_indices[-1]]}")
-    print(f"      Prediction Date: {validation_dates[-1]}")
-    print(f"      Prediction Price: {validation_prices[-1]:.2f}")
+    print(f"      5-Day Ahead Prediction Date: {validation_dates[-1]}")
+    print(f"      5-Day Ahead Prediction Price: {validation_prices[-1]:.2f}")
     
     print("\n  Validation Data Characteristics:")
     print(f"    Total Validation Windows: {len(validation_indices)}")
     print(f"    Validation Date Range: {validation_dates[0]} to {validation_dates[-1]}")
-    print(f"    Price Range: {np.min(validation_prices):.2f} - {np.max(validation_prices):.2f}")
+    print(f"    5-Day Ahead Price Range: {np.min(validation_prices):.2f} - {np.max(validation_prices):.2f}")
     
     print("\n===== End of Sliding Window Analysis =====")
     

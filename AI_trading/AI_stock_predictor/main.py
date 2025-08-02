@@ -71,41 +71,33 @@ def main(ticker, epochs=100, batch_size=32, window_size=60, forecast_horizon=30)
         
         # Step 4: Generate predictions
         print("4. Generating predictions...")
-        normalized_predictions, normalized_future_predictions = generate_predictions(
+        predictions, future_predictions = generate_predictions(
             model, 
             X_test_normalized, 
             forecast_horizon=forecast_horizon
         )
         
+        # Prepare predictions for rescaling
+        normalized_predictions = predictions
+        
         # Rescale predictions
         predictions_rescaled = rescale_predictions(normalized_predictions, original_data, scalers[0])
-        future_predictions_rescaled = rescale_predictions(normalized_future_predictions, original_data, scalers[0])
+        y_test_rescaled = predictions_rescaled.flatten() if predictions_rescaled.ndim > 1 else predictions_rescaled
         
-        # Print detailed prediction information for the first validation window
-        if validation_indices and len(validation_indices) > 0:
-            first_validation_index = validation_indices[0]
-            
-            # Prediction details
-            prediction_window_start = stock_data.index[first_validation_index]
-            prediction_window_end = stock_data.index[first_validation_index + window_size]
-            prediction_target_date = stock_data.index[first_validation_index + window_size + 1]
-            
-            # Actual prices
-            actual_price_at_prediction_window_end = stock_data.loc[prediction_window_end, 'Close']
-            actual_price_at_prediction_target = stock_data.loc[prediction_target_date, 'Close']
-            
-            # Predicted price
-            predicted_price = predictions_rescaled[0]
-            
-            print("\n===== First Validation Window Prediction Details =====")
-            print(f"Prediction Window Start Date: {prediction_window_start}")
-            print(f"Prediction Window End Date: {prediction_window_end}")
-            print(f"Prediction Target Date: {prediction_target_date}")
-            print(f"Actual Price at Prediction Window End: ${actual_price_at_prediction_window_end:.2f}")
-            print(f"Predicted Price for Target Date: ${predicted_price:.2f}")
-            print(f"Actual Price at Prediction Target Date: ${actual_price_at_prediction_target:.2f}")
-            print(f"Prediction Error: ${abs(predicted_price - actual_price_at_prediction_target):.2f}")
-            print("===================================================\n")
+        # Create validation dates
+        validation_dates = stock_data.index[train_split:train_split+len(y_test_rescaled)]
+        
+        # First Validation Window Prediction Details
+        print("\n===== First Validation Window Prediction Details =====")
+        print(f"Prediction Window Start Date: {validation_dates[0] - pd.Timedelta(days=5)}")
+        print(f"Prediction Window End Date: {validation_dates[0]}")
+        print(f"Actual Price at 5-Day Prediction Target: ${validation_prices[0]:.2f}")
+        print(f"Predicted Price for 5-Day Target: ${y_test_rescaled[0]:.2f}")
+        print(f"Prediction Error: ${abs(validation_prices[0] - y_test_rescaled[0]):.2f}")
+        print("===================================================")
+        
+        # Prepare future predictions
+        future_predictions_rescaled = rescale_predictions(future_predictions, original_data, scalers[0])
         
         # Prepare predictions for confidence intervals and risk assessment
         predictions = normalized_predictions
@@ -115,24 +107,20 @@ def main(ticker, epochs=100, batch_size=32, window_size=60, forecast_horizon=30)
         
         # Step 5: Visualization
         print("5. Creating visualizations...")
-        y_test_rescaled = rescale_predictions(y_test, original_data, scalers[0])
-        
-        # Create validation dates
-        validation_dates = stock_data.index[train_split:train_split+len(y_test_rescaled)]
         
         # Calculate future dates starting from the next trading day after the last day
         last_trading_day = stock_data.index[-1]
         future_dates = pd.date_range(
             start=last_trading_day + pd.offsets.BDay(1), 
-            periods=forecast_horizon
+            periods=len(future_predictions_rescaled)
         )
         
         plot_predictions(
-            actual_prices=y_test_rescaled, 
-            predicted_prices=predictions_rescaled, 
-            future_predictions=future_predictions_rescaled,
+            actual_prices=stock_data['Close'], 
+            predicted_prices=y_test_rescaled,
+            future_predictions=future_predictions_rescaled, 
             future_dates=future_dates,
-            validation_dates=validation_dates,
+            validation_dates=validation_dates, 
             ticker=ticker
         )
         

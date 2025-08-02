@@ -112,6 +112,11 @@ import numpy as np
 from typing import Optional, List, Any
 import webbrowser
 from ticker_lists import *
+import math
+import time
+import json
+from datetime import datetime, timedelta
+from random import uniform
 
 # Configure logging
 logging.basicConfig(
@@ -144,6 +149,8 @@ class StockDataManager:
         self.data_dir = data_dir
         self.plot_save_path = plot_save_path
         os.makedirs(self.data_dir, exist_ok=True)
+        self.last_request_time = 0
+        self.min_request_interval = 2.0  # Minimum time between requests in seconds
     
     def _get_data_path(self, ticker: str) -> str:
         """
@@ -193,8 +200,8 @@ class StockDataManager:
                 # Fallback to using available columns
                 stock_data.columns = default_columns[:len(stock_data.columns)]
             
-            # Convert Date column to datetime
-            stock_data['Date'] = pd.to_datetime(stock_data['Date'])
+            # Convert Date column to datetime with UTC=True to handle mixed timezones
+            stock_data['Date'] = pd.to_datetime(stock_data['Date'], utc=True)
             
             # Convert numeric columns to float
             numeric_columns = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
@@ -208,17 +215,116 @@ class StockDataManager:
             logging.error(f"Error loading data for {ticker}: {e}")
             return pd.DataFrame()
     
-    def initial_download(self, 
-                         ticker: str, 
-                         start_date: Optional[str] = '1980-01-01', 
-                         end_date: Optional[str] = None) -> Optional[pd.DataFrame]:
+    def _download_with_retry(self, ticker: str, max_retries: int = 3, force_download: bool = False) -> Optional[pd.DataFrame]:
         """
-        Download initial stock data for a given ticker.
+        Download stock data with retry logic and rate limiting.
         
         Args:
             ticker (str): Stock ticker symbol
-            start_date (Optional[str], optional): Start date for data retrieval. Defaults to '1980-01-01'.
-            end_date (Optional[str], optional): End date for data retrieval. Defaults to today.
+            max_retries (int): Maximum number of retry attempts
+            force_download (bool): If True, download all available history
+            
+        Returns:
+            Optional[pd.DataFrame]: Downloaded stock data or None if all retries fail
+        """
+        for attempt in range(max_retries):
+            try:
+                # Ensure minimum time between requests - more aggressive rate limiting
+                current_time = time.time()
+                time_since_last_request = current_time - self.last_request_time
+                min_interval = self.min_request_interval * (attempt + 1)  # Increase interval with each retry
+                if time_since_last_request < min_interval:
+                    sleep_time = min_interval - time_since_last_request
+                    logging.info(f"Rate limiting: Waiting {sleep_time:.1f}s before request for {ticker}")
+                    time.sleep(sleep_time)
+                
+                # Add more random jitter to avoid synchronized requests and detection
+                jitter = uniform(0.5, 2.0)
+                logging.info(f"Adding jitter delay of {jitter:.1f}s for {ticker}")
+                time.sleep(jitter)
+                
+                # Try with a user agent to avoid being blocked
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                }
+                
+                # First attempt with direct yfinance download
+                try:
+                    if force_download:
+                        # If force_download is True, get all available history
+                        logging.info(f"Requesting ALL available history for {ticker} using period='max'")
+                        stock_data = yf.download(
+                            ticker,
+                            period="max",  # Get all available history
+                            progress=False
+                        )
+                    else:
+                        # Calculate start date to be 5 years ago
+                        start_date = (datetime.now() - timedelta(days=365*5)).strftime('%Y-%m-%d')  # Request 5 years of data
+                        end_date = datetime.now().strftime('%Y-%m-%d')
+                        
+                        logging.info(f"Requesting data for {ticker} from {start_date} to {end_date}")
+                        stock_data = yf.download(
+                            ticker,
+                            start=start_date,
+                            end=end_date,
+                            progress=False
+                        )
+                    
+                    # Verify we got valid data
+                    if not stock_data.empty and len(stock_data) > 0:
+                        self.last_request_time = time.time()
+                        logging.info(f"Successfully downloaded data for {ticker} using yfinance direct method")
+                        return stock_data
+                
+                except json.JSONDecodeError as json_err:
+                    logging.warning(f"JSONDecodeError with direct method for {ticker}: {json_err}")
+                    # Fall through to alternative method
+                except Exception as direct_err:
+                    logging.warning(f"Error with direct method for {ticker}: {direct_err}")
+                    # Fall through to alternative method
+                
+                # Alternative method: Use Ticker object
+                try:
+                    logging.info(f"Trying alternative method for {ticker} using Ticker object")
+                    ticker_obj = yf.Ticker(ticker)
+                    
+                    if force_download:
+                        # If force_download is True, get all available history
+                        logging.info(f"Alternative method: Requesting ALL available history for {ticker} using period='max'")
+                        stock_data = ticker_obj.history(period="max")
+                    else:
+                        # Request 5 years of data using the start and end parameters
+                        start_date = (datetime.now() - timedelta(days=365*5)).strftime('%Y-%m-%d')
+                        end_date = datetime.now().strftime('%Y-%m-%d')
+                        logging.info(f"Alternative method: Requesting data for {ticker} from {start_date} to {end_date}")
+                        stock_data = ticker_obj.history(start=start_date, end=end_date)
+                    
+                    if not stock_data.empty and len(stock_data) > 0:
+                        self.last_request_time = time.time()
+                        logging.info(f"Successfully downloaded data for {ticker} using Ticker object method")
+                        return stock_data
+                
+                except Exception as ticker_err:
+                    logging.warning(f"Error with Ticker object method for {ticker}: {ticker_err}")
+                    # Continue to next retry attempt
+                
+                self.last_request_time = time.time()
+                    
+            except Exception as e:
+                wait_time = (2 ** (attempt + 2)) + uniform(0, 2)  # More aggressive exponential backoff with jitter
+                logging.warning(f"Attempt {attempt + 1} failed for {ticker}: {str(e)}. Waiting {wait_time:.1f}s before retry.")
+                time.sleep(wait_time)
+        
+        logging.error(f"All download attempts failed for {ticker}")
+        return None
+
+    def initial_download(self, ticker: str) -> Optional[pd.DataFrame]:
+        """
+        Download all available historical stock data for a given ticker.
+        
+        Args:
+            ticker (str): Stock ticker symbol
         
         Returns:
             Optional[pd.DataFrame]: Downloaded stock data or None if download fails
@@ -227,22 +333,22 @@ class StockDataManager:
             # Validate and prepare parameters
             ticker = ticker.upper()
             
-            # Set end date to today if not specified
-            if end_date is None:
-                end_date = datetime.today()
+            logging.info(f"Attempting to download data for {ticker}")
             
-            # Download stock data
-            stock_data = yf.download(
-                ticker, 
-                start=start_date, 
-                end=end_date,
-                progress=False
-            )
+            # Download with retry logic
+            stock_data = self._download_with_retry(ticker)
             
-            # Validate downloaded data
-            if stock_data.empty:
-                logging.warning(f"No data downloaded for {ticker}")
+            if stock_data is None:
+                logging.warning(f"No data downloaded for {ticker} after all retry attempts")
                 return None
+                
+            logging.info(f"Download completed for {ticker}. Data shape: {stock_data.shape}")
+            
+            # Log first and last dates for verification
+            if not stock_data.empty:
+                first_date = stock_data.index.min()
+                last_date = stock_data.index.max()
+                logging.info(f"{ticker} data range: {first_date} to {last_date}")
             
             # Prepare data file path
             data_path = self._get_data_path(ticker)
@@ -266,20 +372,21 @@ class StockDataManager:
             
             # Save data to local file using tab separator
             output_data.to_csv(data_path, sep='\t', index=False)
-            logging.info(f"Initial data for {ticker} saved to {data_path}")
+            logging.info(f"All available historical data for {ticker} saved to {data_path}")
             
             return stock_data
         
         except Exception as e:
             logging.error(f"Error in initial download for {ticker}: {e}")
-            return None
 
-    def update_data(self, ticker: str) -> Optional[pd.DataFrame]:
+    def update_data(self, ticker: str, force_download: bool = False) -> Optional[pd.DataFrame]:
         """
         Update existing stock data with the most recent information.
+        Ensures at least 3 years of historical data if possible.
         
         Args:
             ticker (str): Stock ticker symbol
+            force_download (bool, optional): Force download of new data instead of updating existing. Defaults to False.
         
         Returns:
             Optional[pd.DataFrame]: Updated stock data or None if update fails
@@ -289,33 +396,62 @@ class StockDataManager:
             ticker = ticker.upper()
             data_path = self._get_data_path(ticker)
             
-            # Check if local file exists
-            if not os.path.exists(data_path):
-                # If no local file, perform initial download
-                return self.initial_download(ticker)
+            # Check if we should use existing data
+            if os.path.exists(data_path) and not force_download:
+                # Load existing data
+                existing_data = pd.read_csv(data_path, sep='\t')
+                
+                # Convert Date column to datetime with UTC=True
+                existing_data['Date'] = pd.to_datetime(existing_data['Date'], utc=True)
+                
+                # Check if we have at least 3 years of data
+                earliest_date = existing_data['Date'].min()
+                latest_date = existing_data['Date'].max()
+                data_span = latest_date - earliest_date
+                
+                if data_span.days >= 365 * 3:
+                    logging.info(f"{ticker} has {data_span.days / 365:.1f} years of data, which meets the 3-year minimum requirement")
+                    
+                    # Check if data is already up to date (within 1 day)
+                    if (datetime.now(timezone.utc).date() - latest_date.date()).days <= 1:
+                        logging.info(f"Data for {ticker} is up to date")
+                        return existing_data
+                else:
+                    logging.info(f"{ticker} only has {data_span.days / 365:.1f} years of data, which is less than the 3-year minimum. Forcing full download.")
+                    force_download = True
             
-            # Read existing local data
-            existing_data = pd.read_csv(data_path, sep='\t')
+            # If force_download is True or we don't have enough historical data, do a full download
+            if force_download:
+                logging.info(f"Downloading full historical data for {ticker}")
+                stock_data = self._download_with_retry(ticker, force_download=force_download)
+                
+                if stock_data is not None and not stock_data.empty:
+                    # Reset index to make Date a column
+                    stock_data = stock_data.reset_index()
+                    
+                    # Check if we have at least 3 years of data after download
+                    if 'Date' in stock_data.columns:
+                        earliest_date = pd.to_datetime(stock_data['Date'], utc=True).min()
+                        latest_date = pd.to_datetime(stock_data['Date'], utc=True).max()
+                        data_span = latest_date - earliest_date
+                        logging.info(f"{ticker} downloaded data spans {data_span.days / 365:.1f} years")
+                    
+                    # Save to file
+                    os.makedirs(os.path.dirname(data_path), exist_ok=True)
+                    stock_data.to_csv(data_path, sep='\t', index=False)
+                    logging.info(f"Saved full historical data for {ticker} to {data_path}")
+                    return stock_data
+                else:
+                    logging.warning(f"No data downloaded for {ticker}")
+                    return None
             
-            # Convert Date column to datetime
-            existing_data['Date'] = pd.to_datetime(existing_data['Date'])
-            
+            # If we get here, we need to update existing data with new data
             # Get the latest date in local data
             latest_local_date = existing_data['Date'].max()
             
-            # Check if data is already up to date (within 1 day)
-            if (datetime.today() - latest_local_date).days <= 1:
-                logging.info(f"Data for {ticker} is up to date")
-                return existing_data
-            
             # Download new data from the day after the latest local date
-            start_date = (latest_local_date + timedelta(days=1)).strftime('%Y-%m-%d')
-            new_data = yf.download(
-                ticker, 
-                start=start_date,
-                end=datetime.today(),
-                progress=False
-            )
+            start_date = (latest_local_date + pd.Timedelta(days=1)).strftime('%Y-%m-%d')
+            new_data = yf.download(ticker, start=start_date, progress=False)
             
             # Validate downloaded data
             if new_data.empty:
@@ -360,7 +496,7 @@ class StockDataManager:
             else:
                 logging.info(f"No new data to update for {ticker}")
                 return existing_data
-        
+                
         except Exception as e:
             logging.error(f"Error updating data for {ticker}: {e}")
             return None
@@ -368,7 +504,7 @@ class StockDataManager:
     def visualize_data(self, 
                        ticker: str, 
                        column: str = 'Close', 
-                       title: Optional[str] = None) -> None:
+                       title: Optional[str] = None):
         """
         Create a visualization of stock data.
         
@@ -378,109 +514,90 @@ class StockDataManager:
             title (Optional[str], optional): Custom plot title
         """
         try:
-            # Load data
-            stock_data = self._load_stock_data(ticker)
+            plt.ioff()  # Turn off interactive mode
+            data = self._load_stock_data(ticker)
             
-            # Validate data
-            if stock_data.empty:
-                logging.warning(f"No data found for {ticker}")
+            if data is None or data.empty:
+                print(f"No data available for {ticker}")
                 return
             
-            # If specified column is not available, use the first numeric column
-            numeric_columns = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
-            if column not in stock_data.columns:
-                if not numeric_columns:
-                    logging.warning("No numeric columns available for plotting")
-                    return
-                column = numeric_columns[0]
-                logging.info(f"Defaulting to column: {column}")
-            
-            # Create plot
-            plt.figure(figsize=(15, 7))
-            
-            # Plot the data
-            plt.plot(stock_data['Date'], stock_data[column])
-            
-            # Set title and labels
-            plt.title(title or f'{ticker} Stock Prices')
+            plt.figure(figsize=(12, 6))
+            plt.plot(data.index, data[column], label=f'{ticker} {column} Price')
+            plt.title(title or f'{ticker} Stock Price - {column}')
             plt.xlabel('Date')
-            plt.ylabel(f'{column} Price ($)')
-            plt.xticks(rotation=45)
+            plt.ylabel(f'{column} Price')
+            plt.legend()
             plt.grid(True)
+            plt.xticks(rotation=45)
             plt.tight_layout()
-            plt.show()
-        
+            
+            # Ensure the directory exists
+            os.makedirs(self.plot_save_path, exist_ok=True)
+            save_path = os.path.join(self.plot_save_path, f'{ticker}_{column}_plot.png')
+            plt.savefig(save_path)
+            print(f"Plot saved to {save_path}")
+            
+            plt.close('all')  # Close all figures to prevent memory leaks
         except Exception as e:
-            logging.error(f"Error visualizing data for {ticker}: {e}")
+            print(f"Error visualizing data for {ticker}: {e}")
+        finally:
+            plt.close('all')  # Ensure figures are closed even if an error occurs
 
     def visualize_multiple_tickers(self, 
-                              tickers: List[str], folder_name: str,
+                              tickers: List[str], 
+                              folder_name: str,
                               column: str = 'Close', 
-                              title: Optional[str] = None) -> None:
+                              title: Optional[str] = None):
         """
         Create a subplot visualization of stock data for multiple tickers.
         
         Args:
             tickers (List[str]): List of stock ticker symbols
+            folder_name (str): Folder name for saving plots
             column (str, optional): Column to plot. Defaults to 'Close'.
             title (Optional[str], optional): Custom plot title
         """
         try:
+            plt.ioff()  # Turn off interactive mode
+            
             # Determine subplot layout
             n_tickers = len(tickers)
-            rows = (n_tickers + 2) // 3  # Ceiling division to get rows
-            cols = min(n_tickers, 3)  # Max 3 columns
+            rows = math.ceil(math.sqrt(n_tickers))
+            cols = math.ceil(n_tickers / rows)
             
-            # Create subplot figure
-            plt.figure(figsize=(15, 5 * rows))
+            plt.figure(figsize=(15, 10))
             
-            # Plot each ticker
-            for idx, ticker in enumerate(tickers, 1):
-                # Create subplot
-                plt.subplot(rows, cols, idx)
+            for i, ticker in enumerate(tickers, 1):
+                data = self._load_stock_data(ticker)
                 
-                # Load data
-                stock_data = self._load_stock_data(ticker)
-                
-                # Validate data
-                if stock_data.empty:
-                    logging.warning(f"No data found for {ticker}")
+                if data is None or data.empty:
+                    print(f"No data available for {ticker}")
                     continue
                 
-                # If specified column is not available, use the first numeric column
-                numeric_columns = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
-                if column not in stock_data.columns:
-                    if not numeric_columns:
-                        logging.warning("No numeric columns available for plotting")
-                        continue
-                    column = numeric_columns[0]
-                    logging.info(f"Defaulting to column: {column}")
-                
-                
-                # Plot the data
-                plt.semilogy(stock_data['Date'], stock_data[column], label=ticker)
-                
-                # Set title and labels
-                plt.title(f'{ticker} Stock {column} Prices')
+                plt.subplot(rows, cols, i)
+                plt.plot(data.index, data[column], label=f'{ticker} {column}')
+                plt.title(f'{ticker} Stock Price')
                 plt.xlabel('Date')
-                plt.ylabel(f'{column} Price ($)')
-                plt.xticks(rotation=45)
-                plt.grid(True)
+                plt.ylabel(f'{column} Price')
                 plt.legend()
+                plt.grid(True)
+                plt.xticks(rotation=45)
             
-            # Adjust layout and add overall title
+            plt.suptitle(title or f'Stock Prices for {", ".join(tickers)}')
             plt.tight_layout()
-            if title:
-                plt.suptitle(title, fontsize=16)
             
-            # Save the plot
-            plt.savefig(os.path.join(self.plot_save_path, f'{folder_name}_stock_prices.png'), dpi=300, bbox_inches='tight')
-
-            # Show the plot
-            # plt.show()
-        
+            # Ensure the directory exists
+            plots_dir = os.path.join(self.plot_save_path, folder_name)
+            os.makedirs(plots_dir, exist_ok=True)
+            save_path = os.path.join(plots_dir, f'multiple_tickers_{column}_plot.png')
+            plt.savefig(save_path)
+            print(f"Multiple tickers plot saved to {save_path}")
+            
+            plt.close('all')  # Close all figures to prevent memory leaks
         except Exception as e:
-            logging.error(f"Error visualizing data for multiple tickers: {e}")
+            print(f"Error visualizing multiple tickers: {e}")
+        finally:
+            plt.close('all')  # Ensure figures are closed even if an error occurs
 
     def resample_data(self, 
                        ticker: str, 
@@ -560,10 +677,9 @@ class StockDataManager:
             
             # Plot monthly data
             monthly_data = self.resample_data(ticker, resample_freq='ME', column=column)
-            monthly_data.index = pd.to_datetime(monthly_data.index)
-            recent_10_years_data = monthly_data[monthly_data.index > monthly_data.index.max() - pd.Timedelta(days=3650)]
-            ax3.semilogy(recent_10_years_data.index, recent_10_years_data.values)
-            ax3.set_title(f'{ticker} Recent 10 Years Monthly {column} Prices')
+            monthly_data.index = pd.to_datetime(monthly_data.index, utc=True)
+            ax3.semilogy(monthly_data.index, monthly_data.values)
+            ax3.set_title(f'{ticker} Monthly {column} Prices')
             ax3.set_xlabel('Date')
             ax3.set_ylabel(f'{column} Price ($)')
             ax3.tick_params(axis='x', rotation=45)
@@ -632,7 +748,7 @@ class StockDataManager:
                 data = self._load_stock_data(ticker)
                 
                 # Convert Date column to datetime and set as index
-                data['Date'] = pd.to_datetime(data['Date'])
+                data['Date'] = pd.to_datetime(data['Date'], utc=True)
                 data.set_index('Date', inplace=True)
                 
                 # Convert Close column to numeric, removing any non-numeric characters
@@ -852,13 +968,14 @@ class StockDataManager:
         except Exception as e:
             logging.error(f"Error generating HTML report: {e}")
 
-    def process_stock_data(self, tickers=[], name=None):
+    def process_stock_data(self, tickers=[], name=None, force_download=False):
         """
         Process and visualize stock data for multiple tickers
         
         Args:
             tickers (list): List of stock tickers to process
             name (str, optional): Custom name for the data folder. Defaults to None.
+            force_download (bool): Force re-download of data. Defaults to False.
         """
         # Validate input
         if not tickers:
@@ -879,8 +996,8 @@ class StockDataManager:
         try:
             # Update and process data for each ticker
             for ticker in tickers:
-                # Download and update stock data
-                stock_manager.update_data(ticker)
+                # Download and update stock data (force re-download if specified)
+                stock_manager.update_data(ticker, force_download=force_download)
                 
                 # Visualize daily, weekly, and monthly data
                 stock_manager.visualize_daily_vs_weekly(ticker)
@@ -929,7 +1046,7 @@ def main():
     for ticker_list in ticker_lists:
         print(f"Processing {ticker_list}: {len(globals()[ticker_list])} tickers")
         # Uncomment the next line when ready to process
-        # stock_manager.process_stock_data(globals()[ticker_list])
+        # stock_manager.process_stock_data(globals()[ticker_list],force_download=True)
         
     # test_tickers = ['BRK-B','LRCX','MRVL']   
     
@@ -939,15 +1056,19 @@ def main():
     # stock_manager.process_stock_data(tickers=ibd_50_stocks)
     # stock_manager.process_stock_data(tickers=zacks_rank_1_stocks)
     # stock_manager.process_stock_data(tickers=positive_earnings_surprise_stocks)
-    # stock_manager.process_stock_data(tickers=Jues401k)
+    # Option to force download all data
+    force_download = True
+
+    stock_manager.process_stock_data(tickers=Jues401k_stocks, force_download=force_download)
+    
     # stock_manager.process_stock_data(tickers=new_highs, name='new_highs')
     # stock_manager.process_stock_data(tickers=new_lows)
     # stock_manager.process_stock_data(tickers=test_tickers)
     # stock_manager.process_stock_data(tickers=bitcoin_tickers)
-    # stock_manager.process_stock_data(tickers=canslim_tickers)
-    # stock_manager.process_stock_data(tickers=finvize_tickers) 
-    # stock_manager.process_stock_data(tickers=chinese_stocks_tickers)
-    stock_manager.process_stock_data(tickers=daily_watch_tickers)
+    # stock_manager.process_stock_data(tickers=canslim_tickers) 
+    # stock_manager.process_stock_data(tickers=chinese_stocks_tickers, force_download=force_download)
+    # stock_manager.process_stock_data(tickers=daily_watch_tickers)
+    # stock_manager.process_stock_data(tickers=index_tickers,force_download=True)
     
 
 

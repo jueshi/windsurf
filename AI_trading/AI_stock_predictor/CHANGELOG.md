@@ -97,6 +97,13 @@
 ### Changed
 - Updated plot_predictions function to handle continuous date ranges
 - Improved visualization of validation and future prediction periods
+- Modified model to predict stock prices 5 days ahead instead of daily
+- Updated sliding window and prediction generation logic to support 5-day forecasting
+- Adjusted future date generation to match 5-day prediction intervals
+- Modified model to predict stock prices 5 days ahead
+- Updated sliding window to compare predictions with actual 5-day ahead prices
+- Improved prediction accuracy evaluation by using 5-day forward looking targets
+- Adjusted validation and prediction reporting to reflect 5-day forecast methodology
 
 ### Fixed
 - Resolved dimension mismatch in date and price plotting

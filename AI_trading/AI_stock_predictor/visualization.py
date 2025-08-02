@@ -9,63 +9,28 @@ def plot_predictions(actual_prices, predicted_prices, future_predictions=None, f
                     validation_dates=None, ticker='Stock', save_path='stock_prediction.png'):
     """
     Create a comprehensive visualization of actual vs predicted prices with optional future predictions
-    
-    Args:
-        actual_prices (np.array): Actual stock prices during validation period
-        predicted_prices (np.array): Predicted stock prices for validation period
-        future_predictions (np.array, optional): Predicted future stock prices
-        future_dates (pd.DatetimeIndex, optional): Dates for future predictions
-        validation_dates (pd.DatetimeIndex, optional): Dates for validation period
-        ticker (str, optional): Stock ticker symbol
-        save_path (str, optional): Path to save the plot
     """
-    plt.figure(figsize=(16, 8))
+    plt.figure(figsize=(12, 6))
     
-    # Ensure inputs are numpy arrays
-    actual_prices = np.array(actual_prices).flatten()
-    predicted_prices = np.array(predicted_prices).flatten()
+    # Plot actual prices
+    plt.plot(actual_prices.index, actual_prices, label='Actual Prices', color='blue')
     
-    # Validation period plot
-    plt.subplot(2, 1, 1)
-    plt.title(f'{ticker} Stock Price: Actual vs Predicted (Validation Period)', fontsize=15)
-    plt.plot(validation_dates, actual_prices, label='Actual Prices', color='blue')
-    plt.plot(validation_dates, predicted_prices, label='Predicted Prices', color='red', linestyle='--')
-    plt.xlabel('Date')
-    plt.ylabel('Price ($)')
-    plt.legend()
-    plt.grid(True)
+    # Plot validation dates and predicted prices
+    if validation_dates is not None and len(predicted_prices) > 0:
+        plt.plot(validation_dates, predicted_prices, label='Predicted Prices', color='red', linestyle='--')
     
-    # Future predictions plot
-    plt.subplot(2, 1, 2)
-    plt.title(f'{ticker} Stock Price: Future Predictions', fontsize=15)
-    
-    # Combine validation and future dates
+    # Plot future predictions
     if future_predictions is not None and future_dates is not None:
-        # Extend actual prices to include last validation price for continuity
-        extended_actual = np.concatenate([actual_prices, [actual_prices[-1]]])
-        extended_dates = np.concatenate([validation_dates, [validation_dates[-1]], future_dates])
-        
-        # Ensure dates and prices are the same length
-        if len(extended_dates) > len(extended_actual):
-            extended_dates = extended_dates[:len(extended_actual)]
-        elif len(extended_actual) > len(extended_dates):
-            extended_actual = extended_actual[:len(extended_dates)]
-        
-        # Plot extended actual prices and future predictions
-        plt.plot(extended_dates, extended_actual, label='Actual Prices', color='blue')
         plt.plot(future_dates, future_predictions, label='Future Predictions', color='green', linestyle='--')
-        
-        plt.xlabel('Date')
-        plt.ylabel('Price ($)')
-        plt.legend()
-        plt.grid(True)
     
+    plt.title(f'{ticker} Stock Price Prediction')
+    plt.xlabel('Date')
+    plt.ylabel('Price')
+    plt.legend()
+    plt.xticks(rotation=45)
     plt.tight_layout()
-    
-    # Save or show the plot
-    if save_path:
-        plt.savefig(f'plots/{save_path}')
-    plt.show()
+    plt.savefig(save_path)
+    plt.close()
 
 def plot_prediction_error(
     stock_data, 

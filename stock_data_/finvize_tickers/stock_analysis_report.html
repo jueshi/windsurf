@@ -1,0 +1,566 @@
+
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <title>Stock Price Analysis Report</title>
+                <style>
+                    body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
+                    h1 { color: #333; text-align: center; }
+                    .plot-container { 
+                        display: flex; 
+                        flex-wrap: wrap; 
+                        justify-content: center; 
+                        gap: 20px; 
+                        margin-top: 20px; 
+                    }
+                    .plot-item { 
+                        text-align: center; 
+                        max-width: 100%; 
+                    }
+                    .plot-item img { 
+                        max-width: 100%; 
+                        height: auto; 
+                        border: 1px solid #ddd; 
+                        border-radius: 5px; 
+                    }
+                </style>
+            </head>
+            <body>
+                <h1>Stock Price Analysis Report</h1>
+                <div class="plot-container">
+            
+                    <div class="plot-item">
+                        <h2>ACAD Stock Prices</h2>
+                        <img src="ACAD_Close_daily_weekly_monthly.png" alt="ACAD Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>ACON Stock Prices</h2>
+                        <img src="ACON_Close_daily_weekly_monthly.png" alt="ACON Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>ALUR Stock Prices</h2>
+                        <img src="ALUR_Close_daily_weekly_monthly.png" alt="ALUR Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>AMBI Stock Prices</h2>
+                        <img src="AMBI_Close_daily_weekly_monthly.png" alt="AMBI Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>AORT Stock Prices</h2>
+                        <img src="AORT_Close_daily_weekly_monthly.png" alt="AORT Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>ARKG Stock Prices</h2>
+                        <img src="ARKG_Close_daily_weekly_monthly.png" alt="ARKG Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>ARMP Stock Prices</h2>
+                        <img src="ARMP_Close_daily_weekly_monthly.png" alt="ARMP Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>ARTV Stock Prices</h2>
+                        <img src="ARTV_Close_daily_weekly_monthly.png" alt="ARTV Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>ASPC Stock Prices</h2>
+                        <img src="ASPC_Close_daily_weekly_monthly.png" alt="ASPC Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>ATHE Stock Prices</h2>
+                        <img src="ATHE_Close_daily_weekly_monthly.png" alt="ATHE Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>ATOM Stock Prices</h2>
+                        <img src="ATOM_Close_daily_weekly_monthly.png" alt="ATOM Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>AVIE Stock Prices</h2>
+                        <img src="AVIE_Close_daily_weekly_monthly.png" alt="AVIE Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>BNIX Stock Prices</h2>
+                        <img src="BNIX_Close_daily_weekly_monthly.png" alt="BNIX Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>BOWN Stock Prices</h2>
+                        <img src="BOWN_Close_daily_weekly_monthly.png" alt="BOWN Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>BUFD Stock Prices</h2>
+                        <img src="BUFD_Close_daily_weekly_monthly.png" alt="BUFD Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>BUXX Stock Prices</h2>
+                        <img src="BUXX_Close_daily_weekly_monthly.png" alt="BUXX Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>BVN Stock Prices</h2>
+                        <img src="BVN_Close_daily_weekly_monthly.png" alt="BVN Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>CCG Stock Prices</h2>
+                        <img src="CCG_Close_daily_weekly_monthly.png" alt="CCG Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>CCM Stock Prices</h2>
+                        <img src="CCM_Close_daily_weekly_monthly.png" alt="CCM Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>CLGN Stock Prices</h2>
+                        <img src="CLGN_Close_daily_weekly_monthly.png" alt="CLGN Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>CLIP Stock Prices</h2>
+                        <img src="CLIP_Close_daily_weekly_monthly.png" alt="CLIP Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>CRNC Stock Prices</h2>
+                        <img src="CRNC_Close_daily_weekly_monthly.png" alt="CRNC Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>CTEC Stock Prices</h2>
+                        <img src="CTEC_Close_daily_weekly_monthly.png" alt="CTEC Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>DINO Stock Prices</h2>
+                        <img src="DINO_Close_daily_weekly_monthly.png" alt="DINO Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>DOGZ Stock Prices</h2>
+                        <img src="DOGZ_Close_daily_weekly_monthly.png" alt="DOGZ Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>DWSH Stock Prices</h2>
+                        <img src="DWSH_Close_daily_weekly_monthly.png" alt="DWSH Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>ELLO Stock Prices</h2>
+                        <img src="ELLO_Close_daily_weekly_monthly.png" alt="ELLO Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>EMKR Stock Prices</h2>
+                        <img src="EMKR_Close_daily_weekly_monthly.png" alt="EMKR Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>EVSB Stock Prices</h2>
+                        <img src="EVSB_Close_daily_weekly_monthly.png" alt="EVSB Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>EXPI Stock Prices</h2>
+                        <img src="EXPI_Close_daily_weekly_monthly.png" alt="EXPI Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>EZGO Stock Prices</h2>
+                        <img src="EZGO_Close_daily_weekly_monthly.png" alt="EZGO Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>FACT Stock Prices</h2>
+                        <img src="FACT_Close_daily_weekly_monthly.png" alt="FACT Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>FCUV Stock Prices</h2>
+                        <img src="FCUV_Close_daily_weekly_monthly.png" alt="FCUV Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>FLJJ Stock Prices</h2>
+                        <img src="FLJJ_Close_daily_weekly_monthly.png" alt="FLJJ Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>FLRN Stock Prices</h2>
+                        <img src="FLRN_Close_daily_weekly_monthly.png" alt="FLRN Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>FORD Stock Prices</h2>
+                        <img src="FORD_Close_daily_weekly_monthly.png" alt="FORD Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>FTNT Stock Prices</h2>
+                        <img src="FTNT_Close_daily_weekly_monthly.png" alt="FTNT Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>GBIL Stock Prices</h2>
+                        <img src="GBIL_Close_daily_weekly_monthly.png" alt="GBIL Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>GCI Stock Prices</h2>
+                        <img src="GCI_Close_daily_weekly_monthly.png" alt="GCI Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>GJUN Stock Prices</h2>
+                        <img src="GJUN_Close_daily_weekly_monthly.png" alt="GJUN Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>GSRT Stock Prices</h2>
+                        <img src="GSRT_Close_daily_weekly_monthly.png" alt="GSRT Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>HIT Stock Prices</h2>
+                        <img src="HIT_Close_daily_weekly_monthly.png" alt="HIT Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>HOLO Stock Prices</h2>
+                        <img src="HOLO_Close_daily_weekly_monthly.png" alt="HOLO Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>HSRT Stock Prices</h2>
+                        <img src="HSRT_Close_daily_weekly_monthly.png" alt="HSRT Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>IDEC Stock Prices</h2>
+                        <img src="IDEC_Close_daily_weekly_monthly.png" alt="IDEC Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>IIPR Stock Prices</h2>
+                        <img src="IIPR_Close_daily_weekly_monthly.png" alt="IIPR Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>INLF Stock Prices</h2>
+                        <img src="INLF_Close_daily_weekly_monthly.png" alt="INLF Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>INTU Stock Prices</h2>
+                        <img src="INTU_Close_daily_weekly_monthly.png" alt="INTU Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>IOT Stock Prices</h2>
+                        <img src="IOT_Close_daily_weekly_monthly.png" alt="IOT Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>JPMO Stock Prices</h2>
+                        <img src="JPMO_Close_daily_weekly_monthly.png" alt="JPMO Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>KITT Stock Prices</h2>
+                        <img src="KITT_Close_daily_weekly_monthly.png" alt="KITT Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>KLTR Stock Prices</h2>
+                        <img src="KLTR_Close_daily_weekly_monthly.png" alt="KLTR Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>LATG Stock Prices</h2>
+                        <img src="LATG_Close_daily_weekly_monthly.png" alt="LATG Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>LEA Stock Prices</h2>
+                        <img src="LEA_Close_daily_weekly_monthly.png" alt="LEA Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>LJAN Stock Prices</h2>
+                        <img src="LJAN_Close_daily_weekly_monthly.png" alt="LJAN Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>LSE Stock Prices</h2>
+                        <img src="LSE_Close_daily_weekly_monthly.png" alt="LSE Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>LSH Stock Prices</h2>
+                        <img src="LSH_Close_daily_weekly_monthly.png" alt="LSH Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>LUX Stock Prices</h2>
+                        <img src="LUX_Close_daily_weekly_monthly.png" alt="LUX Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>LU Stock Prices</h2>
+                        <img src="LU_Close_daily_weekly_monthly.png" alt="LU Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>MBOT Stock Prices</h2>
+                        <img src="MBOT_Close_daily_weekly_monthly.png" alt="MBOT Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>MED Stock Prices</h2>
+                        <img src="MED_Close_daily_weekly_monthly.png" alt="MED Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>MFI Stock Prices</h2>
+                        <img src="MFI_Close_daily_weekly_monthly.png" alt="MFI Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>MFUT Stock Prices</h2>
+                        <img src="MFUT_Close_daily_weekly_monthly.png" alt="MFUT Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>MMLP Stock Prices</h2>
+                        <img src="MMLP_Close_daily_weekly_monthly.png" alt="MMLP Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>MUR Stock Prices</h2>
+                        <img src="MUR_Close_daily_weekly_monthly.png" alt="MUR Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>MXE Stock Prices</h2>
+                        <img src="MXE_Close_daily_weekly_monthly.png" alt="MXE Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>NCEW Stock Prices</h2>
+                        <img src="NCEW_Close_daily_weekly_monthly.png" alt="NCEW Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>NITO Stock Prices</h2>
+                        <img src="NITO_Close_daily_weekly_monthly.png" alt="NITO Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>NOMD Stock Prices</h2>
+                        <img src="NOMD_Close_daily_weekly_monthly.png" alt="NOMD Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>NSA Stock Prices</h2>
+                        <img src="NSA_Close_daily_weekly_monthly.png" alt="NSA Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>NTRA Stock Prices</h2>
+                        <img src="NTRA_Close_daily_weekly_monthly.png" alt="NTRA Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>NTWO Stock Prices</h2>
+                        <img src="NTWO_Close_daily_weekly_monthly.png" alt="NTWO Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>NUKK Stock Prices</h2>
+                        <img src="NUKK_Close_daily_weekly_monthly.png" alt="NUKK Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>NVA Stock Prices</h2>
+                        <img src="NVA_Close_daily_weekly_monthly.png" alt="NVA Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>NVCT Stock Prices</h2>
+                        <img src="NVCT_Close_daily_weekly_monthly.png" alt="NVCT Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>NYC Stock Prices</h2>
+                        <img src="NYC_Close_daily_weekly_monthly.png" alt="NYC Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>OCTZ Stock Prices</h2>
+                        <img src="OCTZ_Close_daily_weekly_monthly.png" alt="OCTZ Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>ONEG Stock Prices</h2>
+                        <img src="ONEG_Close_daily_weekly_monthly.png" alt="ONEG Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>OPER Stock Prices</h2>
+                        <img src="OPER_Close_daily_weekly_monthly.png" alt="OPER Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>PBT Stock Prices</h2>
+                        <img src="PBT_Close_daily_weekly_monthly.png" alt="PBT Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>PHH Stock Prices</h2>
+                        <img src="PHH_Close_daily_weekly_monthly.png" alt="PHH Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>PSEC Stock Prices</h2>
+                        <img src="PSEC_Close_daily_weekly_monthly.png" alt="PSEC Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>PSFO Stock Prices</h2>
+                        <img src="PSFO_Close_daily_weekly_monthly.png" alt="PSFO Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>PTLE Stock Prices</h2>
+                        <img src="PTLE_Close_daily_weekly_monthly.png" alt="PTLE Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>PWP Stock Prices</h2>
+                        <img src="PWP_Close_daily_weekly_monthly.png" alt="PWP Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>RAIN Stock Prices</h2>
+                        <img src="RAIN_Close_daily_weekly_monthly.png" alt="RAIN Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>RANGU Stock Prices</h2>
+                        <img src="RANGU_Close_daily_weekly_monthly.png" alt="RANGU Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>RES Stock Prices</h2>
+                        <img src="RES_Close_daily_weekly_monthly.png" alt="RES Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>RKLB Stock Prices</h2>
+                        <img src="RKLB_Close_daily_weekly_monthly.png" alt="RKLB Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>RM Stock Prices</h2>
+                        <img src="RM_Close_daily_weekly_monthly.png" alt="RM Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>SAGE Stock Prices</h2>
+                        <img src="SAGE_Close_daily_weekly_monthly.png" alt="SAGE Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>SCPX Stock Prices</h2>
+                        <img src="SCPX_Close_daily_weekly_monthly.png" alt="SCPX Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>SGOV Stock Prices</h2>
+                        <img src="SGOV_Close_daily_weekly_monthly.png" alt="SGOV Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>SISI Stock Prices</h2>
+                        <img src="SISI_Close_daily_weekly_monthly.png" alt="SISI Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>SQ Stock Prices</h2>
+                        <img src="SQ_Close_daily_weekly_monthly.png" alt="SQ Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>STAI Stock Prices</h2>
+                        <img src="STAI_Close_daily_weekly_monthly.png" alt="STAI Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>SUGP Stock Prices</h2>
+                        <img src="SUGP_Close_daily_weekly_monthly.png" alt="SUGP Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>TAVI Stock Prices</h2>
+                        <img src="TAVI_Close_daily_weekly_monthly.png" alt="TAVI Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>TDACU Stock Prices</h2>
+                        <img src="TDACU_Close_daily_weekly_monthly.png" alt="TDACU Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>TGL Stock Prices</h2>
+                        <img src="TGL_Close_daily_weekly_monthly.png" alt="TGL Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>TXSS Stock Prices</h2>
+                        <img src="TXSS_Close_daily_weekly_monthly.png" alt="TXSS Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>VRME Stock Prices</h2>
+                        <img src="VRME_Close_daily_weekly_monthly.png" alt="VRME Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>WLAC Stock Prices</h2>
+                        <img src="WLAC_Close_daily_weekly_monthly.png" alt="WLAC Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>YAAS Stock Prices</h2>
+                        <img src="YAAS_Close_daily_weekly_monthly.png" alt="YAAS Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>YIBO Stock Prices</h2>
+                        <img src="YIBO_Close_daily_weekly_monthly.png" alt="YIBO Stock Price Plot">
+                    </div>
+                
+                    <div class="plot-item">
+                        <h2>ZYME Stock Prices</h2>
+                        <img src="ZYME_Close_daily_weekly_monthly.png" alt="ZYME Stock Price Plot">
+                    </div>
+                
+                </div>
+            </body>
+            </html>
+            

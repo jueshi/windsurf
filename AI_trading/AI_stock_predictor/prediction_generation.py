@@ -50,17 +50,17 @@ def generate_predictions(model, X_test, forecast_horizon=30, scalers=None):
         future_predictions = []
         
         # Predict future time steps
-        for _ in range(forecast_horizon):
-            # Convert last sequence to tensor
-            last_seq_tensor = torch.FloatTensor(last_sequence).unsqueeze(0)
-            
-            # Predict next time step
-            next_pred = model(last_seq_tensor).numpy()[0]
-            future_predictions.append(next_pred)
-            
-            # Update last sequence by removing first time step and adding prediction
-            last_sequence = np.roll(last_sequence, -1, axis=0)
-            last_sequence[-1] = next_pred
+        X_future = torch.FloatTensor(last_sequence).unsqueeze(0)
+        future_predictions = model(X_future).detach().numpy().flatten()
+        
+        # If the number of future predictions doesn't match forecast_horizon, pad or truncate
+        if len(future_predictions) < forecast_horizon:
+            future_predictions = np.pad(future_predictions, 
+                                        (0, forecast_horizon - len(future_predictions)), 
+                                        mode='constant', 
+                                        constant_values=future_predictions[-1])
+        elif len(future_predictions) > forecast_horizon:
+            future_predictions = future_predictions[:forecast_horizon]
     
     # Print diagnostic information
     print("\nPrediction Generation Diagnostics:")

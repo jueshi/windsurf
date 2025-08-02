@@ -1,4 +1,6 @@
 # Machine learning
+pypdf
+
 torch==2.0.1
 scikit-learn==1.2.2
 

@@ -1,0 +1,28 @@
+Python 3.11 Installation Instructions for Windows
+
+1. Download Python 3.11
+- Visit: https://www.python.org/downloads/windows/
+- Find Python 3.11.9 (or latest 3.11.x)
+- Download 64-bit executable installer (python-3.11.9-amd64.exe)
+
+2. Installation Steps:
+a) Run the downloaded installer
+b) CRITICAL: Check "Add python.exe to PATH" at bottom of first screen
+c) Select "Customize installation"
+d) Ensure "pip" is selected
+e) Click "Install"
+f) Complete the installation
+
+3. Verify Installation
+Open a NEW Command Prompt and run:
+```
+python --version
+pip --version
+```
+
+Expected output should show Python 3.11.x and corresponding pip version.
+
+Troubleshooting:
+- If versions don't show correctly, restart your computer
+- Ensure no other Python versions interfere with PATH
+- You may need to uninstall previous Python versions

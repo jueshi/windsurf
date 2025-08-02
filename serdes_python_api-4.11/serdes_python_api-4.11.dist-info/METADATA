@@ -1,0 +1,6 @@
+Metadata-Version: 2.2
+Name: serdes_python_api
+Version: 4.11
+Summary: Interact with Synopsys SERDES evaluation software and hardware
+Requires-Python: >=3.11
+Requires-Dist: pandas
