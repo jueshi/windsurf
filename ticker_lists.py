@@ -8,6 +8,11 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 import json
 
+mega_tickers0 = ["NVDA", "MSFT", "AAPL", "GOOG", "GOOGL", "AMZN", "META", "AVGO", "TSM", "BRK-A", "BRK-B", "TSLA", "JPM", "WMT", "LLY", "ORCL", "V", "MA", "NFLX", "XOM"]
+mega_tickers1 = ['COST', 'JNJ', 'HD', 'PLTR', 'PG', 'ABBV', 'BAC', 'SAP', 'CVX', 'KO', 'GE', 'AMD', 'ASML', 'TMUS', 'CSCO', 'BABA', 'PM', 'WFC', 'CRM', 'TM']
+mega_tickers2 = ['IBM', 'AZN', 'MS', 'ABT', 'NVS', 'GS', 'MCD', 'INTU', 'LIN', 'UNH', 'HSBC', 'SHEL', 'RTX', 'DIS', 'BX', 'AXP', 'CAT']
+mega_tickers = mega_tickers0 + mega_tickers1 + mega_tickers2
+
 index_tickers = ["SPX", "DJIA", "COMP", "RUT", "NYA", "INX", "DAX", "CAC", "^HSI"]
 
 # Stock Ticker Lists: use _stocks or _tickers to tell main program to process them

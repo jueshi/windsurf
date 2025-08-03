@@ -1057,9 +1057,10 @@ def main():
     # stock_manager.process_stock_data(tickers=zacks_rank_1_stocks)
     # stock_manager.process_stock_data(tickers=positive_earnings_surprise_stocks)
     # Option to force download all data
-    force_download = True
 
-    stock_manager.process_stock_data(tickers=Jues401k_stocks, force_download=force_download)
+    force_download = True
+    # Jues401k_stocks
+    stock_manager.process_stock_data(tickers=mega_tickers2, force_download=force_download)
     
     # stock_manager.process_stock_data(tickers=new_highs, name='new_highs')
     # stock_manager.process_stock_data(tickers=new_lows)
