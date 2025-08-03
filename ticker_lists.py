@@ -8,7 +8,7 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 import json
 
-index_tickers = ["SPX", "DJIA", "COMP", "RUT", "NYA", "INX", "DAX", "CAC", "HSI"]
+index_tickers = ["SPX", "DJIA", "COMP", "RUT", "NYA", "INX", "DAX", "CAC", "^HSI"]
 
 # Stock Ticker Lists: use _stocks or _tickers to tell main program to process them
 tickers_comment_dict = {} #manually build a dictionary of tickers and comments
@@ -241,7 +241,172 @@ daily_watch_tickers = [
     'WEC','XEL'
 ]
 
-# Optional: print tickers_comment_dict for debugging
+# Function to check if a ticker symbol is valid and suggest alternatives if not
+def validate_ticker(ticker):
+    import yfinance as yf
+    import difflib
+    
+    # Special cases for indices and other symbols that yfinance handles differently
+    special_cases = {
+        'SPX': '^GSPC',  # S&P 500 index
+        'DJIA': '^DJI',  # Dow Jones Industrial Average
+        'COMP': '^IXIC', # NASDAQ Composite
+        'RUT': '^RUT',   # Russell 2000
+        'VIX': '^VIX',   # CBOE Volatility Index
+        'NYA': '^NYA',   # NYSE Composite
+        'INX': '^GSPC',  # Another symbol for S&P 500
+    }
+    
+    # Check if it's a special case
+    if ticker in special_cases:
+        ticker = special_cases[ticker]
+    
+    try:
+        # Try to get ticker info
+        ticker_info = yf.Ticker(ticker).info
+        
+        # Check if we got valid data (yfinance returns empty dict for invalid tickers)
+        if 'regularMarketPrice' in ticker_info or 'previousClose' in ticker_info:
+            return True, None
+        else:
+            # If ticker is invalid, get a list of valid tickers to suggest alternatives
+            # This is a simplified approach - in a real application, you might want to use a more comprehensive list
+            common_tickers = ['AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'META', 'TSLA', 'NVDA', 'JPM', 'V', 'JNJ', 
+                             'WMT', 'PG', 'MA', 'UNH', 'HD', 'BAC', 'XOM', 'PFE', 'AVGO', 'COST', 'CSCO', 'LLY', 
+                             'MRK', 'ADBE', 'NFLX', 'TMO', 'ABT', 'CRM', 'CMCSA', 'PEP', 'NKE', 'ACN', 'INTC', 
+                             'VZ', 'QCOM', 'DIS', 'AMD', 'TXN', 'IBM', 'INTU', 'AMAT', 'GE', 'PYPL', 'SBUX',
+                             'SPY', 'QQQ', 'IWM', 'DIA', 'GLD', 'SLV', 'USO', 'EEM', 'XLF', 'XLE', 'XLK', 'XLV']
+            
+            # Find close matches
+            matches = difflib.get_close_matches(ticker, common_tickers, n=3, cutoff=0.6)
+            
+            # Add special case suggestions
+            if ticker in ['SPX', 'SP500', 'S&P500', 'S&P', 'SP']:
+                matches.append('SPY')
+            elif ticker in ['DOW', 'DOWJONES', 'DJ30']:
+                matches.append('DIA')
+            elif ticker == 'NASDAQ' or ticker == 'NDX':
+                matches.append('QQQ')
+            elif ticker == 'RUSSELL' or ticker == 'R2000':
+                matches.append('IWM')
+            # Check for common issues like missing dash in BRK-B vs BRKB
+            elif ticker == 'BRKB':
+                matches.append('BRK-B')
+            elif ticker == 'BRKA':
+                matches.append('BRK-A')
+                
+            return False, matches
+    except Exception as e:
+        return False, f"Error checking ticker: {str(e)}"
+
+# Function to check all tickers in a list
+def check_ticker_list(ticker_list, list_name):
+    print(f"\nChecking tickers in {list_name}:")
+    invalid_tickers = []
+    valid_count = 0
+    
+    print(f"Processing {len(ticker_list)} tickers...")
+    
+    for i, ticker in enumerate(ticker_list):
+        # Print progress for large lists
+        if len(ticker_list) > 20 and i % 10 == 0 and i > 0:
+            print(f"  Processed {i}/{len(ticker_list)} tickers...")
+            
+        is_valid, suggestions = validate_ticker(ticker)
+        if is_valid:
+            valid_count += 1
+        else:
+            invalid_tickers.append((ticker, suggestions))
+    
+    print(f"\nResults for {list_name}:")
+    print(f"  - Valid tickers: {valid_count}/{len(ticker_list)}")
+    
+    if invalid_tickers:
+        print(f"  - Invalid tickers: {len(invalid_tickers)}/{len(ticker_list)}")
+        print("\nInvalid tickers:")
+        for ticker, suggestions in invalid_tickers:
+            print(f"  - {ticker}: Invalid", end="")
+            if suggestions and isinstance(suggestions, list) and len(suggestions) > 0:
+                print(f" (Did you mean: {', '.join(set(suggestions))}?)")
+            else:
+                print()
+    else:
+        print(f"\nAll tickers in {list_name} are valid!")
+    
+    return invalid_tickers
+
 if __name__ == '__main__':
     import json
+    print("\nStock Symbol Validator")
+    print("====================\n")
+    
+    # Get all ticker lists from this module
+    import sys
+    current_module = sys.modules[__name__]
+    all_ticker_lists = {}
+    
+    for name in dir(current_module):
+        obj = getattr(current_module, name)
+        # Find lists that contain 'ticker' or 'stock' in their name and are actually lists
+        if (isinstance(obj, list) and 
+            ('ticker' in name.lower() or 'stock' in name.lower()) and 
+            len(obj) > 0 and 
+            isinstance(obj[0], str)):
+            all_ticker_lists[name] = obj
+    
+    # Sort lists by name
+    sorted_names = sorted(all_ticker_lists.keys())
+    
+    # Ask user which list to check or check all
+    print(f"Found {len(all_ticker_lists)} ticker lists in this module:")
+    for i, name in enumerate(sorted_names, 1):
+        print(f"{i}. {name} ({len(all_ticker_lists[name])} tickers)")
+    
+    print("\nOptions:")
+    print("1-N: Check a specific list")
+    print("a: Check all lists")
+    print("c: Check custom tickers")
+    print("q: Quit")
+    
+    try:
+        choice = input("\nEnter your choice: ").strip().lower()
+        
+        if choice == 'q':
+            print("Exiting...")
+            sys.exit(0)
+        elif choice == 'a':
+            print("\nChecking all ticker lists. This may take some time...\n")
+            all_invalid = {}
+            for name in sorted_names:
+                ticker_list = all_ticker_lists[name]
+                invalid = check_ticker_list(ticker_list, name)
+                if invalid:
+                    all_invalid[name] = invalid
+            
+            if all_invalid:
+                print(f"\nSummary: Found invalid tickers in {len(all_invalid)} lists.")
+                print("Lists with invalid tickers:")
+                for name in all_invalid:
+                    print(f"  - {name}: {len(all_invalid[name])} invalid tickers")
+            else:
+                print("\nAll tickers in all lists are valid!")
+        elif choice == 'c':
+            custom_tickers = input("Enter tickers separated by commas: ").strip().split(',')
+            custom_tickers = [t.strip().upper() for t in custom_tickers if t.strip()]
+            if custom_tickers:
+                check_ticker_list(custom_tickers, "custom list")
+            else:
+                print("No tickers entered.")
+        elif choice.isdigit() and 1 <= int(choice) <= len(sorted_names):
+            name = sorted_names[int(choice) - 1]
+            check_ticker_list(all_ticker_lists[name], name)
+        else:
+            print("Invalid choice.")
+    except KeyboardInterrupt:
+        print("\n\nOperation cancelled by user.")
+    except Exception as e:
+        print(f"\n\nAn error occurred: {str(e)}")
+    
+    # Print tickers_comment_dict for debugging
+    print("\nTicker Comments Dictionary:")
     print(json.dumps(tickers_comment_dict, indent=2, ensure_ascii=False))
