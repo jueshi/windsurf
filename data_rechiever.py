@@ -103,25 +103,28 @@ Last Updated: 2025-01-04
 """
 
 import os
-import pandas as pd
-import yfinance as yf
-from datetime import datetime, timedelta
-import matplotlib.pyplot as plt
+import sys
+import importlib
+import inspect
 import logging
-import numpy as np
-from typing import Optional, List, Any
-import webbrowser
 import re
-from ticker_lists import *
-import math
-import time
-from datetime import datetime, timezone, timedelta
-from random import uniform
+import datetime
+from datetime import datetime, timedelta
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 from PIL import Image, ImageTk
-import inspect
-import sys
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import pandas as pd
+import numpy as np
+import webbrowser
+import threading
+import time
+import pytz
+import yfinance as yf
+from typing import Optional, List, Any
+from random import uniform
+import math
 
 # Configure logging
 logging.basicConfig(
@@ -1091,16 +1094,16 @@ class StockDataGUI:
     """GUI for Stock Data Manager"""
     
     def __init__(self, root, manager):
-        """Initialize the GUI"""
+        """Initialize the GUI."""
         self.root = root
-        self.root.title("Stock Data Manager")
-        self.root.geometry("800x600")
         self.manager = manager
-        
-        # Get all ticker lists
-        self.ticker_lists = self._get_ticker_lists()
         self.current_tickers = []
-        self.watch_list = []  # Initialize watch list
+        self.watch_list = []
+        self.current_image = None  # Store reference to prevent garbage collection
+        
+        # Load ticker lists from ticker_lists.py
+        self.ticker_lists = {}
+        self._load_ticker_lists_from_module()
         
         # Load watch list from ticker_lists.py if it exists
         try:
@@ -1110,25 +1113,177 @@ class StockDataGUI:
                 logging.info(f"Loaded {len(self.watch_list)} tickers from watch list")
         except Exception as e:
             logging.error(f"Error loading watch list: {e}")
-        
+            
         self._create_widgets()
         
-    def _get_ticker_lists(self):
-        """Get all ticker lists from ticker_lists module"""
-        ticker_lists = {}
-        current_module = sys.modules['ticker_lists']
-        
-        for name in dir(current_module):
-            obj = getattr(current_module, name)
-            # Find lists that contain 'ticker' or 'stock' in their name and are actually lists
-            if (isinstance(obj, list) and 
-                ('ticker' in name.lower() or 'stock' in name.lower()) and 
-                len(obj) > 0 and 
-                isinstance(obj[0], str)):
-                ticker_lists[name] = obj
-        
-        return ticker_lists
+    def _load_ticker_lists_from_module(self):
+        """Load all ticker lists from ticker_lists module"""
+        # Import or reload the ticker_lists module to get fresh data
+        try:
+            # First, try to completely remove the module from sys.modules
+            if 'ticker_lists' in sys.modules:
+                del sys.modules['ticker_lists']
+            
+            # Now import it fresh
+            import ticker_lists
+            
+            # Get the module
+            current_module = ticker_lists
+            
+            # Clear existing ticker lists
+            self.ticker_lists = {}
+            
+            # Get the source code of the module to check for commented lines
+            module_file = inspect.getfile(current_module)
+            with open(module_file, 'r', encoding='utf-8') as f:
+                source_lines = f.readlines()
+            
+            # Extract active variable names (not commented out)
+            active_vars = set()
+            for line in source_lines:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    var_name = line.split('=')[0].strip()
+                    active_vars.add(var_name)
+            
+            # Load all list objects from the module that are not commented out
+            for name in dir(current_module):
+                # Skip private/special variables, functions, and commented-out variables
+                if name.startswith('__') or callable(getattr(current_module, name)) or name not in active_vars:
+                    continue
+                    
+                try:
+                    obj = getattr(current_module, name)
+                    if isinstance(obj, list):
+                        self.ticker_lists[name] = obj
+                except Exception as e:
+                    logging.debug(f"Error accessing {name}: {e}")
+            
+            logging.info(f"Loaded {len(self.ticker_lists)} ticker lists from ticker_lists.py")
+        except Exception as e:
+            logging.error(f"Error loading ticker lists: {e}")
+            messagebox.showerror("Error", f"Failed to load ticker lists: {e}")
     
+    # def _refresh_ticker_lists(self):
+    #     """Reload ticker lists from ticker_lists.py"""
+    #     try:
+    #         # Remember current selection
+    #         current_selection = self.ticker_list_var.get()
+            
+    #         # Clear filter if any
+    #         if hasattr(self, 'list_filter_var'):
+    #             self.list_filter_var.set('')
+            
+    #         # Reload ticker lists from module
+    #         self._load_ticker_lists_from_module()
+            
+    #         # Update the dropdown values
+    #         self.ticker_list_combo['values'] = list(self.ticker_lists.keys())
+            
+    #         # Restore previous selection if it still exists
+    #         if current_selection and current_selection in self.ticker_lists:
+    #             self.ticker_list_var.set(current_selection)
+            
+    #         # Also refresh watch list if it exists in ticker_lists.py
+    #         try:
+    #             import ticker_lists
+    #             importlib.reload(ticker_lists)
+    #             if hasattr(ticker_lists, 'watch_list'):
+    #                 self.watch_list = ticker_lists.watch_list.copy()
+    #                 # Update watch list display
+    #                 self.watch_listbox.delete(0, tk.END)
+    #                 for ticker in self.watch_list:
+    #                     self.watch_listbox.insert(tk.END, ticker)
+    #                 logging.info(f"Refreshed watch list with {len(self.watch_list)} tickers")
+    #         except Exception as e:
+    #             logging.error(f"Error refreshing watch list: {e}")
+            
+    #         # Update status
+    #         self.status_var.set(f"Refreshed {len(self.ticker_lists)} ticker lists from ticker_lists.py")
+            
+    #     except Exception as e:
+    #         logging.error(f"Error refreshing ticker lists: {str(e)}")
+    #         messagebox.showerror("Error", f"Failed to refresh ticker lists: {str(e)}")
+    
+    def _filter_ticker_lists(self, event=None):
+        """Filter ticker lists dropdown based on filter text"""
+        filter_text = self.list_filter_var.get().lower()
+        
+        if not filter_text:
+            # If filter is empty, show all ticker lists
+            self.ticker_list_combo['values'] = list(self.ticker_lists.keys())
+        else:
+            # Filter ticker lists that contain the filter text
+            filtered_lists = [name for name in self.ticker_lists.keys() 
+                            if filter_text in name.lower()]
+            self.ticker_list_combo['values'] = filtered_lists
+            
+            # If there's a match and the current selection doesn't match the filter,
+            # update the selection to the first match
+            if filtered_lists and self.ticker_list_var.get() not in filtered_lists:
+                self.ticker_list_var.set(filtered_lists[0])
+    
+    def _refresh_ticker_lists(self):
+        """Reload ticker lists from ticker_lists.py"""
+        try:
+            # Remember current selection
+            current_selection = self.ticker_list_var.get()
+            
+            # Clear filter if any
+            if hasattr(self, 'list_filter_var'):
+                self.list_filter_var.set('')
+            
+            # Store old ticker lists for comparison
+            old_ticker_lists = set(self.ticker_lists.keys())
+            
+            # Reload ticker lists from module
+            self._load_ticker_lists_from_module()
+            
+            # Get new ticker lists
+            new_ticker_lists = set(self.ticker_lists.keys())
+            
+            # Find removed and added lists
+            removed_lists = old_ticker_lists - new_ticker_lists
+            added_lists = new_ticker_lists - old_ticker_lists
+            
+            # Update the dropdown values
+            self.ticker_list_combo['values'] = list(self.ticker_lists.keys())
+            
+            # Restore previous selection if it still exists
+            if current_selection and current_selection in self.ticker_lists:
+                self.ticker_list_var.set(current_selection)
+            elif removed_lists and current_selection in removed_lists:
+                # If current selection was removed, select first available list
+                if self.ticker_lists:
+                    self.ticker_list_var.set(list(self.ticker_lists.keys())[0])
+                    self._load_ticker_list()  # Load the newly selected list
+            
+            # Also refresh watch list if it exists in ticker_lists.py
+            try:
+                import ticker_lists
+                importlib.reload(ticker_lists)
+                if hasattr(ticker_lists, 'watch_list'):
+                    self.watch_list = ticker_lists.watch_list.copy()
+                    # Update watch list display
+                    self.watch_listbox.delete(0, tk.END)
+                    for ticker in self.watch_list:
+                        self.watch_listbox.insert(tk.END, ticker)
+                    logging.info(f"Refreshed watch list with {len(self.watch_list)} tickers")
+            except Exception as e:
+                logging.error(f"Error refreshing watch list: {e}")
+            
+            # Update status with information about changes
+            status_msg = f"Refreshed {len(self.ticker_lists)} ticker lists from ticker_lists.py"
+            if removed_lists:
+                status_msg += f" (Removed: {', '.join(removed_lists)})"
+            if added_lists:
+                status_msg += f" (Added: {', '.join(added_lists)})"
+            self.status_var.set(status_msg)
+            
+        except Exception as e:
+            logging.error(f"Error refreshing ticker lists: {str(e)}")
+            messagebox.showerror("Error", f"Failed to refresh ticker lists: {str(e)}")
+                
     def _create_widgets(self):
         """Create all GUI widgets"""
         # Create main frame
@@ -1159,7 +1314,15 @@ class StockDataGUI:
         self.ticker_list_combo.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
         self.ticker_list_combo.bind("<<ComboboxSelected>>", self._on_list_selected)
         
-        ttk.Button(top_frame, text="Load List", command=self._load_ticker_list).grid(row=0, column=2, padx=5, pady=5)
+        # Create a frame for the buttons
+        button_frame = ttk.Frame(top_frame)
+        button_frame.grid(row=0, column=2, padx=5, pady=5)
+        
+        # Load List button loads the selected list
+        ttk.Button(button_frame, text="Load List", command=self._load_ticker_list).pack(side=tk.LEFT, padx=(0, 5))
+        
+        # Refresh Lists button reloads ticker lists from ticker_lists.py
+        ttk.Button(button_frame, text="Refresh Lists", command=self._refresh_ticker_lists).pack(side=tk.LEFT)
         
         # Add manual ticker entry
         ttk.Label(top_frame, text="Add Ticker:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=5)
@@ -1284,29 +1447,74 @@ class StockDataGUI:
             # Auto-load the selected ticker list
             self._load_ticker_list()
     
-    def _filter_ticker_lists(self, event):
-        """Filter the ticker list dropdown based on filter text"""
-        filter_text = self.list_filter_var.get().strip().upper()
-        
-        # Get all available ticker lists
-        all_lists = list(self.ticker_lists.keys())
-        
-        # Apply filter
-        if filter_text:
-            filtered_lists = [lst for lst in all_lists if filter_text in lst.upper()]
-            self.ticker_list_combo['values'] = filtered_lists
+    # def _refresh_ticker_lists(self):
+    #     """Reload ticker lists from ticker_lists.py"""
+    #     try:
+    #         # Remember current selection
+    #         current_selection = self.ticker_list_var.get()
             
-            # If we have exactly one match, select it
-            if len(filtered_lists) == 1:
-                self.ticker_list_var.set(filtered_lists[0])
-                self._on_list_selected(None)  # Trigger list selection event
-        else:
-            # Reset to show all lists
-            self.ticker_list_combo['values'] = all_lists
+    #         # Clear filter if any
+    #         if hasattr(self, 'list_filter_var'):
+    #             self.list_filter_var.set('')
+            
+    #         # Reload ticker lists from module
+    #         self._load_ticker_lists_from_module()
+            
+    #         # Update the dropdown values
+    #         self.ticker_list_combo['values'] = list(self.ticker_lists.keys())
+            
+    #         # Restore previous selection if it still exists
+    #         if current_selection and current_selection in self.ticker_lists:
+    #             self.ticker_list_var.set(current_selection)
+            
+    #         # Also refresh watch list if it exists in ticker_lists.py
+    #         try:
+    #             import ticker_lists
+    #             importlib.reload(ticker_lists)
+    #             if hasattr(ticker_lists, 'watch_list'):
+    #                 self.watch_list = ticker_lists.watch_list.copy()
+    #                 # Update watch list display
+    #                 self.watch_listbox.delete(0, tk.END)
+    #                 for ticker in self.watch_list:
+    #                     self.watch_listbox.insert(tk.END, ticker)
+    #                 logging.info(f"Refreshed watch list with {len(self.watch_list)} tickers")
+    #         except Exception as e:
+    #             logging.error(f"Error refreshing watch list: {e}")
+            
+    #         # Update status
+    #         self.status_var.set(f"Refreshed {len(self.ticker_lists)} ticker lists from ticker_lists.py")
+            
+    #     except Exception as e:
+    #         logging.error(f"Error refreshing ticker lists: {str(e)}")
+    #         messagebox.showerror("Error", f"Failed to refresh ticker lists: {str(e)}")
+    
+    # def _filter_ticker_lists(self, event=None):
+    #     """Filter the ticker lists dropdown based on input"""
+    #     filter_text = self.list_filter_var.get().lower()
         
-        # Update status
-        if filter_text:
-            self.status_var.set(f"List filter: '{filter_text}' - {len(self.ticker_list_combo['values'])} matches")
+    #     if not filter_text:
+    #         # If filter is empty, show all lists
+    #         self.ticker_list_combo['values'] = list(self.ticker_lists.keys())
+    #         return
+            
+    #     # Filter lists based on input
+    #     filtered_lists = [name for name in self.ticker_lists.keys() 
+    #                      if filter_text in name.lower()]
+        
+    #     # Update dropdown values
+    #     self.ticker_list_combo['values'] = filtered_lists
+        
+    #     # If exactly one match, select it and load it automatically
+    #     if len(filtered_lists) == 1:
+    #         self.ticker_list_var.set(filtered_lists[0])
+    #         self._load_ticker_list()
+    #     else:
+    #         # Reset to show all lists
+    #         self.ticker_list_combo['values'] = list(self.ticker_lists.keys())
+        
+    #     # Update status
+    #     if filter_text:
+    #         self.status_var.set(f"List filter: '{filter_text}' - {len(self.ticker_list_combo['values'])} matches")
     
     def _apply_ticker_filter(self, *args):
         """Filter the ticker list based on filter text"""
