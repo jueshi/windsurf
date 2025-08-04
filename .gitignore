@@ -16,6 +16,8 @@ env/
 *.png
 *.csv
 *.xlsx
+*.tsv
+*.html
 
 # Logs
 *.log
