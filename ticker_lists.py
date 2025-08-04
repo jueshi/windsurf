@@ -243,6 +243,15 @@ daily_watch_tickers = [
 eps_growth_stocks_2025_8_3 = ["NVDA", "AVGO", "AMD", "APH", "UBS", "NET", "CCJ", "GFI", "CLS", "ESLT", "KGC", "CELH", "EVR", "SRAD", "FYBR", "BE", "W", "LIF", "EGO", "OLO", "CDTX", "CCEC", "ATAI", "TBPH", "ISSC", "XGN", "ELTX", "ASMB"]
 canslim_8_3_2025_stocks = ["APP", "AVGO", "CLS", "EVR", "GFI", "HIMS", "HWM", "NVDA"]
 
+watch_list = ["XMAR", "AMZN", "NEXT", "0700.HK", "nio", "bidu"]
+
+
+
+
+
+
+
+
 # Function to check if a ticker symbol is valid and suggest alternatives if not
 def validate_ticker(ticker):
     import yfinance as yf

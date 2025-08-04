@@ -119,6 +119,7 @@ from datetime import datetime, timezone, timedelta
 from random import uniform
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
+from PIL import Image, ImageTk
 import inspect
 import sys
 
@@ -1089,15 +1090,26 @@ class StockDataManager:
 class StockDataGUI:
     """GUI for Stock Data Manager"""
     
-    def __init__(self, root):
+    def __init__(self, root, manager):
+        """Initialize the GUI"""
         self.root = root
         self.root.title("Stock Data Manager")
         self.root.geometry("800x600")
-        self.root.minsize(600, 500)
+        self.manager = manager
         
-        self.manager = StockDataManager()
+        # Get all ticker lists
         self.ticker_lists = self._get_ticker_lists()
         self.current_tickers = []
+        self.watch_list = []  # Initialize watch list
+        
+        # Load watch list from ticker_lists.py if it exists
+        try:
+            import ticker_lists
+            if hasattr(ticker_lists, 'watch_list'):
+                self.watch_list = ticker_lists.watch_list.copy()
+                logging.info(f"Loaded {len(self.watch_list)} tickers from watch list")
+        except Exception as e:
+            logging.error(f"Error loading watch list: {e}")
         
         self._create_widgets()
         
@@ -1152,22 +1164,73 @@ class StockDataGUI:
         list_name_entry.grid(row=2, column=1, sticky=tk.W, padx=5, pady=5)
         ttk.Button(top_frame, text="Save List", command=self._save_ticker_list).grid(row=2, column=2, padx=5, pady=5)
         
-        # Create middle frame for ticker selection
-        middle_frame = ttk.LabelFrame(main_frame, text="Available Tickers", padding="10")
+        # Create middle frame with three sections: available tickers, watch list, and chart display
+        middle_frame = ttk.Frame(main_frame)
         middle_frame.pack(fill=tk.BOTH, expand=True, pady=5)
         
+        # Left section for available tickers (limited width)
+        left_frame = ttk.LabelFrame(middle_frame, text="Available Tickers", padding="5")
+        left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 5))
+        
         # Create ticker listbox with scrollbar
-        ticker_frame = ttk.Frame(middle_frame)
+        ticker_frame = ttk.Frame(left_frame)
         ticker_frame.pack(fill=tk.BOTH, expand=True)
         
         scrollbar = ttk.Scrollbar(ticker_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        self.ticker_listbox = tk.Listbox(ticker_frame, selectmode=tk.EXTENDED, height=10)
+        # Limit width to 5 letters (approximately 40 pixels)
+        self.ticker_listbox = tk.Listbox(ticker_frame, selectmode=tk.EXTENDED, height=20, width=10)
         self.ticker_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
         self.ticker_listbox.config(yscrollcommand=scrollbar.set)
         scrollbar.config(command=self.ticker_listbox.yview)
+        
+        # Middle section for watch list (limited width)
+        middle_list_frame = ttk.LabelFrame(middle_frame, text="Watch List", padding="5")
+        middle_list_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 5))
+        
+        # Create watch list listbox with scrollbar
+        watch_frame = ttk.Frame(middle_list_frame)
+        watch_frame.pack(fill=tk.BOTH, expand=True)
+        
+        watch_scrollbar = ttk.Scrollbar(watch_frame)
+        watch_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Limit width to 5 letters (approximately 40 pixels)
+        self.watch_listbox = tk.Listbox(watch_frame, selectmode=tk.EXTENDED, height=20, width=10)
+        self.watch_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        # Right section for chart display (takes remaining space)
+        self.chart_frame = ttk.LabelFrame(middle_frame, text="Chart Display", padding="5")
+        self.chart_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 0))
+        
+        # Create a label to display chart
+        self.chart_label = ttk.Label(self.chart_frame)
+        self.chart_label.pack(fill=tk.BOTH, expand=True)
+        
+        self.watch_listbox.config(yscrollcommand=watch_scrollbar.set)
+        watch_scrollbar.config(command=self.watch_listbox.yview)
+        
+        # Populate watch list listbox with loaded watch list
+        for ticker in self.watch_list:
+            self.watch_listbox.insert(tk.END, ticker)
+        
+        # Create right-click context menu for ticker listbox
+        self.ticker_context_menu = tk.Menu(self.ticker_listbox, tearoff=0)
+        self.ticker_context_menu.add_command(label="Copy to Watch List", command=self._copy_to_watch_list)
+        
+        # Create right-click context menu for watch list
+        self.watch_context_menu = tk.Menu(self.watch_listbox, tearoff=0)
+        self.watch_context_menu.add_command(label="Delete from Watch List", command=self._delete_from_watch_list)
+        
+        # Bind right-click events
+        self.ticker_listbox.bind("<Button-3>", self._show_ticker_context_menu)
+        self.watch_listbox.bind("<Button-3>", self._show_watch_context_menu)
+        
+        # Bind selection events to display charts
+        self.ticker_listbox.bind("<<ListboxSelect>>", self._on_ticker_selected)
+        self.watch_listbox.bind("<<ListboxSelect>>", self._on_watch_ticker_selected)
         
         # Create bottom frame for actions
         bottom_frame = ttk.Frame(main_frame, padding="10")
@@ -1310,6 +1373,139 @@ class StockDataGUI:
             messagebox.showerror("Error", f"Error saving ticker list: {str(e)}")
             logging.error(f"Error saving ticker list: {e}")
     
+    def _show_ticker_context_menu(self, event):
+        """Show context menu on right-click in ticker listbox"""
+        # Only show context menu if there are selected items
+        if self.ticker_listbox.curselection():
+            try:
+                self.ticker_context_menu.tk_popup(event.x_root, event.y_root)
+            finally:
+                self.ticker_context_menu.grab_release()
+                
+    def _show_watch_context_menu(self, event):
+        """Show context menu on right-click in watch list"""
+        # Only show context menu if there are selected items
+        if self.watch_listbox.curselection():
+            try:
+                self.watch_context_menu.tk_popup(event.x_root, event.y_root)
+            finally:
+                self.watch_context_menu.grab_release()
+                
+    def _delete_from_watch_list(self):
+        """Delete selected tickers from watch list"""
+        selected_indices = self.watch_listbox.curselection()
+        if not selected_indices:
+            messagebox.showwarning("No Selection", "Please select at least one ticker to delete.")
+            return
+            
+        # Get selected tickers
+        selected_tickers = [self.watch_listbox.get(i) for i in selected_indices]
+        
+        # Confirm deletion
+        if len(selected_tickers) == 1:
+            confirm = messagebox.askyesno("Confirm Delete", f"Delete {selected_tickers[0]} from watch list?")
+        else:
+            confirm = messagebox.askyesno("Confirm Delete", f"Delete {len(selected_tickers)} tickers from watch list?")
+            
+        if not confirm:
+            return
+            
+        # Delete from watch list (in reverse order to maintain correct indices)
+        for i in sorted(selected_indices, reverse=True):
+            ticker = self.watch_listbox.get(i)
+            self.watch_listbox.delete(i)
+            if ticker in self.watch_list:
+                self.watch_list.remove(ticker)
+                
+        # Save the updated watch list
+        self._save_watch_list()
+        
+        if len(selected_tickers) == 1:
+            self.status_var.set(f"Deleted {selected_tickers[0]} from watch list")
+        else:
+            self.status_var.set(f"Deleted {len(selected_tickers)} tickers from watch list")
+    
+    def _copy_to_watch_list(self):
+        """Copy selected tickers to watch list and save to ticker_lists.py"""
+        selected_tickers = self._get_selected_tickers()
+        if not selected_tickers:
+            return
+            
+        # Add selected tickers to watch list if not already present
+        added_count = 0
+        for ticker in selected_tickers:
+            if ticker not in self.watch_list:
+                self.watch_list.append(ticker)
+                self.watch_listbox.insert(tk.END, ticker)
+                added_count += 1
+                
+        if added_count > 0:
+            # Save the updated watch list to ticker_lists.py
+            self._save_watch_list()
+            
+            if added_count == 1:
+                self.status_var.set(f"Added {selected_tickers[0]} to watch list and saved")
+            else:
+                self.status_var.set(f"Added {added_count} tickers to watch list and saved")
+        else:
+            self.status_var.set("All selected tickers already in watch list")
+    
+    def _save_watch_list(self):
+        """Save the watch list to ticker_lists.py"""
+        if not self.watch_list:
+            return
+            
+        # Use 'watch_list' as the name for the list in ticker_lists.py
+        list_name = "watch_list"
+        
+        # Create Python code for the watch list
+        tickers_str = ", ".join([f"\"{ticker}\"" for ticker in self.watch_list])
+        new_list_code = f"\n{list_name} = [{tickers_str}]\n"
+        
+        try:
+            # Read the current content of ticker_lists.py
+            ticker_lists_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ticker_lists.py")
+            with open(ticker_lists_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            
+            # Check if watch_list already exists in the file
+            watch_list_pattern = re.compile(r'\nwatch_list\s*=\s*\[.*?\]', re.DOTALL)
+            match = watch_list_pattern.search(content)
+            
+            if match:
+                # Replace the existing watch_list
+                new_content = content[:match.start()] + new_list_code + content[match.end():]
+            else:
+                # Find the position of the first function definition
+                function_pattern = re.compile(r'\n# Function to')
+                func_match = function_pattern.search(content)
+                
+                if func_match:
+                    # Insert the watch list before the function definition
+                    insert_position = func_match.start()
+                    new_content = content[:insert_position] + new_list_code + content[insert_position:]
+                else:
+                    # If no function definition found, append to the end of the file
+                    new_content = content + new_list_code
+            
+            # Write the modified content back to the file
+            with open(ticker_lists_path, "w", encoding="utf-8") as f:
+                f.write(new_content)
+            
+            # Update the ticker lists dictionary if it's not already there
+            if list_name not in self.ticker_lists:
+                self.ticker_lists[list_name] = self.watch_list
+                # Update the dropdown menu
+                self.ticker_list_dropdown['values'] = list(self.ticker_lists.keys())
+            else:
+                # Just update the existing entry
+                self.ticker_lists[list_name] = self.watch_list
+                
+            logging.info(f"Saved watch list with {len(self.watch_list)} tickers to ticker_lists.py")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error saving watch list: {str(e)}")
+            logging.error(f"Error saving watch list: {e}")
+    
     def _get_selected_tickers(self):
         """Get selected tickers from listbox"""
         selected_indices = self.ticker_listbox.curselection()
@@ -1399,20 +1595,155 @@ class StockDataGUI:
         
         self.status_var.set(f"Completed visualization for {len(selected_tickers)} tickers")
     
+    def _on_ticker_selected(self, event):
+        """Handle ticker selection from available tickers list"""
+        selected_indices = self.ticker_listbox.curselection()
+        if not selected_indices:
+            return
+            
+        # Get the selected ticker
+        ticker_text = self.ticker_listbox.get(selected_indices[0])
+        ticker = ticker_text.split(' - ')[0].strip()
+        
+        # Display chart for the selected ticker
+        self._display_chart(ticker)
+    
+    def _on_watch_ticker_selected(self, event):
+        """Handle ticker selection from watch list"""
+        selected_indices = self.watch_listbox.curselection()
+        if not selected_indices:
+            return
+            
+        # Get the selected ticker
+        ticker = self.watch_listbox.get(selected_indices[0])
+        
+        # Display chart for the selected ticker
+        self._display_chart(ticker)
+    
+    def _display_chart(self, ticker):
+        """Display chart for the selected ticker"""
+        try:
+            # Check if data exists for this ticker
+            data_path = self.manager._get_data_path(ticker)
+            if not os.path.exists(data_path):
+                # Download data if it doesn't exist
+                self.status_var.set(f"Downloading data for {ticker}...")
+                self.root.update_idletasks()
+                self.manager.update_data(ticker, force_download=True)
+            
+            # Generate or update chart if needed
+            plots_dir = self.manager.plot_save_path
+            os.makedirs(plots_dir, exist_ok=True)
+            
+            timeframe_plot_path = os.path.join(plots_dir, f"{ticker}_daily_weekly_monthly.png")
+            chart_outdated = False
+            
+            # If chart doesn't exist, it needs to be generated
+            if not os.path.exists(timeframe_plot_path):
+                chart_outdated = True
+            # If chart exists, check if data file is newer than chart file
+            elif os.path.exists(data_path):
+                chart_mod_time = os.path.getmtime(timeframe_plot_path)
+                data_mod_time = os.path.getmtime(data_path)
+                
+                # If data file is newer, chart is outdated
+                if data_mod_time > chart_mod_time:
+                    chart_outdated = True
+            
+            # Generate chart if needed
+            if chart_outdated:
+                self.status_var.set(f"Generating chart for {ticker}...")
+                self.root.update_idletasks()
+                self.manager.visualize_daily_vs_weekly(ticker)
+            
+            # Display the chart in the chart_label
+            if os.path.exists(timeframe_plot_path):
+                # Load and resize the image
+                img = Image.open(timeframe_plot_path)
+                
+                # Get the chart frame size
+                chart_width = self.chart_frame.winfo_width()
+                chart_height = self.chart_frame.winfo_height()
+                
+                # If the frame hasn't been rendered yet, use default size
+                if chart_width <= 1:
+                    chart_width = 800
+                if chart_height <= 1:
+                    chart_height = 600
+                
+                # Resize image to fit the frame while maintaining aspect ratio
+                img_width, img_height = img.size
+                aspect_ratio = img_width / img_height
+                
+                if chart_width / chart_height > aspect_ratio:
+                    # Frame is wider than image
+                    new_height = chart_height
+                    new_width = int(new_height * aspect_ratio)
+                else:
+                    # Frame is taller than image
+                    new_width = chart_width
+                    new_height = int(new_width / aspect_ratio)
+                
+                img = img.resize((new_width, new_height), Image.LANCZOS)
+                
+                # Convert to PhotoImage and display
+                photo = ImageTk.PhotoImage(img)
+                self.chart_label.config(image=photo)
+                self.chart_label.image = photo  # Keep a reference to prevent garbage collection
+                
+                self.status_var.set(f"Displaying chart for {ticker}")
+            else:
+                self.status_var.set(f"Error: Chart for {ticker} not found")
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Error displaying chart for {ticker}: {str(e)}")
+            self.status_var.set(f"Error displaying chart for {ticker}")
+    
     def cleanup(self):
         """Clean up resources before application exit"""
-        # Delete references to Tkinter variables to prevent memory leaks
-        # and 'main thread is not in main loop' errors during shutdown
-        if hasattr(self, 'status_var'):
-            del self.status_var
-        if hasattr(self, 'ticker_list_var'):
-            del self.ticker_list_var
-        if hasattr(self, 'force_download_var'):
-            del self.force_download_var
-        
-        # Clear any other references that might cause issues
-        if hasattr(self, 'ticker_listbox'):
-            self.ticker_listbox.delete(0, tk.END)
+        try:
+            # First, clear any image references which often cause issues
+            if hasattr(self, 'chart_label') and hasattr(self.chart_label, 'image'):
+                self.chart_label.image = None
+            
+            # Clear listbox contents
+            if hasattr(self, 'ticker_listbox'):
+                self.ticker_listbox.delete(0, tk.END)
+            if hasattr(self, 'watch_listbox'):
+                self.watch_listbox.delete(0, tk.END)
+                
+            # Destroy all widgets explicitly to prevent reference cycles
+            for widget in self.root.winfo_children():
+                if widget.winfo_exists():
+                    widget.destroy()
+            
+            # Set Tkinter variables to None instead of deleting them
+            # This helps prevent 'main thread is not in main loop' errors
+            if hasattr(self, 'status_var'):
+                self.status_var.set('')
+                self.status_var = None
+            if hasattr(self, 'ticker_list_var'):
+                self.ticker_list_var.set('')
+                self.ticker_list_var = None
+            if hasattr(self, 'force_download_var'):
+                self.force_download_var.set(False)
+                self.force_download_var = None
+            if hasattr(self, 'manual_ticker_var'):
+                self.manual_ticker_var.set('')
+                self.manual_ticker_var = None
+            if hasattr(self, 'list_name_var'):
+                self.list_name_var.set('')
+                self.list_name_var = None
+                
+            # Clear other references
+            if hasattr(self, 'ticker_context_menu'):
+                self.ticker_context_menu = None
+            if hasattr(self, 'watch_context_menu'):
+                self.watch_context_menu = None
+                
+        except Exception as e:
+            print(f"Error during cleanup: {str(e)}")
+            # Don't re-raise the exception as we're already in cleanup
     
     def _view_html_report(self):
         """Generate and view HTML report for the current ticker list"""
@@ -1508,100 +1839,68 @@ class StockDataGUI:
             messagebox.showerror("Error", f"Error generating HTML report: {str(e)}")
             self.status_var.set("Error generating HTML report")
     
-def _get_selected_tickers(self):
-    """Get selected tickers from listbox"""
-    selected_indices = self.ticker_listbox.curselection()
-    if not selected_indices:
-        messagebox.showwarning("No Selection", "Please select at least one ticker.")
-        return []
-    
-    selected_tickers = []
-    for i in selected_indices:
-        # Extract ticker symbol (it might include a comment after a dash)
-        ticker_text = self.ticker_listbox.get(i)
-        ticker = ticker_text.split(' - ')[0].strip()
-        selected_tickers.append(ticker)
-    
-    return selected_tickers
-    
-def _download_data(self):
-    """Download or update data for selected tickers"""
-    selected_tickers = self._get_selected_tickers()
-    if not selected_tickers:
-        return
+    def _get_selected_tickers(self):
+        """Get selected tickers from listbox"""
+        selected_indices = self.ticker_listbox.curselection()
+        if not selected_indices:
+            messagebox.showwarning("No Selection", "Please select at least one ticker.")
+            return []
         
-    # Get force download setting
-    force_download = self.force_download_var.get()
-    mode_text = "force downloading" if force_download else "updating"
+        selected_tickers = []
+        for i in selected_indices:
+            # Extract ticker symbol (it might include a comment after a dash)
+            ticker_text = self.ticker_listbox.get(i)
+            ticker = ticker_text.split(' - ')[0].strip()
+            selected_tickers.append(ticker)
         
-    self.status_var.set(f"{mode_text.capitalize()} data for {len(selected_tickers)} tickers...")
-    self.root.update_idletasks()
+        return selected_tickers
+    
+    def _download_data(self):
+        """Download or update data for selected tickers"""
+        selected_tickers = self._get_selected_tickers()
+        if not selected_tickers:
+            return
+            
+        # Get force download setting
+        force_download = self.force_download_var.get()
+        mode_text = "force downloading" if force_download else "updating"
+            
+        self.status_var.set(f"{mode_text.capitalize()} data for {len(selected_tickers)} tickers...")
+        self.root.update_idletasks()
         
-    success_count = 0
-    for ticker in selected_tickers:
-        try:
-            data = self.manager.update_data(ticker, force_download=force_download)
-            if data is not None and not data.empty:
-                success_count += 1
-                self.status_var.set(f"{mode_text.capitalize()} data for {ticker} ({success_count}/{len(selected_tickers)})")
-            for ticker in selected_tickers:
-                price_plot_path = os.path.join(plots_dir, f"{ticker}_stock_prices.png")
-                timeframe_plot_path = os.path.join(plots_dir, f"{ticker}_daily_weekly_monthly.png")
-                
-                if not os.path.exists(price_plot_path) or not os.path.exists(timeframe_plot_path):
-                    self.status_var.set(f"Generating visualizations for {ticker}...")
-                    self.root.update_idletasks()
-                    self.manager.visualize_daily_vs_weekly(ticker)
-            
-            # Get the current ticker list name
-            current_list_name = self.ticker_list_var.get() or "custom_list"
-            
-            # Get current date in YYYY-MM-DD format
-            current_date = datetime.now().strftime("%Y-%m-%d")
-            
-            # Create a filename with list name and date
-            report_filename = f"stock_analysis_{current_list_name}_{current_date}.html"
-            
-            # Generate HTML report with custom filename and selected tickers
-            self.status_var.set(f"Generating HTML report for {current_list_name}...")
-            self.root.update_idletasks()
-            report_path = self.manager.generate_html_report(plots_dir, report_filename, selected_tickers)
-            
-            # Open the HTML report in Microsoft Edge
-            if os.path.exists(report_path):
-                try:
-                    # Register and use Microsoft Edge
-                    webbrowser.register('edge', None, webbrowser.BackgroundBrowser(r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'))
-                    webbrowser.get('edge').open(f"file:///{os.path.abspath(report_path)}")
-                    self.status_var.set(f"HTML report for {current_list_name} opened in Edge browser")
-                except Exception as browser_error:
-                    # Fall back to default browser if Edge registration fails
-                    logging.warning(f"Could not open Edge browser: {browser_error}. Using default browser.")
-                    webbrowser.open(f"file:///{os.path.abspath(report_path)}")
-                    self.status_var.set(f"HTML report for {current_list_name} opened in default browser")
-            else:
-                self.status_var.set("Error: HTML report not found")
-                
-        except Exception as e:
-            messagebox.showerror("Error", f"Error generating HTML report: {str(e)}")
-            self.status_var.set("Error generating HTML report")
-
+        success_count = 0
+        for ticker in selected_tickers:
+            try:
+                data = self.manager.update_data(ticker, force_download=force_download)
+                if data is not None and not data.empty:
+                    success_count += 1
+                    self.status_var.set(f"{mode_text.capitalize()} data for {ticker} ({success_count}/{len(selected_tickers)})")
+                else:
+                    self.status_var.set(f"No data available for {ticker}")
+                self.root.update_idletasks()
+            except Exception as e:
+                messagebox.showerror("Error", f"Error {mode_text} data for {ticker}: {str(e)}")
+        
+        self.status_var.set(f"Completed: {mode_text.capitalize()} data for {success_count}/{len(selected_tickers)} tickers")
 def main():
     """Main function to launch the Stock Data Manager GUI."""
     root = tk.Tk()
+    root.title("Stock Data Manager")
+
+    # Create the StockDataManager instance
+    manager = StockDataManager()
     
     # Create the application
-    app = StockDataGUI(root)
+    app = StockDataGUI(root, manager)
     
-    # Create a protocol handler for window close event
+    # Define the on_closing handler
     def on_closing():
-        # Call the cleanup method to handle Tkinter variables
-        app.cleanup()
-        # Explicitly destroy all widgets to help with cleanup
-        for widget in root.winfo_children():
-            widget.destroy()
-        # Destroy the root window
-        root.destroy()
+        try:
+            print("Cleaning up resources...")
+            app.cleanup()
+            root.destroy()
+        except Exception as e:
+            print(f"Error during application shutdown: {str(e)}")
     
     # Set the protocol handler
     root.protocol("WM_DELETE_WINDOW", on_closing)
