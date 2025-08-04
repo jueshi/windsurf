@@ -111,12 +111,16 @@ import logging
 import numpy as np
 from typing import Optional, List, Any
 import webbrowser
+import re
 from ticker_lists import *
 import math
 import time
-import json
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from random import uniform
+import tkinter as tk
+from tkinter import ttk, messagebox, simpledialog
+import inspect
+import sys
 
 # Configure logging
 logging.basicConfig(
@@ -396,6 +400,9 @@ class StockDataManager:
             ticker = ticker.upper()
             data_path = self._get_data_path(ticker)
             
+            # Initialize existing_data as None to avoid scope issues
+            existing_data = None
+            
             # Check if we should use existing data
             if os.path.exists(data_path) and not force_download:
                 # Load existing data
@@ -446,6 +453,12 @@ class StockDataManager:
                     return None
             
             # If we get here, we need to update existing data with new data
+            # Check if existing_data is available
+            if existing_data is None:
+                logging.info(f"No existing data found for {ticker}. Switching to force download mode.")
+                # Recursively call update_data with force_download=True
+                return self.update_data(ticker, force_download=True)
+                
             # Get the latest date in local data
             latest_local_date = existing_data['Date'].max()
             
@@ -687,7 +700,10 @@ class StockDataManager:
             
             # Adjust layout and save figure
             plt.tight_layout()
-            plt.savefig(os.path.join(self.plot_save_path, f'{ticker}_{column}_daily_weekly_monthly.png'), dpi=300)
+            
+            # Save with a single consistent filename pattern
+            plt.savefig(os.path.join(self.plot_save_path, f'{ticker}_daily_weekly_monthly.png'), dpi=300)
+            
             plt.close(fig)
             
             logging.info(f"Generated visualization for {ticker}")
@@ -881,12 +897,14 @@ class StockDataManager:
         plt.show()
 
 
-    def generate_html_report(self, plots_dir=None):
+    def generate_html_report(self, plots_dir=None, filename=None, tickers=None):
         """
         Generate an HTML report with embedded stock plots
         
         Args:
             plots_dir (str, optional): Directory containing plot images. Defaults to current plot_save_path.
+            filename (str, optional): Custom filename for the HTML report. Defaults to 'stock_analysis_report.html'.
+            tickers (list, optional): List of tickers to include in the report. If None, all tickers found in the plots directory will be included.
         """
         try:
             # Use current plot_save_path if no directory specified
@@ -933,13 +951,43 @@ class StockDataManager:
             """
 
             # Find all PNG files in the plots directory
-            plot_files = glob.glob(os.path.join(plots_dir, '*_stock_prices.png'))
-            plot_files += glob.glob(os.path.join(plots_dir, '*_daily_weekly_monthly.png'))
+            if tickers:
+                # Filter plot files to only include the specified tickers
+                plot_files = []
+                for ticker in tickers:
+                    ticker_upper = ticker.upper()
+                    # Add daily/weekly/monthly plots (our standard format)
+                    timeframe_plots = glob.glob(os.path.join(plots_dir, f"{ticker_upper}_daily_weekly_monthly.png"))
+                    plot_files.extend(timeframe_plots)
+                    
+                    # If no plots found with the standard format, try legacy formats for backward compatibility
+                    if not timeframe_plots:
+                        # Try daily vs weekly plots (older format)
+                        daily_weekly_plots = glob.glob(os.path.join(plots_dir, f"{ticker_upper}_daily_vs_weekly_price.png"))
+                        plot_files.extend(daily_weekly_plots)
+                        
+                        # Try stock price plots (another older format)
+                        if not daily_weekly_plots:
+                            price_plots = glob.glob(os.path.join(plots_dir, f"{ticker_upper}_stock_prices.png"))
+                            plot_files.extend(price_plots)
+            else:
+                # Include all plots if no specific tickers are provided
+                plot_files = glob.glob(os.path.join(plots_dir, '*_stock_prices.png'))
+                plot_files += glob.glob(os.path.join(plots_dir, '*_daily_weekly_monthly.png'))
+                plot_files += glob.glob(os.path.join(plots_dir, '*_daily_vs_weekly_price.png'))
 
-            # Add plots to HTML
+            # Add plots to HTML - avoid duplicates by tracking processed tickers
+            processed_tickers = set()
             for plot_file in plot_files:
                 # Extract ticker name from filename
                 ticker = os.path.basename(plot_file).split('_')[0]
+                
+                # Skip if we've already processed this ticker
+                if ticker in processed_tickers:
+                    continue
+                    
+                # Add ticker to processed set
+                processed_tickers.add(ticker)
                 html_content += f"""
                     <div class="plot-item">
                         <h2>{ticker} Stock Prices</h2>
@@ -954,16 +1002,19 @@ class StockDataManager:
             </html>
             """
 
+            # Use custom filename if provided, otherwise use default
+            if filename is None:
+                filename = 'stock_analysis_report.html'
+                
             # Save HTML report
-            report_path = os.path.abspath(os.path.join(plots_dir, 'stock_analysis_report.html'))
+            report_path = os.path.abspath(os.path.join(plots_dir, filename))
             with open(report_path, 'w') as f:
                 f.write(html_content)
 
-            # Open the report in Microsoft Edge
-            webbrowser.register('edge', None, webbrowser.BackgroundBrowser(r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'))
-            webbrowser.get('edge').open(f'file://{report_path}')
-
             logging.info(f"Generated stock analysis report at {report_path}")
+            
+            # Return the report path for the caller to use
+            return report_path
 
         except Exception as e:
             logging.error(f"Error generating HTML report: {e}")
@@ -984,7 +1035,6 @@ class StockDataManager:
 
         # Determine folder name
         folder_name = self._get_folder_name(tickers, name)
-
 
         # Create subfolder 
         folder_path = os.path.join('stock_data', folder_name)
@@ -1012,64 +1062,552 @@ class StockDataManager:
             logging.error(f"Error processing stock data: {e}")
 
     def _get_folder_name(self, tickers, name=None):
+        """
+        Get a folder name for storing ticker data
+        
+        Args:
+            tickers (list): List of tickers
+            name (str, optional): Custom name. Defaults to None.
+            
+        Returns:
+            str: Folder name
+        """
         if name:
             return name
         else:
-            # Try to get the variable name from the caller's locals
+            # Try to get the variable name from globals
             try:
-                # frame = inspect.currentframe().f_back
-                # for var_name, var_value in frame.f_locals.items():
-                for var_name, var_value in globals().items(): #ticker_list is globale variable now
+                for var_name, var_value in globals().items():
                     if var_value is tickers:
                         return var_name
-                else:
-                    # Fallback to sorted tickers
-                    return '_'.join(sorted(tickers))
+                # Fallback to sorted tickers
+                return '_'.join(sorted(tickers[:3])) + f"_etc_{len(tickers)}"
             except Exception:
                 # Most conservative fallback
-                return '_'.join(sorted(tickers))
+                return '_'.join(sorted([str(t) for t in tickers[:3]])) + f"_etc_{len(tickers)}"
+
+class StockDataGUI:
+    """GUI for Stock Data Manager"""
+    
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Stock Data Manager")
+        self.root.geometry("800x600")
+        self.root.minsize(600, 500)
+        
+        self.manager = StockDataManager()
+        self.ticker_lists = self._get_ticker_lists()
+        self.current_tickers = []
+        
+        self._create_widgets()
+        
+    def _get_ticker_lists(self):
+        """Get all ticker lists from ticker_lists module"""
+        ticker_lists = {}
+        current_module = sys.modules['ticker_lists']
+        
+        for name in dir(current_module):
+            obj = getattr(current_module, name)
+            # Find lists that contain 'ticker' or 'stock' in their name and are actually lists
+            if (isinstance(obj, list) and 
+                ('ticker' in name.lower() or 'stock' in name.lower()) and 
+                len(obj) > 0 and 
+                isinstance(obj[0], str)):
+                ticker_lists[name] = obj
+        
+        return ticker_lists
+    
+    def _create_widgets(self):
+        """Create all GUI widgets"""
+        # Create main frame
+        main_frame = ttk.Frame(self.root, padding="10")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Create top frame for ticker list selection
+        top_frame = ttk.LabelFrame(main_frame, text="Ticker List Selection", padding="10")
+        top_frame.pack(fill=tk.X, pady=5)
+        
+        # Ticker list dropdown
+        ttk.Label(top_frame, text="Ticker List:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=5)
+        self.ticker_list_var = tk.StringVar()
+        self.ticker_list_dropdown = ttk.Combobox(top_frame, textvariable=self.ticker_list_var, width=80)
+        self.ticker_list_dropdown['values'] = list(self.ticker_lists.keys())
+        self.ticker_list_dropdown.grid(row=0, column=1, padx=5, pady=5)
+        self.ticker_list_dropdown.bind('<<ComboboxSelected>>', self._on_list_selected)
+        
+        # Load list button
+        ttk.Button(top_frame, text="Load List", command=self._load_ticker_list).grid(row=0, column=2, padx=5, pady=5)
+        
+        # Add manual ticker entry
+        ttk.Label(top_frame, text="Add Ticker:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=5)
+        self.manual_ticker_var = tk.StringVar()
+        manual_ticker_entry = ttk.Entry(top_frame, textvariable=self.manual_ticker_var, width=80)
+        manual_ticker_entry.grid(row=1, column=1, sticky=tk.W, padx=5, pady=5)
+        ttk.Button(top_frame, text="Add", command=self._add_manual_ticker).grid(row=1, column=2, padx=5, pady=5)
+        
+        # Add list name entry and save button
+        ttk.Label(top_frame, text="New List Name:").grid(row=2, column=0, sticky=tk.W, padx=5, pady=5)
+        self.list_name_var = tk.StringVar()
+        list_name_entry = ttk.Entry(top_frame, textvariable=self.list_name_var, width=80)
+        list_name_entry.grid(row=2, column=1, sticky=tk.W, padx=5, pady=5)
+        ttk.Button(top_frame, text="Save List", command=self._save_ticker_list).grid(row=2, column=2, padx=5, pady=5)
+        
+        # Create middle frame for ticker selection
+        middle_frame = ttk.LabelFrame(main_frame, text="Available Tickers", padding="10")
+        middle_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        
+        # Create ticker listbox with scrollbar
+        ticker_frame = ttk.Frame(middle_frame)
+        ticker_frame.pack(fill=tk.BOTH, expand=True)
+        
+        scrollbar = ttk.Scrollbar(ticker_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        self.ticker_listbox = tk.Listbox(ticker_frame, selectmode=tk.EXTENDED, height=10)
+        self.ticker_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        self.ticker_listbox.config(yscrollcommand=scrollbar.set)
+        scrollbar.config(command=self.ticker_listbox.yview)
+        
+        # Create bottom frame for actions
+        bottom_frame = ttk.Frame(main_frame, padding="10")
+        bottom_frame.pack(fill=tk.X, pady=5)
+        
+        # Force download toggle
+        self.force_download_var = tk.BooleanVar(value=False)
+        force_download_check = ttk.Checkbutton(bottom_frame, text="Force Download", variable=self.force_download_var)
+        force_download_check.pack(side=tk.RIGHT, padx=5)
+        ttk.Label(bottom_frame, text="Options:").pack(side=tk.RIGHT, padx=5)
+        
+        # Action buttons
+        ttk.Button(bottom_frame, text="Download/Update Data", command=self._download_data).pack(side=tk.LEFT, padx=5)
+        ttk.Button(bottom_frame, text="Visualize Daily/Weekly/Monthly", command=self._visualize_all_timeframes).pack(side=tk.LEFT, padx=5)
+        ttk.Button(bottom_frame, text="View HTML Report", command=self._view_html_report).pack(side=tk.LEFT, padx=5)
+        
+        # Status bar
+        self.status_var = tk.StringVar()
+        self.status_var.set("Ready")
+        status_bar = ttk.Label(self.root, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W)
+        status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+    
+    def _on_list_selected(self, event):
+        """Handle ticker list selection"""
+        selected_list = self.ticker_list_var.get()
+        if selected_list in self.ticker_lists:
+            self.status_var.set(f"Selected list: {selected_list} with {len(self.ticker_lists[selected_list])} tickers")
+    
+    def _load_ticker_list(self):
+        """Load selected ticker list into listbox"""
+        selected_list = self.ticker_list_var.get()
+        if not selected_list:
+            messagebox.showwarning("No List Selected", "Please select a ticker list first.")
+            return
+        
+        if selected_list in self.ticker_lists:
+            tickers = self.ticker_lists[selected_list]
+            self.current_tickers = tickers
+            
+            # Update listbox
+            self.ticker_listbox.delete(0, tk.END)
+            for ticker in tickers:
+                # Check if we have a comment for this ticker
+                if 'tickers_comment_dict' in globals() and ticker in tickers_comment_dict:
+                    self.ticker_listbox.insert(tk.END, f"{ticker} - {tickers_comment_dict[ticker]}")
+                else:
+                    self.ticker_listbox.insert(tk.END, ticker)
+            
+            self.status_var.set(f"Loaded {len(tickers)} tickers from {selected_list}")
+    
+    def _add_manual_ticker(self):
+        """Add manually entered ticker(s)"""
+        ticker_input = self.manual_ticker_var.get().strip()
+        if not ticker_input:
+            return
+        
+        # Remove brackets and split by commas
+        ticker_input = ticker_input.replace('[', '').replace(']', '')
+        tickers = [t.strip().upper() for t in ticker_input.split(',') if t.strip()]
+        
+        if not tickers:
+            return
+        
+        added_count = 0
+        for ticker in tickers:
+            # Remove any quotes around the ticker
+            ticker = ticker.strip('\'"')
+            
+            # Skip empty tickers
+            if not ticker:
+                continue
+                
+            # Add to current tickers if not already present
+            if ticker not in self.current_tickers:
+                self.current_tickers.append(ticker)
+                self.ticker_listbox.insert(tk.END, ticker)
+                added_count += 1
+        
+        if added_count == 1:
+            self.status_var.set(f"Added ticker: {tickers[0]}")
+        else:
+            self.status_var.set(f"Added {added_count} tickers")
+        
+        # Clear entry field
+        self.manual_ticker_var.set("")
+    
+    def _save_ticker_list(self):
+        """Save current tickers as a new list in ticker_lists.py"""
+        list_name = self.list_name_var.get().strip()
+        if not list_name:
+            messagebox.showwarning("No List Name", "Please enter a name for the ticker list.")
+            return
+        
+        if not self.current_tickers:
+            messagebox.showwarning("No Tickers", "Please add tickers to the list before saving.")
+            return
+        
+        # Format list name to be a valid Python variable name
+        list_name = list_name.replace(" ", "_").replace("-", "_")
+        if not list_name[0].isalpha() and list_name[0] != '_':
+            list_name = "ticker_" + list_name
+        
+        # Create Python code for the new list
+        tickers_str = ", ".join([f"\"{ticker}\"" for ticker in self.current_tickers])
+        new_list_code = f"\n{list_name}_stocks = [{tickers_str}]\n"
+        
+        try:
+            # Read the current content of ticker_lists.py
+            ticker_lists_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ticker_lists.py")
+            with open(ticker_lists_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            
+            # Find the position of the first function definition
+            function_pattern = re.compile(r'\n# Function to')
+            match = function_pattern.search(content)
+            
+            if match:
+                # Insert the new list before the function definition
+                insert_position = match.start()
+                new_content = content[:insert_position] + new_list_code + content[insert_position:]
+                
+                # Write the modified content back to the file
+                with open(ticker_lists_path, "w", encoding="utf-8") as f:
+                    f.write(new_content)
+            else:
+                # If no function definition found, append to the end of the file
+                with open(ticker_lists_path, "a", encoding="utf-8") as f:
+                    f.write(new_list_code)
+            
+            # Update the ticker lists dictionary
+            self.ticker_lists[list_name + "_stocks"] = self.current_tickers
+            self.ticker_list_var.set(list_name + "_stocks")
+            
+            # Update the dropdown menu
+            self.ticker_list_dropdown['values'] = list(self.ticker_lists.keys())
+            
+            self.status_var.set(f"Saved {len(self.current_tickers)} tickers as '{list_name}_stocks'")
+            messagebox.showinfo("List Saved", f"Ticker list saved as '{list_name}_stocks' in ticker_lists.py")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error saving ticker list: {str(e)}")
+            logging.error(f"Error saving ticker list: {e}")
+    
+    def _get_selected_tickers(self):
+        """Get selected tickers from listbox"""
+        selected_indices = self.ticker_listbox.curselection()
+        if not selected_indices:
+            messagebox.showwarning("No Selection", "Please select at least one ticker.")
+            return []
+        
+        selected_tickers = []
+        for i in selected_indices:
+            # Extract ticker symbol (it might include a comment after a dash)
+            ticker_text = self.ticker_listbox.get(i)
+            ticker = ticker_text.split(' - ')[0].strip()
+            selected_tickers.append(ticker)
+        
+        return selected_tickers
+    
+    def _download_data(self):
+        """Download or update data for selected tickers"""
+        selected_tickers = self._get_selected_tickers()
+        if not selected_tickers:
+            return
+        
+        # Get force download setting
+        force_download = self.force_download_var.get()
+        mode_text = "force downloading" if force_download else "updating"
+        
+        self.status_var.set(f"{mode_text.capitalize()} data for {len(selected_tickers)} tickers...")
+        self.root.update_idletasks()
+        
+        success_count = 0
+        for ticker in selected_tickers:
+            try:
+                data = self.manager.update_data(ticker, force_download=force_download)
+                if data is not None and not data.empty:
+                    success_count += 1
+                    self.status_var.set(f"{mode_text.capitalize()} data for {ticker} ({success_count}/{len(selected_tickers)})")
+                else:
+                    self.status_var.set(f"No data available for {ticker}")
+                self.root.update_idletasks()
+            except Exception as e:
+                messagebox.showerror("Error", f"Error {mode_text} data for {ticker}: {str(e)}")
+        
+        self.status_var.set(f"Completed: {mode_text.capitalize()} data for {success_count}/{len(selected_tickers)} tickers")
+    
+    def _visualize_daily_weekly(self):
+        """Visualize daily vs weekly charts for selected tickers"""
+        selected_tickers = self._get_selected_tickers()
+        if not selected_tickers:
+            return
+        
+        for ticker in selected_tickers:
+            try:
+                self.status_var.set(f"Visualizing daily vs weekly for {ticker}...")
+                self.root.update_idletasks()
+                
+                self.manager.visualize_daily_vs_weekly(ticker)
+                
+                # Open the saved chart in the default web browser
+                chart_path = os.path.join(self.manager.plot_save_path, f"{ticker}_daily_vs_weekly_price.png")
+                if os.path.exists(chart_path):
+                    webbrowser.open(f"file:///{os.path.abspath(chart_path)}")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error visualizing {ticker}: {str(e)}")
+        
+        self.status_var.set(f"Completed visualization for {len(selected_tickers)} tickers")
+    
+    def _visualize_all_timeframes(self):
+        """Visualize daily, weekly, and monthly charts for selected tickers"""
+        selected_tickers = self._get_selected_tickers()
+        if not selected_tickers:
+            return
+        
+        for ticker in selected_tickers:
+            try:
+                self.status_var.set(f"Visualizing all timeframes for {ticker}...")
+                self.root.update_idletasks()
+                
+                # Use the existing visualize_daily_vs_weekly method which already shows daily, weekly, and monthly data
+                self.manager.visualize_daily_vs_weekly(ticker)
+                
+                # Open the saved chart in the default web browser
+                chart_path = os.path.join(self.manager.plot_save_path, f"{ticker}_daily_vs_weekly_price.png")
+                if os.path.exists(chart_path):
+                    webbrowser.open(f"file:///{os.path.abspath(chart_path)}")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error visualizing {ticker}: {str(e)}")
+        
+        self.status_var.set(f"Completed visualization for {len(selected_tickers)} tickers")
+    
+    def cleanup(self):
+        """Clean up resources before application exit"""
+        # Delete references to Tkinter variables to prevent memory leaks
+        # and 'main thread is not in main loop' errors during shutdown
+        if hasattr(self, 'status_var'):
+            del self.status_var
+        if hasattr(self, 'ticker_list_var'):
+            del self.ticker_list_var
+        if hasattr(self, 'force_download_var'):
+            del self.force_download_var
+        
+        # Clear any other references that might cause issues
+        if hasattr(self, 'ticker_listbox'):
+            self.ticker_listbox.delete(0, tk.END)
+    
+    def _view_html_report(self):
+        """Generate and view HTML report for the current ticker list"""
+        selected_tickers = self._get_selected_tickers()
+        if not selected_tickers:
+            messagebox.showwarning("No Tickers Selected", "Please select at least one ticker from the list.")
+            return
+            
+        try:
+            # Create plots directory if it doesn't exist
+            plots_dir = self.manager.plot_save_path
+            os.makedirs(plots_dir, exist_ok=True)
+            
+            # Check for missing data and download automatically
+            missing_tickers = []
+            for ticker in selected_tickers:
+                data_path = self.manager._get_data_path(ticker)
+                if not os.path.exists(data_path):
+                    missing_tickers.append(ticker)
+            
+            # If there are missing tickers, download their data automatically
+            if missing_tickers:
+                self.status_var.set(f"Downloading missing data for {len(missing_tickers)} tickers...")
+                self.root.update_idletasks()
+                
+                # Download data for missing tickers with force download enabled
+                for ticker in missing_tickers:
+                    self.status_var.set(f"Downloading data for {ticker}...")
+                    self.root.update_idletasks()
+                    self.manager.update_data(ticker, force_download=True)
+                
+                self.status_var.set(f"Downloaded data for {len(missing_tickers)} tickers")
+                self.root.update_idletasks()
+                
+            # Check for missing or outdated visualizations and generate them
+            for ticker in selected_tickers:
+                timeframe_plot_path = os.path.join(plots_dir, f"{ticker}_daily_weekly_monthly.png")
+                data_path = self.manager._get_data_path(ticker)
+                
+                # Check if chart needs to be generated or updated
+                chart_outdated = False
+                
+                # If chart doesn't exist, it needs to be generated
+                if not os.path.exists(timeframe_plot_path):
+                    chart_outdated = True
+                # If chart exists, check if data file is newer than chart file
+                elif os.path.exists(data_path):
+                    chart_mod_time = os.path.getmtime(timeframe_plot_path)
+                    data_mod_time = os.path.getmtime(data_path)
+                    
+                    # If data file is newer, chart is outdated
+                    if data_mod_time > chart_mod_time:
+                        chart_outdated = True
+                        self.status_var.set(f"Chart for {ticker} is outdated. Regenerating...")
+                        self.root.update_idletasks()
+                
+                # Generate chart if needed
+                if chart_outdated:
+                    self.status_var.set(f"Generating visualizations for {ticker}...")
+                    self.root.update_idletasks()
+                    self.manager.visualize_daily_vs_weekly(ticker)
+            
+            # Get the current ticker list name
+            current_list_name = self.ticker_list_var.get() or "custom_list"
+            
+            # Get current date in YYYY-MM-DD format
+            current_date = datetime.now().strftime("%Y-%m-%d")
+            
+            # Create a filename with list name and date
+            report_filename = f"stock_analysis_{current_list_name}_{current_date}.html"
+            
+            # Generate HTML report with custom filename and selected tickers
+            self.status_var.set(f"Generating HTML report for {current_list_name}...")
+            self.root.update_idletasks()
+            report_path = self.manager.generate_html_report(plots_dir, report_filename, selected_tickers)
+            
+            # Open the HTML report in Microsoft Edge
+            if os.path.exists(report_path):
+                try:
+                    # Register and use Microsoft Edge
+                    webbrowser.register('edge', None, webbrowser.BackgroundBrowser(r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'))
+                    webbrowser.get('edge').open(f"file:///{os.path.abspath(report_path)}")
+                    self.status_var.set(f"HTML report for {current_list_name} opened in Edge browser")
+                except Exception as browser_error:
+                    # Fall back to default browser if Edge registration fails
+                    logging.warning(f"Could not open Edge browser: {browser_error}. Using default browser.")
+                    webbrowser.open(f"file:///{os.path.abspath(report_path)}")
+                    self.status_var.set(f"HTML report for {current_list_name} opened in default browser")
+            else:
+                self.status_var.set("Error: HTML report not found")
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Error generating HTML report: {str(e)}")
+            self.status_var.set("Error generating HTML report")
+    
+def _get_selected_tickers(self):
+    """Get selected tickers from listbox"""
+    selected_indices = self.ticker_listbox.curselection()
+    if not selected_indices:
+        messagebox.showwarning("No Selection", "Please select at least one ticker.")
+        return []
+    
+    selected_tickers = []
+    for i in selected_indices:
+        # Extract ticker symbol (it might include a comment after a dash)
+        ticker_text = self.ticker_listbox.get(i)
+        ticker = ticker_text.split(' - ')[0].strip()
+        selected_tickers.append(ticker)
+    
+    return selected_tickers
+    
+def _download_data(self):
+    """Download or update data for selected tickers"""
+    selected_tickers = self._get_selected_tickers()
+    if not selected_tickers:
+        return
+        
+    # Get force download setting
+    force_download = self.force_download_var.get()
+    mode_text = "force downloading" if force_download else "updating"
+        
+    self.status_var.set(f"{mode_text.capitalize()} data for {len(selected_tickers)} tickers...")
+    self.root.update_idletasks()
+        
+    success_count = 0
+    for ticker in selected_tickers:
+        try:
+            data = self.manager.update_data(ticker, force_download=force_download)
+            if data is not None and not data.empty:
+                success_count += 1
+                self.status_var.set(f"{mode_text.capitalize()} data for {ticker} ({success_count}/{len(selected_tickers)})")
+            for ticker in selected_tickers:
+                price_plot_path = os.path.join(plots_dir, f"{ticker}_stock_prices.png")
+                timeframe_plot_path = os.path.join(plots_dir, f"{ticker}_daily_weekly_monthly.png")
+                
+                if not os.path.exists(price_plot_path) or not os.path.exists(timeframe_plot_path):
+                    self.status_var.set(f"Generating visualizations for {ticker}...")
+                    self.root.update_idletasks()
+                    self.manager.visualize_daily_vs_weekly(ticker)
+            
+            # Get the current ticker list name
+            current_list_name = self.ticker_list_var.get() or "custom_list"
+            
+            # Get current date in YYYY-MM-DD format
+            current_date = datetime.now().strftime("%Y-%m-%d")
+            
+            # Create a filename with list name and date
+            report_filename = f"stock_analysis_{current_list_name}_{current_date}.html"
+            
+            # Generate HTML report with custom filename and selected tickers
+            self.status_var.set(f"Generating HTML report for {current_list_name}...")
+            self.root.update_idletasks()
+            report_path = self.manager.generate_html_report(plots_dir, report_filename, selected_tickers)
+            
+            # Open the HTML report in Microsoft Edge
+            if os.path.exists(report_path):
+                try:
+                    # Register and use Microsoft Edge
+                    webbrowser.register('edge', None, webbrowser.BackgroundBrowser(r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'))
+                    webbrowser.get('edge').open(f"file:///{os.path.abspath(report_path)}")
+                    self.status_var.set(f"HTML report for {current_list_name} opened in Edge browser")
+                except Exception as browser_error:
+                    # Fall back to default browser if Edge registration fails
+                    logging.warning(f"Could not open Edge browser: {browser_error}. Using default browser.")
+                    webbrowser.open(f"file:///{os.path.abspath(report_path)}")
+                    self.status_var.set(f"HTML report for {current_list_name} opened in default browser")
+            else:
+                self.status_var.set("Error: HTML report not found")
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Error generating HTML report: {str(e)}")
+            self.status_var.set("Error generating HTML report")
 
 def main():
-    r'''use AI to gennerate a pythhon list of stock tickers from content in clipboard.
-    C:\Users\juesh\OneDrive\Documents\cursor\AI_ticker_extractor.py'''
-
-    # Initialize stock manager
-    stock_manager = StockDataManager()
+    """Main function to launch the Stock Data Manager GUI."""
+    root = tk.Tk()
     
-    # Dynamically find all stock ticker lists
-    ticker_lists = [var for var in globals() 
-                    if isinstance(globals()[var], list) 
-                    and (var.endswith('_stocks') or var.endswith('_tickers'))
-                    and var != 'ticker_lists']
+    # Create the application
+    app = StockDataGUI(root)
     
-    print(f"Found {len(ticker_lists)} ticker lists")
-    for ticker_list in ticker_lists:
-        print(f"Processing {ticker_list}: {len(globals()[ticker_list])} tickers")
-        # Uncomment the next line when ready to process
-        # stock_manager.process_stock_data(globals()[ticker_list],force_download=True)
-        
-    # test_tickers = ['BRK-B','LRCX','MRVL']   
+    # Create a protocol handler for window close event
+    def on_closing():
+        # Call the cleanup method to handle Tkinter variables
+        app.cleanup()
+        # Explicitly destroy all widgets to help with cleanup
+        for widget in root.winfo_children():
+            widget.destroy()
+        # Destroy the root window
+        root.destroy()
     
-    # Process stock data
-    # stock_manager.process_stock_data(tickers=top_sectors)
-    # stock_manager.process_stock_data(tickers=recent_analyst_upgrades)
-    # stock_manager.process_stock_data(tickers=ibd_50_stocks)
-    # stock_manager.process_stock_data(tickers=zacks_rank_1_stocks)
-    # stock_manager.process_stock_data(tickers=positive_earnings_surprise_stocks)
-    # Option to force download all data
-
-    force_download = True
-    # Jues401k_stocks
-    stock_manager.process_stock_data(tickers=mega_tickers2, force_download=force_download)
+    # Set the protocol handler
+    root.protocol("WM_DELETE_WINDOW", on_closing)
     
-    # stock_manager.process_stock_data(tickers=new_highs, name='new_highs')
-    # stock_manager.process_stock_data(tickers=new_lows)
-    # stock_manager.process_stock_data(tickers=test_tickers)
-    # stock_manager.process_stock_data(tickers=bitcoin_tickers)
-    # stock_manager.process_stock_data(tickers=canslim_tickers) 
-    # stock_manager.process_stock_data(tickers=chinese_stocks_tickers, force_download=force_download)
-    # stock_manager.process_stock_data(tickers=daily_watch_tickers)
-    # stock_manager.process_stock_data(tickers=index_tickers,force_download=True)
+    # Start the main loop
+    root.mainloop()
     
 
 

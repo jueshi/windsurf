@@ -25,12 +25,6 @@ Jues401k_stocks = ['ALAB','PSTR','QQQ', 'IWM', 'GLD','AAPL', 'GOOGL', 'MSFT', 'A
            'AMZA','YINN','JD','BIDU','TNA','TECS','TECL','INTC','TSM','LRCX','MRVL','SPMO','WDC']
  
 Jues401k_stocks1 = ['ALAB','PSTR','QQQ', 'IWM', 'GLD','AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'META', 'NVDA', 'BRK-B','AVGO']
-Jues401k_stocks11 = ['spy','QQQ', 'IWM','dia']
-Jues401k_stocks111 = ['PSTR','QQQ', 'IWM']
-Jues401k_stocks112 = ['ALAB','PSTR', 'IWM']
-Jues401k_stocks112 = [ 'ALAB','PSTR','QQQ']
-Jues401k_stocks12 = [ 'GLD','AAPL', 'GOOGL', 'MSFT', 'AMZN']
-Jues401k_stocks13 = ['TSLA', 'META', 'NVDA', 'BRK-B','AVGO']
 Jues401k_stocks2 = ['COST','MCD','BABA','AMD','NIO','AFRM','CQQQ','SPYX','SPYV','SPYU','CRM','ADI','TXN','AAOI','EWS','NKE']
 Jues401k_stocks3 = ['AMZA','YINN','JD','BIDU','TNA','TECS','TECL','INTC','TSM','LRCX','MRVL','SPMO','WDC']
 
@@ -160,8 +154,8 @@ canslim_tickers = ["APP", "FIX", "HWM", "NVDA", "TSM", "VRT"]
 
 finvize_tickers = [
     "FCUV", "NITO", "CRNC", "KITT", "ACON", "TGL", "ATHE", "KLTR", "ATOM", "NVA", 
-    "MBOT", "MFI", "SCPX", "SQ", "EMKR", "NYC", "PTLE", "CCM", "ALUR", "VRME", 
-    "DOGZ", "HOLO", "NUKK", "EZGO", "STAI", "SISI", "LATG", "MMLP", "IIPR", 
+    "MBOT", "MFI", "SCPX", "NYC", "PTLE", "CCM", "ALUR", "VRME", 
+    "DOGZ", "HOLO", "NUKK", "EZGO", "STAI", "SISI", "MMLP", "IIPR", 
     "ACAD", "NTRA", "PSEC", "ZYME", "INTU", "IOT", "BUXX", "ARMP", "GBIL", 
     "HSRT", "ARKG", "LJAN", "FLRN", "NVCT", "SGOV", "OCTZ", "FLJJ", "AORT", 
     "BNIX", "YIBO", "GCI", "CLIP", "CLGN", "MXE", "SAGE", "CTEC", "JPMO", 
@@ -245,6 +239,9 @@ tickers_comment_dict['GEO'] = 'GEO Group'
 daily_watch_tickers = [
     'WEC','XEL'
 ]
+
+eps_growth_stocks_2025_8_3 = ["NVDA", "AVGO", "AMD", "APH", "UBS", "NET", "CCJ", "GFI", "CLS", "ESLT", "KGC", "CELH", "EVR", "SRAD", "FYBR", "BE", "W", "LIF", "EGO", "OLO", "CDTX", "CCEC", "ATAI", "TBPH", "ISSC", "XGN", "ELTX", "ASMB"]
+canslim_8_3_2025_stocks = ["APP", "AVGO", "CLS", "EVR", "GFI", "HIMS", "HWM", "NVDA"]
 
 # Function to check if a ticker symbol is valid and suggest alternatives if not
 def validate_ticker(ticker):
@@ -415,3 +412,6 @@ if __name__ == '__main__':
     # Print tickers_comment_dict for debugging
     print("\nTicker Comments Dictionary:")
     print(json.dumps(tickers_comment_dict, indent=2, ensure_ascii=False))
+
+
+
