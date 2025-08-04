@@ -1136,18 +1136,29 @@ class StockDataGUI:
         main_frame.pack(fill=tk.BOTH, expand=True)
         
         # Create top frame for ticker list selection
-        top_frame = ttk.LabelFrame(main_frame, text="Ticker List Selection", padding="10")
+        top_frame = ttk.Frame(main_frame, padding="10")
         top_frame.pack(fill=tk.X, pady=5)
         
-        # Ticker list dropdown
+        # Ticker list selection with filter
         ttk.Label(top_frame, text="Ticker List:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=5)
-        self.ticker_list_var = tk.StringVar()
-        self.ticker_list_dropdown = ttk.Combobox(top_frame, textvariable=self.ticker_list_var, width=80)
-        self.ticker_list_dropdown['values'] = list(self.ticker_lists.keys())
-        self.ticker_list_dropdown.grid(row=0, column=1, padx=5, pady=5)
-        self.ticker_list_dropdown.bind('<<ComboboxSelected>>', self._on_list_selected)
         
-        # Load list button
+        # Create a frame for the dropdown and its filter
+        dropdown_frame = ttk.Frame(top_frame)
+        dropdown_frame.grid(row=0, column=1, sticky=tk.W, padx=5, pady=5)
+        
+        # Add filter entry for ticker list dropdown
+        self.list_filter_var = tk.StringVar()
+        list_filter_entry = ttk.Entry(dropdown_frame, textvariable=self.list_filter_var, width=20)
+        list_filter_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        list_filter_entry.bind("<KeyRelease>", self._filter_ticker_lists)
+        
+        # Create the combobox for ticker lists
+        self.ticker_list_var = tk.StringVar()
+        self.ticker_list_combo = ttk.Combobox(dropdown_frame, textvariable=self.ticker_list_var, 
+                                        values=list(self.ticker_lists.keys()), width=60)
+        self.ticker_list_combo.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
+        self.ticker_list_combo.bind("<<ComboboxSelected>>", self._on_list_selected)
+        
         ttk.Button(top_frame, text="Load List", command=self._load_ticker_list).grid(row=0, column=2, padx=5, pady=5)
         
         # Add manual ticker entry
@@ -1171,6 +1182,18 @@ class StockDataGUI:
         # Left section for available tickers (limited width)
         left_frame = ttk.LabelFrame(middle_frame, text="Available Tickers", padding="5")
         left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 5))
+        
+        # Add filter entry for ticker list
+        filter_frame = ttk.Frame(left_frame)
+        filter_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        ttk.Label(filter_frame, text="Filter:").pack(side=tk.LEFT)
+        self.filter_var = tk.StringVar()
+        filter_entry = ttk.Entry(filter_frame, textvariable=self.filter_var, width=8)
+        filter_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        # Bind filter entry to update the list as user types
+        self.filter_var.trace_add("write", self._apply_ticker_filter)
         
         # Create ticker listbox with scrollbar
         ticker_frame = ttk.Frame(left_frame)
@@ -1261,6 +1284,69 @@ class StockDataGUI:
             # Auto-load the selected ticker list
             self._load_ticker_list()
     
+    def _filter_ticker_lists(self, event):
+        """Filter the ticker list dropdown based on filter text"""
+        filter_text = self.list_filter_var.get().strip().upper()
+        
+        # Get all available ticker lists
+        all_lists = list(self.ticker_lists.keys())
+        
+        # Apply filter
+        if filter_text:
+            filtered_lists = [lst for lst in all_lists if filter_text in lst.upper()]
+            self.ticker_list_combo['values'] = filtered_lists
+            
+            # If we have exactly one match, select it
+            if len(filtered_lists) == 1:
+                self.ticker_list_var.set(filtered_lists[0])
+                self._on_list_selected(None)  # Trigger list selection event
+        else:
+            # Reset to show all lists
+            self.ticker_list_combo['values'] = all_lists
+        
+        # Update status
+        if filter_text:
+            self.status_var.set(f"List filter: '{filter_text}' - {len(self.ticker_list_combo['values'])} matches")
+    
+    def _apply_ticker_filter(self, *args):
+        """Filter the ticker list based on filter text"""
+        filter_text = self.filter_var.get().strip().upper()
+        
+        # If no current tickers or no filter, don't do anything
+        if not hasattr(self, 'current_tickers') or not self.current_tickers:
+            return
+            
+        # Get the currently selected list
+        selected_list = self.ticker_list_var.get()
+        if not selected_list or selected_list not in self.ticker_lists:
+            return
+            
+        # Get the full list of tickers
+        tickers = self.current_tickers
+        
+        # Clear the listbox
+        self.ticker_listbox.delete(0, tk.END)
+        
+        # Apply filter and update listbox
+        filtered_count = 0
+        for ticker in tickers:
+            # Apply filter
+            if filter_text and filter_text not in ticker.upper():
+                continue
+                
+            # Add ticker to listbox
+            if 'tickers_comment_dict' in globals() and ticker in tickers_comment_dict:
+                self.ticker_listbox.insert(tk.END, f"{ticker} - {tickers_comment_dict[ticker]}")
+            else:
+                self.ticker_listbox.insert(tk.END, ticker)
+            filtered_count += 1
+        
+        # Update status
+        if filter_text:
+            self.status_var.set(f"Filter '{filter_text}': showing {filtered_count}/{len(tickers)} tickers from {selected_list}")
+        else:
+            self.status_var.set(f"Showing all {len(tickers)} tickers from {selected_list}")
+    
     def _load_ticker_list(self):
         """Load selected ticker list into listbox"""
         selected_list = self.ticker_list_var.get()
@@ -1271,6 +1357,10 @@ class StockDataGUI:
         if selected_list in self.ticker_lists:
             tickers = self.ticker_lists[selected_list]
             self.current_tickers = tickers
+            
+            # Reset filter when loading a new list
+            if hasattr(self, 'filter_var'):
+                self.filter_var.set('')
             
             # Update listbox
             self.ticker_listbox.delete(0, tk.END)
