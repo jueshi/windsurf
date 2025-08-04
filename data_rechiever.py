@@ -1254,10 +1254,12 @@ class StockDataGUI:
         status_bar.pack(side=tk.BOTTOM, fill=tk.X)
     
     def _on_list_selected(self, event):
-        """Handle ticker list selection"""
+        """Handle ticker list selection and auto-load the selected list"""
         selected_list = self.ticker_list_var.get()
         if selected_list in self.ticker_lists:
             self.status_var.set(f"Selected list: {selected_list} with {len(self.ticker_lists[selected_list])} tickers")
+            # Auto-load the selected ticker list
+            self._load_ticker_list()
     
     def _load_ticker_list(self):
         """Load selected ticker list into listbox"""
@@ -1886,6 +1888,9 @@ def main():
     """Main function to launch the Stock Data Manager GUI."""
     root = tk.Tk()
     root.title("Stock Data Manager")
+    
+    # Maximize the window
+    root.state('zoomed')  # Windows-specific command to maximize
 
     # Create the StockDataManager instance
     manager = StockDataManager()
