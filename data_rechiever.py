@@ -109,7 +109,7 @@ import inspect
 import logging
 import re
 import datetime
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 from PIL import Image, ImageTk
@@ -466,13 +466,58 @@ class StockDataManager:
             # Get the latest date in local data
             latest_local_date = existing_data['Date'].max()
             
-            # Download new data from the day after the latest local date
+            # Get the latest date in local data and current date
             start_date = (latest_local_date + pd.Timedelta(days=1)).strftime('%Y-%m-%d')
-            new_data = yf.download(ticker, start=start_date, progress=False)
+            current_date = datetime.now().strftime('%Y-%m-%d')
+            
+            logging.info(f"Attempting to update {ticker} data from {start_date} to {current_date}")
+            
+            # Check if today is a weekend or holiday
+            today = datetime.now()
+            is_weekend = today.weekday() >= 5  # 5=Saturday, 6=Sunday
+            
+            if is_weekend:
+                logging.info(f"Today is a weekend ({today.strftime('%A')}), market may be closed")
+            
+            # Try to get market status
+            try:
+                ticker_info = yf.Ticker(ticker).info
+                market_state = ticker_info.get('marketState', 'Unknown')
+                logging.info(f"Current market status for {ticker}: {market_state}")
+            except Exception as e:
+                logging.warning(f"Could not get market status: {e}")
+                market_state = 'Unknown'
+            
+            # Try different approaches to get the most recent data
+            logging.info(f"Trying different date ranges to get the most recent data for {ticker}")
+            
+            # Approach 1: Try to get data from the start date to today
+            logging.info(f"Approach 1: Downloading data for {ticker} from {start_date} to {current_date}")
+            new_data = yf.download(ticker, start=start_date, end=current_date, progress=False)
+            
+            # Approach 2: If no data, try getting just today's data
+            if new_data.empty:
+                logging.info(f"No data found from {start_date}. Trying to get just today's data.")
+                new_data = yf.download(ticker, start=current_date, end=None, progress=False)
+            
+            # Approach 3: If still no data, try getting data for the last 5 days
+            if new_data.empty:
+                five_days_ago = (datetime.now() - pd.Timedelta(days=5)).strftime('%Y-%m-%d')
+                logging.info(f"No data found for today. Trying to get data for the last 5 days from {five_days_ago}.")
+                new_data = yf.download(ticker, start=five_days_ago, end=None, progress=False)
+                
+                # Filter to only include data after the latest local date
+                if not new_data.empty:
+                    new_data = new_data[new_data.index > latest_local_date]
             
             # Validate downloaded data
             if new_data.empty:
-                logging.info(f"No new data available for {ticker}")
+                logging.info(f"No new data available for {ticker} (market state: {market_state})")
+                
+                # If it's a trading day and during/after market hours, this might be unexpected
+                if not is_weekend and market_state in ['REGULAR', 'POST', 'POSTPOST']:
+                    logging.warning(f"Expected new data for {ticker} on a trading day with market state {market_state}, but none was returned")
+                
                 return existing_data
             
             # Reset index to make Date a column

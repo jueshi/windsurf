@@ -1,10 +1,7 @@
 # -*- coding: utf-8 -*-
-import sys
-import io
-
-# Set the default encoding to UTF-8
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+# Stock ticker lists for data_rechiever.py
+# This file contains various stock ticker lists that can be imported and used
+# Note: Do not modify sys.stdout or sys.stderr in this file as it causes issues with module reloading
 
 import json
 
@@ -172,7 +169,8 @@ newHigh_stock_tickers = [
     "XDAP", "CPNJ", "PBP", "GMAR", "UMAY", "PMAY", "GAPR", "XBAP", "EMPB", "DAPR"
 ]
 
-newLow_tickers = ['KZIA', 'SID', 'SSTK', 'BF-A', 'ABEV', 'CCS', 'ADBE', 'BHP', 'BUD', 'KOF', 'ZROZ', 'AVY']
+# Temporarily commenting out this list to test dropdown refresh
+# newLow_tickers = ['KZIA', 'SID', 'SSTK', 'BF-A', 'ABEV', 'CCS', 'ADBE', 'BHP', 'BUD', 'KOF', 'ZROZ', 'AVY']
 
 chinese_stocks_tickers = [
     "0700.HK",  # Tencent Holdings (Hong Kong)
@@ -195,7 +193,7 @@ tickers_comment_dict['601318.SS'] = '平安保险'
 tickers_comment_dict['601857.SS'] = '中石油'
 
 FUNDS_stocks = ['goog','aapl', 'meta', 'msft', 'amzn', 'nvda', 'tsla', 'brk-b']
-China_FUNDS_stocks = ['baba', 'bidu', 'nio', 'jd', '0700.HK']
+# China_FUNDS_stocks = ['baba', 'bidu', 'nio', 'jd', '0700.HK']
 
 
 AI_ticker_extractor_tickers = [
@@ -240,10 +238,51 @@ daily_watch_tickers = [
     'WEC','XEL'
 ]
 
+index_etfs = [
+    # Broad US Market
+    'VTI',  # Vanguard Total Stock Market ETF
+    'ITOT', # iShares Core S&P Total U.S. Stock Market ETF
+    'SCHB', # Schwab U.S. Broad Market ETF
+
+    # S&P 500
+    'SPY',  # SPDR S&P 500 ETF Trust
+    'IVV',  # iShares Core S&P 500 ETF
+    'VOO',  # Vanguard S&P 500 ETF
+
+    # Nasdaq-100
+    'QQQ',  # Invesco QQQ Trust
+    'QQQM', # Invesco NASDAQ 100 ETF
+
+    # Dow Jones Industrial Average
+    'DIA',  # SPDR Dow Jones Industrial Average ETF Trust
+
+    # Small-Cap (Russell 2000)
+    'IWM',  # iShares Russell 2000 ETF
+    'VTWO', # Vanguard Russell 2000 ETF
+
+    # International Developed Markets
+    'VEA',  # Vanguard FTSE Developed Markets ETF
+    'IEFA', # iShares Core MSCI EAFE ETF
+
+    # International Emerging Markets
+    'VWO',  # Vanguard FTSE Emerging Markets ETF
+    'IEMG', # iShares Core MSCI Emerging Markets ETF
+
+    # Global Market (US + International)
+    'VT',   # Vanguard Total World Stock ETF
+    'ACWI', # iShares MSCI ACWI ETF
+
+    # Bond Market
+    'BND',  # Vanguard Total Bond Market ETF
+    'AGG'   # iShares Core U.S. Aggregate Bond ETF
+]
+
 eps_growth_stocks_2025_8_3 = ["NVDA", "AVGO", "AMD", "APH", "UBS", "NET", "CCJ", "GFI", "CLS", "ESLT", "KGC", "CELH", "EVR", "SRAD", "FYBR", "BE", "W", "LIF", "EGO", "OLO", "CDTX", "CCEC", "ATAI", "TBPH", "ISSC", "XGN", "ELTX", "ASMB"]
 canslim_8_3_2025_stocks = ["APP", "AVGO", "CLS", "EVR", "GFI", "HIMS", "HWM", "NVDA"]
 
-watch_list = ["XMAR", "AMZN", "NEXT", "0700.HK", "nio", "bidu"]
+watch_list = ["XMAR", "AMZN", "NEXT", "0700.HK", "TSM", "BRK-B", "tsm"]
+
+
 
 
 
