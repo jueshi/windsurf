@@ -126,12 +126,76 @@ from typing import Optional, List, Any
 from random import uniform
 import math
 
+def suppress_tkinter_exit_errors():
+    """Suppress tkinter cleanup exceptions on exit with enhanced error handling."""
+    # Save original __del__ methods
+    original_image_del = tk.Image.__del__
+    original_var_del = tk.Variable.__del__
+    original_photoimage_del = None
+    if hasattr(tk, 'PhotoImage') and hasattr(tk.PhotoImage, '__del__'):
+        original_photoimage_del = tk.PhotoImage.__del__
+    
+    # Define safe __del__ methods with comprehensive error handling
+    def safe_image_del(self):
+        try:
+            original_image_del(self)
+        except (RuntimeError, AttributeError, TypeError) as e:
+            # More comprehensive error handling
+            pass
+    
+    def safe_var_del(self):
+        try:
+            original_var_del(self)
+        except (RuntimeError, AttributeError, TypeError) as e:
+            # More comprehensive error handling
+            pass
+    
+    def safe_photoimage_del(self):
+        try:
+            original_photoimage_del(self)
+        except (RuntimeError, AttributeError, TypeError) as e:
+            # More comprehensive error handling
+            pass
+    
+    # Replace __del__ methods with safe versions
+    tk.Image.__del__ = safe_image_del
+    tk.Variable.__del__ = safe_var_del
+    if original_photoimage_del:
+        tk.PhotoImage.__del__ = safe_photoimage_del
+        
+    # Also patch Tcl async handlers
+    try:
+        # Monkey patch the Tcl interpreter's async delete handler
+        if hasattr(tk, '_tkinter') and hasattr(tk._tkinter, 'TclError'):
+            original_tcl_async_hook = None
+            if hasattr(tk.Tcl(), 'async_hook'):
+                original_tcl_async_hook = tk.Tcl().async_hook
+                
+                def safe_async_hook(*args, **kwargs):
+                    try:
+                        if original_tcl_async_hook:
+                            return original_tcl_async_hook(*args, **kwargs)
+                    except Exception:
+                        pass
+                
+                tk.Tcl().async_hook = safe_async_hook
+    except Exception:
+        # If patching fails, continue without it
+        pass
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, 
     format='%(asctime)s - %(levelname)s: %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
+
+# Suppress tkinter cleanup exceptions on exit
+suppress_tkinter_exit_errors()
+
+# Suppress FutureWarning from yfinance
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning, module="yfinance")
 
 # Directories and Configurations
 STOCK_DATA_DIR = 'stock_data'
@@ -264,7 +328,8 @@ class StockDataManager:
                         stock_data = yf.download(
                             ticker,
                             period="max",  # Get all available history
-                            progress=False
+                            progress=False,
+                            auto_adjust=True  # Explicitly set to avoid FutureWarning
                         )
                     else:
                         # Calculate start date to be 5 years ago
@@ -276,7 +341,8 @@ class StockDataManager:
                             ticker,
                             start=start_date,
                             end=end_date,
-                            progress=False
+                            progress=False,
+                            auto_adjust=True  # Explicitly set to avoid FutureWarning
                         )
                     
                     # Verify we got valid data
@@ -391,6 +457,7 @@ class StockDataManager:
         """
         Update existing stock data with the most recent information.
         Ensures at least 3 years of historical data if possible.
+        Downloads all missing data since the last update, not just the latest data.
         
         Args:
             ticker (str): Stock ticker symbol
@@ -412,8 +479,35 @@ class StockDataManager:
                 # Load existing data
                 existing_data = pd.read_csv(data_path, sep='\t')
                 
+                # Check if columns are complex (tuples as strings) and fix them
+                if any(['(' in str(col) for col in existing_data.columns]):
+                    logging.info(f"Detected complex column structure in {ticker} data, normalizing columns")
+                    # Create a new DataFrame with standardized columns
+                    standard_columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
+                    new_df = pd.DataFrame(columns=standard_columns)
+                    
+                    # Map complex columns to standard ones
+                    for std_col in standard_columns:
+                        for col in existing_data.columns:
+                            if std_col in str(col):
+                                new_df[std_col] = existing_data[col]
+                                break
+                    
+                    # Ensure Date column is present
+                    if 'Date' not in new_df.columns and 'Date' in existing_data.columns:
+                        new_df['Date'] = existing_data['Date']
+                    
+                    existing_data = new_df
+                    
+                    # Save the normalized data back to file
+                    existing_data.to_csv(data_path, sep='\t', index=False)
+                    logging.info(f"Normalized column structure for {ticker} data")
+                
                 # Convert Date column to datetime with UTC=True
                 existing_data['Date'] = pd.to_datetime(existing_data['Date'], utc=True)
+                
+                # Get the latest date in the data
+                latest_local_date = existing_data['Date'].max()
                 
                 # Check if we have at least 3 years of data
                 earliest_date = existing_data['Date'].min()
@@ -462,105 +556,209 @@ class StockDataManager:
                 logging.info(f"No existing data found for {ticker}. Switching to force download mode.")
                 # Recursively call update_data with force_download=True
                 return self.update_data(ticker, force_download=True)
-                
+            
+            # Check for gaps in the data
+            logging.info(f"Checking for gaps in {ticker} data")
+            existing_data['Date'] = pd.to_datetime(existing_data['Date'])
+            existing_data = existing_data.sort_values('Date')
+            
             # Get the latest date in local data
             latest_local_date = existing_data['Date'].max()
             
-            # Get the latest date in local data and current date
+            # Get current date
+            current_date = (datetime.now() + pd.Timedelta(days=1)).strftime('%Y-%m-%d')
+            
+            # Initialize container for new data frames
+            all_new_data_frames = []
+            
+            # As per user request, focus only on the most recent data
+            # We'll skip historical gap filling and just get the latest data
+            logging.info(f"Focusing only on the most recent data for {ticker} as requested")
+            
+            # Get data from the day after the latest date to today
             start_date = (latest_local_date + pd.Timedelta(days=1)).strftime('%Y-%m-%d')
-            current_date = datetime.now().strftime('%Y-%m-%d')
             
-            logging.info(f"Attempting to update {ticker} data from {start_date} to {current_date}")
+            # Ensure start_date is before current_date
+            start_dt = pd.to_datetime(start_date)
+            current_dt = pd.to_datetime(current_date)
             
-            # Check if today is a weekend or holiday
-            today = datetime.now()
-            is_weekend = today.weekday() >= 5  # 5=Saturday, 6=Sunday
-            
-            if is_weekend:
-                logging.info(f"Today is a weekend ({today.strftime('%A')}), market may be closed")
-            
-            # Try to get market status
-            try:
-                ticker_info = yf.Ticker(ticker).info
-                market_state = ticker_info.get('marketState', 'Unknown')
-                logging.info(f"Current market status for {ticker}: {market_state}")
-            except Exception as e:
-                logging.warning(f"Could not get market status: {e}")
-                market_state = 'Unknown'
-            
-            # Try different approaches to get the most recent data
-            logging.info(f"Trying different date ranges to get the most recent data for {ticker}")
-            
-            # Approach 1: Try to get data from the start date to today
-            logging.info(f"Approach 1: Downloading data for {ticker} from {start_date} to {current_date}")
-            new_data = yf.download(ticker, start=start_date, end=current_date, progress=False)
-            
-            # Approach 2: If no data, try getting just today's data
-            if new_data.empty:
-                logging.info(f"No data found from {start_date}. Trying to get just today's data.")
-                new_data = yf.download(ticker, start=current_date, end=None, progress=False)
-            
-            # Approach 3: If still no data, try getting data for the last 5 days
-            if new_data.empty:
-                five_days_ago = (datetime.now() - pd.Timedelta(days=5)).strftime('%Y-%m-%d')
-                logging.info(f"No data found for today. Trying to get data for the last 5 days from {five_days_ago}.")
-                new_data = yf.download(ticker, start=five_days_ago, end=None, progress=False)
+            if start_dt >= current_dt:
+                logging.warning(f"Latest date in {ticker} data ({start_date}) is already current or in the future. No update needed.")
+            else:
+                logging.info(f"Downloading recent data for {ticker} from {start_date} to {current_date}")
                 
-                # Filter to only include data after the latest local date
-                if not new_data.empty:
-                    new_data = new_data[new_data.index > latest_local_date]
+                # Try to download the most recent data
+                try:
+                    recent_data = yf.download(ticker, start=start_date, end=current_date, progress=False, auto_adjust=True)
+                    
+                    if not recent_data.empty:
+                        logging.info(f"Downloaded {len(recent_data)} rows of recent data for {ticker}")
+                        recent_data_reset = recent_data.reset_index()
+                        all_new_data_frames.append(recent_data_reset)
+                    else:
+                        logging.warning(f"No recent data available for {ticker} from {start_date} to {current_date}")
+                except Exception as e:
+                    logging.error(f"Error downloading recent data for {ticker}: {e}")
+                    
+                    # If first attempt fails, try just today's data
+                    try:
+                        logging.info(f"Trying to get just today's data for {ticker}")
+                        today_data = yf.download(ticker, start=current_dt.strftime('%Y-%m-%d'), end=None, progress=False, auto_adjust=True)
+                        
+                        if not today_data.empty:
+                            logging.info(f"Downloaded today's data for {ticker}")
+                            today_data_reset = today_data.reset_index()
+                            all_new_data_frames.append(today_data_reset)
+                        else:
+                            logging.warning(f"No data available for today for {ticker}")
+                    except Exception as e2:
+                        logging.error(f"Error downloading today's data for {ticker}: {e2}")
             
-            # Validate downloaded data
-            if new_data.empty:
-                logging.info(f"No new data available for {ticker} (market state: {market_state})")
-                
-                # If it's a trading day and during/after market hours, this might be unexpected
-                if not is_weekend and market_state in ['REGULAR', 'POST', 'POSTPOST']:
-                    logging.warning(f"Expected new data for {ticker} on a trading day with market state {market_state}, but none was returned")
-                
+            # If we have no new data at all, return existing data
+            if not all_new_data_frames:
+                logging.info(f"No new data available for {ticker}")
                 return existing_data
             
-            # Reset index to make Date a column
-            new_data_reset = new_data.reset_index()
+            # If we have no new data at all
+            if not all_new_data_frames:
+                logging.info(f"No new data available for {ticker}")
+                return existing_data
+            
+            # Process and combine all new data frames
+            all_new_data = pd.concat(all_new_data_frames, ignore_index=True) if all_new_data_frames else None
+            
+            if all_new_data is None or all_new_data.empty:
+                logging.info(f"No new data available for {ticker}")
+                return existing_data
             
             # Ensure consistent column order and names
             columns_order = ['Date', 'Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
             
-            # Prepare new data with consistent columns
-            new_data_processed = new_data_reset.rename(columns={
-                'Date': 'Date', 
-                'Open': 'Open', 
-                'High': 'High', 
-                'Low': 'Low', 
-                'Close': 'Close', 
-                'Adj Close': 'Adj Close', 
-                'Volume': 'Volume'
-            })
+            # Process column names
+            new_data_processed = all_new_data.copy()
+            
+            # Convert datetime to string format to match existing data
+            if 'Date' in new_data_processed.columns:
+                new_data_processed['Date'] = pd.to_datetime(new_data_processed['Date']).dt.strftime('%Y-%m-%d')
+            
+            # Rename columns if needed
+            if 'Adj Close' not in new_data_processed.columns and 'Adj_Close' in new_data_processed.columns:
+                new_data_processed.rename(columns={'Adj_Close': 'Adj Close'}, inplace=True)
             
             # Select and order columns
             new_data_processed = new_data_processed[[col for col in columns_order if col in new_data_processed.columns]]
+            logging.info(f"Debug - After processing, new_data shape: {new_data_processed.shape}")
             
             # Combine existing and new data
             combined_data = pd.concat([existing_data, new_data_processed], ignore_index=True)
+            logging.info(f"Debug - After concat, combined_data shape: {combined_data.shape}, existing_data shape: {existing_data.shape}")
             
             # Remove duplicate dates, keeping the last entry
             combined_data = combined_data.drop_duplicates(subset='Date', keep='last')
+            logging.info(f"Debug - After drop_duplicates, combined_data shape: {combined_data.shape}")
             
             # Sort by date
             combined_data = combined_data.sort_values('Date')
             
-            # Only save if there are actually new data points
+            # Check if there are actually new data points
+            logging.info(f"Debug - Comparison: combined_data length: {len(combined_data)}, existing_data length: {len(existing_data)}")
             if len(combined_data) > len(existing_data):
                 # Save data to local file using tab separator
                 combined_data.to_csv(data_path, sep='\t', index=False)
-                logging.info(f"Data for {ticker} updated successfully")
+                logging.info(f"Data for {ticker} updated successfully with {len(combined_data) - len(existing_data)} new data points")
                 return combined_data
             else:
-                logging.info(f"No new data to update for {ticker}")
-                return existing_data
+                # Even if the number of rows is the same, check if the latest data has been updated
+                # (e.g., price corrections or updates during the day)
+                latest_existing = existing_data.iloc[-1]
+                latest_new = combined_data.iloc[-1]
+                
+                # Check if any of the key values have changed
+                values_changed = False
+                for col in ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']:
+                    if col in latest_existing and col in latest_new:
+                        try:
+                            # Convert values to float before comparison to handle potential string values
+                            existing_val = float(latest_existing[col])
+                            new_val = float(latest_new[col])
+                            if not np.isclose(existing_val, new_val, atol=0.0001):  # Small threshold for float comparison
+                                values_changed = True
+                                logging.info(f"Latest {col} value updated: {existing_val} -> {new_val}")
+                        except (ValueError, TypeError) as e:
+                            # Handle case where conversion to float fails
+                            logging.warning(f"Could not compare {col} values due to type mismatch: {e}")
+                            # If values are strings, compare them directly
+                            if str(latest_existing[col]) != str(latest_new[col]):
+                                values_changed = True
+                                logging.info(f"Latest {col} value updated: {latest_existing[col]} -> {latest_new[col]}")
+                        except Exception as e:
+                            logging.warning(f"Error comparing {col} values: {e}")
+                            continue
+                
+                if values_changed:
+                    # Save the updated data
+                    combined_data.to_csv(data_path, sep='\t', index=False)
+                    logging.info(f"Data for {ticker} updated with latest price corrections")
+                    return combined_data
+                else:
+                    logging.info(f"No new data to update for {ticker}")
+                    return existing_data
                 
         except Exception as e:
             logging.error(f"Error updating data for {ticker}: {e}")
+            return None
+
+    def load_data(self, ticker):
+        """Load stock data for a given ticker"""
+        try:
+            data_path = os.path.join(self.data_dir, f"{ticker}_stock_data.tsv")
+            if os.path.exists(data_path):
+                data = pd.read_csv(data_path, sep='\t')
+                
+                # Always normalize columns to ensure consistent structure
+                logging.info(f"Normalizing column structure for {ticker} data")
+                # Create a new DataFrame with standardized columns
+                standard_columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
+                new_df = pd.DataFrame(columns=standard_columns)
+                
+                # Map columns to standard ones, handling various formats
+                for std_col in standard_columns:
+                    # Try exact match first
+                    if std_col in data.columns:
+                        new_df[std_col] = data[std_col]
+                        continue
+                    
+                    # Try case-insensitive match
+                    for col in data.columns:
+                        if std_col.lower() == str(col).lower():
+                            new_df[std_col] = data[col]
+                            break
+                    
+                    # Try partial match in complex columns
+                    if std_col not in new_df.columns:
+                        for col in data.columns:
+                            if std_col in str(col):
+                                new_df[std_col] = data[col]
+                                break
+                
+                # Special handling for Date column which is critical
+                if 'Date' not in new_df.columns and 'Date' in data.columns:
+                    new_df['Date'] = data['Date']
+                
+                # If we have a valid DataFrame with at least Date and one price column, use it
+                if 'Date' in new_df.columns and any(col in new_df.columns for col in ['Close', 'Adj Close']):
+                    data = new_df
+                    
+                    # Save the normalized data back to file
+                    data.to_csv(data_path, sep='\t', index=False)
+                    logging.info(f"Normalized column structure for {ticker} data while loading")
+                
+                return data
+            else:
+                logging.warning(f"No data file found for {ticker}")
+                return None
+        except Exception as e:
+            logging.error(f"Error loading data for {ticker}: {e}")
             return None
 
     def visualize_data(self, 
@@ -576,32 +774,90 @@ class StockDataManager:
             title (Optional[str], optional): Custom plot title
         """
         try:
-            plt.ioff()  # Turn off interactive mode
-            data = self._load_stock_data(ticker)
+            # Load data with normalization
+            data = self.load_data(ticker)
             
             if data is None or data.empty:
-                print(f"No data available for {ticker}")
+                logging.warning(f"No data available for {ticker}")
                 return
             
-            plt.figure(figsize=(12, 6))
-            plt.plot(data.index, data[column], label=f'{ticker} {column} Price')
-            plt.title(title or f'{ticker} Stock Price - {column}')
-            plt.xlabel('Date')
-            plt.ylabel(f'{column} Price')
-            plt.legend()
-            plt.grid(True)
-            plt.xticks(rotation=45)
-            plt.tight_layout()
+            # Make a copy to avoid modifying the original data
+            data = data.copy()
             
-            # Ensure the directory exists
-            os.makedirs(self.plot_save_path, exist_ok=True)
-            save_path = os.path.join(self.plot_save_path, f'{ticker}_{column}_plot.png')
-            plt.savefig(save_path)
-            print(f"Plot saved to {save_path}")
+            # Double-check that we have the expected columns
+            if column not in data.columns:
+                # Try to find a matching column
+                for col in data.columns:
+                    if column.lower() in str(col).lower():
+                        logging.info(f"Using column '{col}' instead of '{column}' for {ticker}")
+                        column = col
+                        break
+                else:
+                    # If no matching column is found, default to 'Close' if available
+                    if 'Close' in data.columns:
+                        logging.warning(f"Column '{column}' not found in {ticker} data, using 'Close' instead")
+                        column = 'Close'
+                    else:
+                        logging.error(f"Column '{column}' not found in {ticker} data and no suitable alternative found")
+                        return
             
-            plt.close('all')  # Close all figures to prevent memory leaks
+            # Ensure Date column is properly handled
+            if 'Date' not in data.columns:
+                logging.error(f"Date column not found in {ticker} data")
+                return
+                
+            # Convert Date to datetime if needed
+            try:
+                if not pd.api.types.is_datetime64_any_dtype(data['Date']):
+                    data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
+                
+                # Handle timezone-aware datetime objects
+                try:
+                    # Convert to timezone-naive datetime objects
+                    data['Date'] = data['Date'].dt.tz_localize(None)
+                except AttributeError:
+                    # Already timezone-naive or not a datetime
+                    pass
+                except TypeError:
+                    # Already has timezone info, convert to timezone-naive
+                    data['Date'] = data['Date'].dt.tz_convert(None)
+                
+                # Set Date as index for plotting
+                data = data.set_index('Date')
+                
+                # Check if we have valid data after processing
+                if data.empty or column not in data.columns:
+                    logging.error(f"No valid data available for {ticker} after processing")
+                    return
+                
+                # Check for NaN values in the column to plot
+                if data[column].isna().all():
+                    logging.error(f"All values in column '{column}' for {ticker} are NaN")
+                    return
+                
+                plt.ioff()  # Turn off interactive mode
+                plt.figure(figsize=(12, 6))
+                plt.plot(data.index, data[column], label=f'{ticker} {column} Price')
+                plt.title(title or f'{ticker} Stock Price - {column}')
+                plt.xlabel('Date')
+                plt.ylabel(f'{column} Price')
+                plt.legend()
+                plt.grid(True)
+                plt.xticks(rotation=45)
+                plt.tight_layout()
+                
+                # Ensure the directory exists
+                os.makedirs(self.plot_save_path, exist_ok=True)
+                save_path = os.path.join(self.plot_save_path, f'{ticker}_{column}_plot.png')
+                plt.savefig(save_path)
+                logging.info(f"Plot saved to {save_path}")
+                
+            except Exception as inner_e:
+                logging.error(f"Error processing date or plotting for {ticker}: {inner_e}")
+            finally:
+                plt.close('all')  # Close all figures to prevent memory leaks
         except Exception as e:
-            print(f"Error visualizing data for {ticker}: {e}")
+            logging.error(f"Error visualizing data for {ticker}: {e}")
         finally:
             plt.close('all')  # Ensure figures are closed even if an error occurs
 
@@ -664,7 +920,7 @@ class StockDataManager:
     def resample_data(self, 
                        ticker: str, 
                        resample_freq: str = 'W', 
-                       column: str = 'Close') -> pd.Series:
+                       column: str = 'Close'):
         """
         Resample stock data to a different frequency.
         
@@ -683,20 +939,76 @@ class StockDataManager:
             pd.Series: Resampled stock data
         """
         try:
-            # Load stock data
-            stock_data = self._load_stock_data(ticker)
+            # Load data with normalization
+            data = self.load_data(ticker)
             
-            # Set Date as index for resampling
-            stock_data.set_index('Date', inplace=True)
+            if data is None or data.empty:
+                logging.warning(f"No data available for {ticker}")
+                return None
+            
+            # Make a copy to avoid modifying the original data
+            data = data.copy()
+            
+            # Clean data: remove any rows with NaN in Date column
+            data = data.dropna(subset=['Date'])
+            
+            # Clean data: remove any non-numeric header rows (where Date is string but not a valid date)
+            if data.shape[0] > 0 and isinstance(data['Date'].iloc[0], str) and not pd.to_datetime(data['Date'].iloc[0], errors='coerce'):
+                logging.warning(f"Removing header row from {ticker} data")
+                data = data.iloc[1:].reset_index(drop=True)
+            
+            # Double-check that we have the expected columns
+            if column not in data.columns:
+                # Try to find a matching column
+                for col in data.columns:
+                    if column.lower() in str(col).lower():
+                        column = col
+                        logging.info(f"Using column '{col}' instead of '{column}' for resampling {ticker} data")
+                        break
+                else:
+                    # If no matching column is found, default to 'Close' if available
+                    if 'Close' in data.columns:
+                        column = 'Close'
+                        logging.warning(f"Column '{column}' not found in {ticker} data, using 'Close' instead")
+                    else:
+                        logging.error(f"Column '{column}' not found in {ticker} data and no suitable alternative found")
+                        return None
+            
+            # Convert numeric columns to float
+            numeric_columns = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
+            for col in numeric_columns:
+                if col in data.columns:
+                    data[col] = pd.to_numeric(data[col], errors='coerce')
+            
+            # Convert Date to datetime if it's not already
+            if not pd.api.types.is_datetime64_any_dtype(data['Date']):
+                data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
+            
+            # Drop rows with invalid dates
+            data = data.dropna(subset=['Date'])
+            
+            # Set Date as index
+            data = data.set_index('Date')
+            
+            # Drop rows with NaN in the column we're resampling
+            data = data.dropna(subset=[column])
+            
+            # Check if we have valid data after cleaning
+            if data.empty:
+                logging.warning(f"No valid data available for {ticker} after cleaning")
+                return None
             
             # Resample data
-            resampled_data = stock_data[column].resample(resample_freq).last()
+            resampled = data[column].resample(resample_freq).last()
             
-            return resampled_data
+            # Drop NaN values from resampled data
+            resampled = resampled.dropna()
+            
+            return resampled
         
         except Exception as e:
             logging.error(f"Error resampling data for {ticker}: {e}")
-            return pd.Series()
+            return None
 
     def visualize_daily_vs_weekly(self, ticker: str, column: str = 'Close') -> None:
         """
@@ -707,45 +1019,101 @@ class StockDataManager:
             column (str, optional): Price column to visualize. Defaults to 'Close'.
         """
         try:
-            # Load daily and weekly data
-            daily_data = self._load_stock_data(ticker)
+            # Load daily data with normalization and cleaning
+            data = self.load_data(ticker)
+            
+            if data is None or data.empty:
+                logging.warning(f"No data available for {ticker}")
+                return
+            
+            # Make a copy to avoid modifying the original data
+            daily_data = data.copy()
+            
+            # Clean data: remove any rows with NaN in Date column
+            daily_data = daily_data.dropna(subset=['Date'])
+            
+            # Convert numeric columns to float
+            numeric_columns = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
+            for col in numeric_columns:
+                if col in daily_data.columns:
+                    daily_data[col] = pd.to_numeric(daily_data[col], errors='coerce')
+            
+            # Handle column selection
+            if column not in daily_data.columns:
+                # Try to find a matching column
+                for col in daily_data.columns:
+                    if column.lower() in str(col).lower():
+                        column = col
+                        logging.info(f"Using column '{col}' instead of '{column}' for {ticker}")
+                        break
+                else:
+                    # If no matching column is found, default to 'Close' if available
+                    if 'Close' in daily_data.columns:
+                        column = 'Close'
+                        logging.warning(f"Column '{column}' not found in {ticker} data, using 'Close' instead")
+                    else:
+                        logging.error(f"Column '{column}' not found in {ticker} data and no suitable alternative found")
+                        return
+            
+            # Drop rows with NaN in the column we're plotting
+            daily_data = daily_data.dropna(subset=[column])
+            
+            # Convert Date to datetime
+            daily_data['Date'] = pd.to_datetime(daily_data['Date'], errors='coerce')
+            daily_data = daily_data.dropna(subset=['Date'])
+            daily_data.set_index('Date', inplace=True)
+            
+            # Get weekly and monthly data through resampling
             weekly_data = self.resample_data(ticker, resample_freq='W', column=column)
+            monthly_data = self.resample_data(ticker, resample_freq='ME', column=column)
+            
+            if weekly_data is None or monthly_data is None:
+                logging.error(f"Could not generate weekly or monthly data for {ticker}")
+                return
             
             # Ensure datetime indices
-            daily_data['Date'] = pd.to_datetime(daily_data['Date'])
-            daily_data.set_index('Date', inplace=True)
             weekly_data.index = pd.to_datetime(weekly_data.index)
+            monthly_data.index = pd.to_datetime(monthly_data.index)
             
             # Create figure with three subplots
             fig, (ax3, ax2, ax1) = plt.subplots(1, 3, figsize=(30, 7))
             
             # Plot daily data for recent year
-            recent_year_data = daily_data[daily_data.index > daily_data.index.max() - pd.Timedelta(days=365)]
-            ax1.semilogy(recent_year_data.index, recent_year_data[column])
-            ax1.set_title(f'{ticker} Recent Year Daily {column} Prices')
-            ax1.set_xlabel('Date')
-            ax1.set_ylabel(f'{column} Price ($)')
-            ax1.tick_params(axis='x', rotation=45)
-            ax1.grid(True, which='both', ls='-', alpha=0.5)
+            if not daily_data.empty:
+                recent_year_data = daily_data[daily_data.index > daily_data.index.max() - pd.Timedelta(days=365)]
+                if not recent_year_data.empty:
+                    ax1.semilogy(recent_year_data.index, recent_year_data[column])
+                    ax1.set_title(f'{ticker} Recent Year Daily {column} Prices')
+                    ax1.set_xlabel('Date')
+                    ax1.set_ylabel(f'{column} Price ($)')
+                    ax1.tick_params(axis='x', rotation=45)
+                    ax1.grid(True, which='both', ls='-', alpha=0.5)
+                else:
+                    logging.warning(f"No recent year data available for {ticker}")
             
             # Plot weekly data for recent 5 years
-            recent_5_years_data = weekly_data[weekly_data.index > weekly_data.index.max() - pd.Timedelta(days=1825)]
-            ax2.semilogy(recent_5_years_data.index, recent_5_years_data.values)
-            ax2.set_title(f'{ticker} Recent 5 Years Weekly {column} Prices')
-            ax2.set_xlabel('Date')
-            ax2.set_ylabel(f'{column} Price ($)')
-            ax2.tick_params(axis='x', rotation=45)
-            ax2.grid(True, which='both', ls='-', alpha=0.5)
+            if not weekly_data.empty:
+                recent_5_years_data = weekly_data[weekly_data.index > weekly_data.index.max() - pd.Timedelta(days=1825)]
+                if not recent_5_years_data.empty:
+                    ax2.semilogy(recent_5_years_data.index, recent_5_years_data.values)
+                    ax2.set_title(f'{ticker} Recent 5 Years Weekly {column} Prices')
+                    ax2.set_xlabel('Date')
+                    ax2.set_ylabel(f'{column} Price ($)')
+                    ax2.tick_params(axis='x', rotation=45)
+                    ax2.grid(True, which='both', ls='-', alpha=0.5)
+                else:
+                    logging.warning(f"No recent 5 years data available for {ticker}")
             
             # Plot monthly data
-            monthly_data = self.resample_data(ticker, resample_freq='ME', column=column)
-            monthly_data.index = pd.to_datetime(monthly_data.index, utc=True)
-            ax3.semilogy(monthly_data.index, monthly_data.values)
-            ax3.set_title(f'{ticker} Monthly {column} Prices')
-            ax3.set_xlabel('Date')
-            ax3.set_ylabel(f'{column} Price ($)')
-            ax3.tick_params(axis='x', rotation=45)
-            ax3.grid(True, which='both', ls='-', alpha=0.5)
+            if not monthly_data.empty:
+                ax3.semilogy(monthly_data.index, monthly_data.values)
+                ax3.set_title(f'{ticker} Monthly {column} Prices')
+                ax3.set_xlabel('Date')
+                ax3.set_ylabel(f'{column} Price ($)')
+                ax3.tick_params(axis='x', rotation=45)
+                ax3.grid(True, which='both', ls='-', alpha=0.5)
+            else:
+                logging.warning(f"No monthly data available for {ticker}")
             
             # Adjust layout and save figure
             plt.tight_layout()
@@ -759,6 +1127,7 @@ class StockDataManager:
         
         except Exception as e:
             logging.error(f"Error visualizing data for {ticker}: {e}")
+            plt.close('all')  # Ensure figures are closed even if an error occurs
 
     def plot_multiple_tickers(self, tickers):
         # First, download initial data for all tickers
@@ -2246,6 +2615,20 @@ def main():
         try:
             print("Cleaning up resources...")
             app.cleanup()
+            
+            # Explicitly delete all tkinter variables to prevent cleanup exceptions
+            for widget in root.winfo_children():
+                if hasattr(widget, 'destroy'):
+                    widget.destroy()
+            
+            # Delete all images
+            for name in list(root.tk.call('image', 'names')):
+                root.tk.call('image', 'delete', name)
+                
+            # Force garbage collection
+            import gc
+            gc.collect()
+            
             root.destroy()
         except Exception as e:
             print(f"Error during application shutdown: {str(e)}")
