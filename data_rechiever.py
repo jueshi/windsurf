@@ -2079,7 +2079,7 @@ class StockDataGUI:
             self.ticker_list_var.set(list_name + "_stocks")
             
             # Update the dropdown menu
-            self.ticker_list_dropdown['values'] = list(self.ticker_lists.keys())
+            self.ticker_list_combo['values'] = list(self.ticker_lists.keys())
             
             self.status_var.set(f"Saved {len(self.current_tickers)} tickers as '{list_name}_stocks'")
             messagebox.showinfo("List Saved", f"Ticker list saved as '{list_name}_stocks' in ticker_lists.py")
