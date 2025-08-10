@@ -335,7 +335,161 @@ sector_etfs = [
     "VOX"
 ]
 
+# --- 3x Leveraged BULL ETFs (Long Position) ---
+# These aim for 3x the DAILY return of their underlying index.
 
+bull_3x_etfs = [
+    # Broad Market
+    "TQQQ",  # ProShares UltraPro QQQ (Nasdaq-100)
+    "UPRO",  # ProShares UltraPro S&P500
+    "SPXL",  # Direxion Daily S&P 500 Bull 3X Shares
+    "UDOW",  # ProShares UltraPro Dow30
+    "TNA",   # Direxion Daily Small Cap Bull 3X Shares (Russell 2000)
+
+    # Technology / Innovation
+    "SOXL",  # Direxion Daily Semiconductor Bull 3X Shares
+    "FNGU",  # MicroSectors FANG+ Index 3X Leveraged ETN
+    "TECL",  # Direxion Daily Technology Bull 3X Shares
+
+    # Other Sectors
+    "FAS",   # Direxion Daily Financial Bull 3X Shares
+    "LABU",  # Direxion Daily S&P Biotech Bull 3X Shares
+    "GUSH",  # Direxion Daily S&P Oil & Gas Exp. & Prod. Bull 2X Shares (Note: GUSH is now a 2X ETF, was previously 3x)
+    "DRN",   # Direxion Daily Real Estate Bull 3X Shares
+]
+
+
+# --- 3x Leveraged BEAR ETFs (Short Position) ---
+# These aim for 3x the INVERSE DAILY return of their underlying index.
+
+bear_3x_etfs = [
+    # Broad Market
+    "SQQQ",  # ProShares UltraPro Short QQQ (Nasdaq-100)
+    "SPXU",  # ProShares UltraPro Short S&P500
+    "SDOW",  # ProShares UltraPro Short Dow30
+    "TZA",   # Direxion Daily Small Cap Bear 3X Shares (Russell 2000)
+
+    # Technology / Innovation
+    "SOXS",  # Direxion Daily Semiconductor Bear 3X Shares
+    "FNGD",  # MicroSectors FANG+ Index -3X Inverse Leveraged ETN
+    "TECS",  # Direxion Daily Technology Bear 3X Shares
+
+    # Other Sectors
+    "FAZ",   # Direxion Daily Financial Bear 3X Shares
+    "LABD",  # Direxion Daily S&P Biotech Bear 3X Shares
+    "DRIP",  # Direxion Daily S&P Oil & Gas Exp. & Prod. Bear 2X Shares (Note: DRIP is now a 2X ETF, was previously 3x)
+    "DRV",   # Direxion Daily Real Estate Bear 3X Shares
+]
+
+# You can combine them into a single list if needed
+all_3x_etfs = bull_3x_etfs + bear_3x_etfs
+
+# --- 2x Leveraged BULL ETFs (Long Position) ---
+# These aim for 2x the DAILY return of their underlying index.
+
+bull_2x_etfs = [
+    # Broad Market
+    "SSO",   # ProShares Ultra S&P500
+    "QLD",   # ProShares Ultra QQQ (Nasdaq-100)
+    "DDM",   # ProShares Ultra Dow30
+    "UWM",   # ProShares Ultra Russell2000
+
+    # Sectors
+    "ROM",   # ProShares Ultra Technology
+    "USD",   # ProShares Ultra Semiconductors
+    "FINU",  # ProShares UltraPro Financials (Note: This is a 3x ETF, a 2x equivalent is UGE)
+    "UGE",   # ProShares Ultra Financials
+    "URE",   # ProShares Ultra Real Estate
+    "DIG",   # ProShares Ultra Oil & Gas
+    "GUSH",  # Direxion Daily S&P Oil & Gas Exp. & Prod. Bull 2X Shares
+    "UBT",   # ProShares Ultra 20+ Year Treasury (Bond Market)
+]
+
+
+# --- 2x Leveraged BEAR ETFs (Short Position) ---
+# These aim for 2x the INVERSE DAILY return of their underlying index.
+
+bear_2x_etfs = [
+    # Broad Market
+    "SDS",   # ProShares UltraShort S&P500
+    "QID",   # ProShares UltraShort QQQ (Nasdaq-100)
+    "DXD",   # ProShares UltraShort Dow30
+    "TWM",   # ProShares UltraShort Russell2000
+
+    # Sectors
+    "REW",   # ProShares UltraShort Technology
+    "SSG",   # ProShares UltraShort Semiconductors
+    "SKF",   # ProShares UltraShort Financials
+    "UREV",  # ProShares UltraShort Real Estate
+    "DUG",   # ProShares UltraShort Oil & Gas
+    "UBT",   # ProShares UltraShort 20+ Year Treasury (Bond Market)
+]
+
+all_2x_etfs = bull_2x_etfs + bear_2x_etfs
+
+country_etfs = [
+    # North America
+    "SPY",  # USA
+    "IVV",  # USA
+    "VTI",  # USA
+    "EWC",  # Canada
+    "EWW",  # Mexico
+
+    # Europe
+    "EWG",  # Germany
+    "EWU",  # United Kingdom
+    "EWQ",  # France
+    "EWL",  # Switzerland
+    "EWI",  # Italy
+    "EWP",  # Spain
+    "EWD",  # Sweden
+    "EWN",  # Netherlands
+
+    # Asia-Pacific
+    "EWJ",  # Japan
+    "MCHI", # China
+    "FXI",  # China
+    "INDA", # India
+    "EWA",  # Australia
+    "EWY",  # South Korea
+    "EWT",  # Taiwan
+    "EWH",  # Hong Kong
+    "VNM",  # Vietnam
+
+    # Emerging Markets (other)
+    "EWZ",  # Brazil
+    "EZA",  # South Africa
+    "ECH",  # Chile
+    "TUR",  # Turkey
+    "EPOL", # Poland
+]
+futures_etfs = [
+    # Broad Commodities
+    "DBC",  # Invesco DB Commodity Index Tracking Fund
+    "BCI",  # abrdn Bloomberg All Commodity Strategy K-1 Free ETF
+
+    # Single Commodities
+    "USO",  # United States Oil Fund, LP
+    "UNG",  # United States Natural Gas Fund, LP
+    
+    # Volatility
+    "VIXY", # ProShares VIX Short-Term Futures ETF
+    "VIXM", # ProShares VIX Mid-Term Futures ETF
+
+    # Currencies
+    "UUP",  # Invesco DB US Dollar Index Bullish Fund
+
+    # Managed Futures (Multi-Asset Strategy)
+    "DBMF", # iM DBi Managed Futures Strategy ETF
+    "KMLM"  # KFA Mount Lucas Index Strategy ETF
+]
+
+us_crypto_futures_etfs = [
+    "BITO", # ProShares Bitcoin Strategy ETF
+    "EETH", # ProShares Ether Strategy ETF
+    "XBTF", # VanEck Bitcoin Strategy ETF
+    "BTF",  # Valkyrie Bitcoin and Ether Strategy ETF
+]
 
 # Function to check if a ticker symbol is valid and suggest alternatives if not
 def validate_ticker(ticker):
