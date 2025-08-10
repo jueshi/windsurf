@@ -355,7 +355,7 @@ class StockDataGUI:
         # Apply date range button
         ttk.Button(date_range_frame, text="Apply Date Range", command=self._apply_date_range).pack(side=tk.LEFT)
 
-        # Create a notebook with tabs for individual and comparison charts
+        # Create a notebook with tabs for individual, comparison, and seasonality charts
         self.chart_notebook = ttk.Notebook(self.chart_frame)
         self.chart_notebook.pack(fill=tk.BOTH, expand=True, pady=(5, 0))
 
@@ -366,6 +366,10 @@ class StockDataGUI:
         # Create comparison chart tab
         self.comparison_chart_frame = ttk.Frame(self.chart_notebook)
         self.chart_notebook.add(self.comparison_chart_frame, text="Comparison Chart")
+        
+        # Create seasonality chart tab
+        self.seasonality_chart_frame = ttk.Frame(self.chart_notebook)
+        self.chart_notebook.add(self.seasonality_chart_frame, text="Seasonality Chart")
 
         # Bind tab change event
         self.chart_notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
@@ -376,6 +380,9 @@ class StockDataGUI:
 
         self.comparison_chart_label = ttk.Label(self.comparison_chart_frame)
         self.comparison_chart_label.pack(fill=tk.BOTH, expand=True)
+        
+        self.seasonality_chart_label = ttk.Label(self.seasonality_chart_frame)
+        self.seasonality_chart_label.pack(fill=tk.BOTH, expand=True)
 
         self.watch_listbox.config(yscrollcommand=watch_scrollbar.set)
         watch_scrollbar.config(command=self.watch_listbox.yview)
@@ -878,6 +885,185 @@ class StockDataGUI:
 
         self.status_var.set(f"Completed visualization for {len(selected_tickers)} tickers")
 
+    def _generate_seasonality_chart(self, ticker):
+        """Generate and display seasonality chart for the selected ticker
+        
+        Args:
+            ticker (str): Ticker symbol to generate seasonality chart for
+        """
+        try:
+            # Set matplotlib to use non-interactive backend for thread safety
+            import matplotlib
+            original_backend = matplotlib.get_backend()
+            matplotlib.use('Agg')  # Use non-interactive backend for thread safety
+            
+            # Load data for the ticker
+            data = self.manager.load_data(ticker)
+            
+            if data is None or data.empty:
+                # If data doesn't exist, try to download it
+                self.status_var.set(f"No data found for {ticker}. Downloading...")
+                self.root.update_idletasks()
+                
+                # Download data in background
+                self._download_data_in_background([ticker])
+                return
+            
+            # Make a copy to avoid modifying the original data
+            data = data.copy()
+            
+            # Ensure Date is in the index and is datetime type
+            if data.index.name != 'Date' and 'Date' in data.columns:
+                data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
+                data = data.set_index('Date')
+            
+            # Apply date range filtering if specified
+            if self.manager.start_date:
+                start_date = pd.Timestamp(self.manager.start_date).tz_localize(None)
+                data = data[data.index.tz_localize(None) >= start_date]
+                
+            if self.manager.end_date:
+                end_date = pd.Timestamp(self.manager.end_date).tz_localize(None)
+                data = data[data.index.tz_localize(None) <= end_date]
+            
+            # Check if we have enough data after filtering
+            if data.empty:
+                messagebox.showwarning("No Data", f"No data available for {ticker} in the specified date range.")
+                self.status_var.set(f"No data available for {ticker} in the specified date range")
+                return
+            
+            # Group data by year
+            data['Year'] = data.index.year
+            years = sorted(data['Year'].unique())
+            
+            if len(years) < 2:
+                messagebox.showwarning("Insufficient Data", f"Need at least 2 years of data for {ticker} to generate seasonality chart.")
+                self.status_var.set(f"Insufficient data for {ticker} seasonality chart")
+                return
+            
+            # Create figure for seasonality chart
+            plt.figure(figsize=(12, 8))
+            
+            # Dictionary to store percentage change data for each year
+            year_data = {}
+            all_days = set()  # Track all day-of-year values across all years
+            
+            # Calculate percentage change for each year
+            for year in years:
+                year_df = data[data['Year'] == year].copy()
+                if len(year_df) < 30:  # Skip years with insufficient data
+                    continue
+                    
+                # Reset index to get day of year
+                year_df = year_df.reset_index()
+                year_df['DayOfYear'] = year_df['Date'].dt.dayofyear
+                
+                # Calculate percentage change from first day of the year
+                first_close = year_df['Close'].iloc[0]
+                year_df['PctChange'] = ((year_df['Close'] - first_close) / first_close) * 100
+                
+                # Store data for this year
+                year_data[year] = year_df[['DayOfYear', 'PctChange']].set_index('DayOfYear')['PctChange']
+                all_days.update(year_df['DayOfYear'])
+            
+            if not year_data:
+                messagebox.showwarning("Insufficient Data", f"No complete years of data available for {ticker}.")
+                self.status_var.set(f"No complete years of data for {ticker}")
+                return
+            
+            # Generate distinct colors for each year
+            colors = plt.cm.tab10.colors
+            if len(year_data) > len(colors):
+                colors = plt.cm.tab20.colors
+            
+            # Plot each year's percentage change
+            for i, (year, pct_change) in enumerate(year_data.items()):
+                color_idx = i % len(colors)
+                plt.plot(pct_change.index, pct_change.values, label=f'{year}', color=colors[color_idx], alpha=0.7)
+            
+            # Calculate and plot the average percentage change across all years
+            # Create a DataFrame with all days and all years
+            avg_df = pd.DataFrame(index=sorted(all_days))
+            
+            # Add each year's data
+            for year, pct_change in year_data.items():
+                avg_df[year] = pct_change
+            
+            # Calculate the average across years, ignoring NaN values
+            avg_df['Average'] = avg_df.mean(axis=1)
+            
+            # Plot the average line with thicker line width
+            plt.plot(avg_df.index, avg_df['Average'], label='Average', color='black', linewidth=2.5)
+            
+            # Add chart details
+            plt.title(f'{ticker} Seasonality Chart - Yearly Percentage Performance')
+            plt.xlabel('Day of Year')
+            plt.ylabel('Percentage Change (%)')
+            plt.grid(True, alpha=0.3)
+            plt.legend(loc='best')
+            plt.axhline(y=0, color='k', linestyle='-', alpha=0.3)  # Add horizontal line at 0%
+            
+            # Save the chart
+            plots_dir = self.manager.plot_save_path
+            os.makedirs(plots_dir, exist_ok=True)
+            chart_path = os.path.join(plots_dir, f"{ticker}_seasonality_chart.png")
+            plt.savefig(chart_path, dpi=100, bbox_inches='tight')
+            plt.close()
+            
+            # Restore original backend
+            matplotlib.use(original_backend)
+            
+            # Display the chart in the seasonality tab
+            if os.path.exists(chart_path):
+                # Load and resize the image
+                img = Image.open(chart_path)
+                
+                # Get the chart frame size
+                chart_width = self.seasonality_chart_frame.winfo_width()
+                chart_height = self.seasonality_chart_frame.winfo_height()
+                
+                # If the frame hasn't been rendered yet, use default size
+                if chart_width <= 1:
+                    chart_width = 800
+                if chart_height <= 1:
+                    chart_height = 600
+                
+                # Resize image to fit the frame while maintaining aspect ratio
+                img_width, img_height = img.size
+                aspect_ratio = img_width / img_height
+                
+                if chart_width / chart_height > aspect_ratio:
+                    # Frame is wider than image
+                    new_height = chart_height
+                    new_width = int(new_height * aspect_ratio)
+                else:
+                    # Frame is taller than image
+                    new_width = chart_width
+                    new_height = int(new_width / aspect_ratio)
+                
+                img = img.resize((new_width, new_height), Image.LANCZOS)
+                
+                # Convert to PhotoImage and display in seasonality tab
+                photo = ImageTk.PhotoImage(img)
+                self.seasonality_chart_label.config(image=photo)
+                self.seasonality_chart_label.image = photo  # Keep a reference to prevent garbage collection
+                
+                # Select the seasonality chart tab
+                self.chart_notebook.select(self.seasonality_chart_frame)
+                # Update active tab tracking
+                self.active_tab = "seasonality"
+                
+                self.status_var.set(f"Generated seasonality chart for {ticker} with {len(year_data)} years of data")
+            else:
+                self.status_var.set(f"Error: Seasonality chart file for {ticker} not created")
+                
+        except Exception as e:
+            error_msg = f"Error generating seasonality chart for {ticker}: {str(e)}"
+            messagebox.showerror("Error", error_msg)
+            logging.error(error_msg)
+            self.status_var.set(f"Error generating seasonality chart for {ticker}")
+            plt.close()  # Ensure figure is closed
+    
     def _on_ticker_selected(self, event):
         """Handle ticker selection from available tickers list"""
         selected_indices = self.ticker_listbox.curselection()
@@ -962,11 +1148,18 @@ class StockDataGUI:
             logging.info(f"Selected tickers from main list: {selected_tickers}")
 
             # Update chart based on active tab
-            if hasattr(self, 'active_tab') and self.active_tab == "comparison":
-                # If comparison tab is active and multiple tickers selected, update comparison chart
-                self._compare_percentage_performance()
+            if hasattr(self, 'active_tab'):
+                if self.active_tab == "comparison":
+                    # If comparison tab is active and multiple tickers selected, update comparison chart
+                    self._compare_percentage_performance()
+                elif self.active_tab == "seasonality" and selected_tickers:
+                    # If seasonality tab is active and a ticker is selected, update seasonality chart
+                    self._generate_seasonality_chart(selected_tickers[0])
+                elif self.active_tab == "individual" and selected_tickers:
+                    # If individual tab is active and a ticker is selected, update individual chart
+                    self._display_chart(selected_tickers[0])
             else:
-                # Otherwise update individual chart for the first selected ticker
+                # Default to individual chart if active_tab is not set
                 if selected_tickers:
                     self._display_chart(selected_tickers[0])
         except Exception as e:
@@ -993,9 +1186,16 @@ class StockDataGUI:
             logging.info(f"Selected tickers from watch list: {selected_tickers}")
 
             # Update chart based on active tab
-            if hasattr(self, 'active_tab') and self.active_tab == "comparison":
-                # If comparison tab is active and multiple tickers selected, update comparison chart
-                self._compare_percentage_performance()
+            if hasattr(self, 'active_tab'):
+                if self.active_tab == "comparison":
+                    # If comparison tab is active and multiple tickers selected, update comparison chart
+                    self._compare_percentage_performance()
+                elif self.active_tab == "seasonality" and selected_tickers:
+                    # If seasonality tab is active and a ticker is selected, update seasonality chart
+                    self._generate_seasonality_chart(selected_tickers[0])
+                elif self.active_tab == "individual" and selected_tickers:
+                    # If individual tab is active and a ticker is selected, update individual chart
+                    self._display_chart(selected_tickers[0])
             else:
                 # Otherwise update individual chart for the first selected ticker
                 if selected_tickers:
@@ -1020,6 +1220,9 @@ class StockDataGUI:
             elif selected_tab == str(self.comparison_chart_frame):
                 self.active_tab = "comparison"
                 logging.info("Switched to comparison chart tab")
+            elif selected_tab == str(self.seasonality_chart_frame):
+                self.active_tab = "seasonality"
+                logging.info("Switched to seasonality chart tab")
 
             logging.info(f"Active tab is now: {self.active_tab}")
 
@@ -1028,6 +1231,9 @@ class StockDataGUI:
             if self.active_tab == "comparison" and len(selected_tickers) > 1:
                 # If comparison tab is active and multiple tickers selected, update comparison chart
                 self._compare_percentage_performance()
+            elif self.active_tab == "seasonality" and selected_tickers:
+                # If seasonality tab is active and a ticker is selected, update seasonality chart
+                self._generate_seasonality_chart(selected_tickers[0])
             elif self.active_tab == "individual" and selected_tickers:
                 # If individual tab is active and a ticker is selected, update individual chart
                 self._display_chart(selected_tickers[0])
@@ -1273,8 +1479,10 @@ class StockDataGUI:
                 self.chart_label.config(image=photo)
                 self.chart_label.image = photo  # Keep a reference to prevent garbage collection
 
-                # Select the individual chart tab
-                self.chart_notebook.select(self.individual_chart_frame)
+                # Only select the individual chart tab if we're not already on another tab
+                if self.active_tab != "seasonality" and self.active_tab != "comparison":
+                    self.chart_notebook.select(self.individual_chart_frame)
+                    self.active_tab = "individual"
 
                 # Use the appropriate name for status message
                 if is_direct_path:
