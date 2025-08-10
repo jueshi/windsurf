@@ -111,6 +111,7 @@ import logging
 import importlib
 import inspect
 import threading
+import webbrowser
 from queue import Queue
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any, Tuple
@@ -753,8 +754,17 @@ class StockDataManager:
                 if 'Date' in new_df.columns and any(col in new_df.columns for col in ['Close', 'Adj Close']):
                     data = new_df
                     
+                    # Ensure Date column is properly formatted as datetime
+                    if 'Date' in data.columns:
+                        data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
+                        # Drop any rows with invalid dates
+                        data = data.dropna(subset=['Date'])
+                        # Set Date as index for easier filtering
+                        data = data.set_index('Date')
+                    
                     # Save the normalized data back to file
-                    data.to_csv(data_path, sep='\t', index=False)
+                    data_to_save = data.reset_index()
+                    data_to_save.to_csv(data_path, sep='\t', index=False)
                     logging.info(f"Normalized column structure for {ticker} data while loading")
                 
                 return data
@@ -788,6 +798,34 @@ class StockDataManager:
             # Make a copy to avoid modifying the original data
             data = data.copy()
             
+            # Check if Date is already the index (from load_data method)
+            if data.index.name == 'Date':
+                # Data already has Date as index, which is what we want
+                pass
+            elif 'Date' in data.columns:
+                # Convert Date to datetime if needed
+                if not pd.api.types.is_datetime64_any_dtype(data['Date']):
+                    data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
+                
+                # Handle timezone-aware datetime objects
+                try:
+                    # Convert to timezone-naive datetime objects
+                    data['Date'] = data['Date'].dt.tz_localize(None)
+                except (AttributeError, TypeError):
+                    # Already timezone-naive or has timezone info
+                    try:
+                        # Try to convert if it has timezone info
+                        data['Date'] = data['Date'].dt.tz_convert(None)
+                    except (AttributeError, TypeError):
+                        # Can't convert, just continue
+                        pass
+                
+                # Set Date as index for plotting
+                data = data.set_index('Date')
+            else:
+                logging.error(f"Date column not found in {ticker} data")
+                return
+            
             # Double-check that we have the expected columns
             if column not in data.columns:
                 # Try to find a matching column
@@ -805,66 +843,41 @@ class StockDataManager:
                         logging.error(f"Column '{column}' not found in {ticker} data and no suitable alternative found")
                         return
             
-            # Ensure Date column is properly handled
-            if 'Date' not in data.columns:
-                logging.error(f"Date column not found in {ticker} data")
+            # Check if we have valid data after processing
+            if data.empty or column not in data.columns:
+                logging.error(f"No valid data available for {ticker} after processing")
                 return
                 
-            # Convert Date to datetime if needed
+            # Check for NaN values in the column to plot
+            if data[column].isna().all():
+                logging.error(f"All values in column '{column}' for {ticker} are NaN")
+                return
+            
+            # Plot the data
             try:
-                if not pd.api.types.is_datetime64_any_dtype(data['Date']):
-                    data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
-                
-                # Handle timezone-aware datetime objects
-                try:
-                    # Convert to timezone-naive datetime objects
-                    data['Date'] = data['Date'].dt.tz_localize(None)
-                except AttributeError:
-                    # Already timezone-naive or not a datetime
-                    pass
-                except TypeError:
-                    # Already has timezone info, convert to timezone-naive
-                    data['Date'] = data['Date'].dt.tz_convert(None)
-                
-                # Set Date as index for plotting
-                data = data.set_index('Date')
-                
-                # Check if we have valid data after processing
-                if data.empty or column not in data.columns:
-                    logging.error(f"No valid data available for {ticker} after processing")
-                    return
-                
-                # Check for NaN values in the column to plot
-                if data[column].isna().all():
-                    logging.error(f"All values in column '{column}' for {ticker} are NaN")
-                    return
-                
                 plt.ioff()  # Turn off interactive mode
                 plt.figure(figsize=(12, 6))
-                plt.plot(data.index, data[column], label=f'{ticker} {column} Price')
-                plt.title(title or f'{ticker} Stock Price - {column}')
+                data[column].plot()
+                plt.title(title or f"{ticker} {column} Price History")
                 plt.xlabel('Date')
                 plt.ylabel(f'{column} Price')
-                plt.legend()
                 plt.grid(True)
-                plt.xticks(rotation=45)
                 plt.tight_layout()
                 
                 # Ensure the directory exists
                 os.makedirs(self.plot_save_path, exist_ok=True)
                 save_path = os.path.join(self.plot_save_path, f'{ticker}_{column}_plot.png')
                 plt.savefig(save_path)
-                logging.info(f"Plot saved to {save_path}")
-                
+                logging.info(f"Generated visualization for {ticker}")
             except Exception as inner_e:
-                logging.error(f"Error processing date or plotting for {ticker}: {inner_e}")
+                logging.error(f"Error plotting for {ticker}: {inner_e}")
             finally:
                 plt.close('all')  # Close all figures to prevent memory leaks
         except Exception as e:
             logging.error(f"Error visualizing data for {ticker}: {e}")
         finally:
             plt.close('all')  # Ensure figures are closed even if an error occurs
-
+    
     def visualize_multiple_tickers(self, 
                               tickers: List[str], 
                               folder_name: str,
@@ -953,13 +966,31 @@ class StockDataManager:
             # Make a copy to avoid modifying the original data
             data = data.copy()
             
-            # Clean data: remove any rows with NaN in Date column
-            data = data.dropna(subset=['Date'])
-            
-            # Clean data: remove any non-numeric header rows (where Date is string but not a valid date)
-            if data.shape[0] > 0 and isinstance(data['Date'].iloc[0], str) and not pd.to_datetime(data['Date'].iloc[0], errors='coerce'):
-                logging.warning(f"Removing header row from {ticker} data")
-                data = data.iloc[1:].reset_index(drop=True)
+            # Check if Date is already the index (from load_data method)
+            if data.index.name == 'Date':
+                # Data already has Date as index, which is what we want
+                pass
+            elif 'Date' in data.columns:
+                # Clean data: remove any rows with NaN in Date column
+                data = data.dropna(subset=['Date'])
+                
+                # Clean data: remove any non-numeric header rows (where Date is string but not a valid date)
+                if data.shape[0] > 0 and isinstance(data['Date'].iloc[0], str) and not pd.to_datetime(data['Date'].iloc[0], errors='coerce'):
+                    logging.warning(f"Removing header row from {ticker} data")
+                    data = data.iloc[1:].reset_index(drop=True)
+                
+                # Convert Date to datetime if it's not already
+                if not pd.api.types.is_datetime64_any_dtype(data['Date']):
+                    data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
+                
+                # Drop rows with invalid dates
+                data = data.dropna(subset=['Date'])
+                
+                # Set Date as index
+                data = data.set_index('Date')
+            else:
+                logging.error(f"Date column not found in {ticker} data")
+                return None
             
             # Double-check that we have the expected columns
             if column not in data.columns:
@@ -983,16 +1014,6 @@ class StockDataManager:
             for col in numeric_columns:
                 if col in data.columns:
                     data[col] = pd.to_numeric(data[col], errors='coerce')
-            
-            # Convert Date to datetime if it's not already
-            if not pd.api.types.is_datetime64_any_dtype(data['Date']):
-                data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
-            
-            # Drop rows with invalid dates
-            data = data.dropna(subset=['Date'])
-            
-            # Set Date as index
-            data = data.set_index('Date')
             
             # Drop rows with NaN in the column we're resampling
             data = data.dropna(subset=[column])
@@ -1033,8 +1054,21 @@ class StockDataManager:
             # Make a copy to avoid modifying the original data
             daily_data = data.copy()
             
-            # Clean data: remove any rows with NaN in Date column
-            daily_data = daily_data.dropna(subset=['Date'])
+            # Check if Date is already the index (from load_data method)
+            if daily_data.index.name == 'Date':
+                # Data already has Date as index, which is what we want
+                pass
+            elif 'Date' in daily_data.columns:
+                # Clean data: remove any rows with NaN in Date column
+                daily_data = daily_data.dropna(subset=['Date'])
+                
+                # Convert Date to datetime
+                daily_data['Date'] = pd.to_datetime(daily_data['Date'], errors='coerce')
+                daily_data = daily_data.dropna(subset=['Date'])
+                daily_data.set_index('Date', inplace=True)
+            else:
+                logging.error(f"Date column not found in {ticker} data")
+                return
             
             # Convert numeric columns to float
             numeric_columns = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
@@ -1061,11 +1095,6 @@ class StockDataManager:
             
             # Drop rows with NaN in the column we're plotting
             daily_data = daily_data.dropna(subset=[column])
-            
-            # Convert Date to datetime
-            daily_data['Date'] = pd.to_datetime(daily_data['Date'], errors='coerce')
-            daily_data = daily_data.dropna(subset=['Date'])
-            daily_data.set_index('Date', inplace=True)
             
             # Get weekly and monthly data through resampling
             weekly_data = self.resample_data(ticker, resample_freq='W', column=column)
@@ -1850,6 +1879,7 @@ class StockDataGUI:
         ttk.Button(bottom_frame, text="Download/Update Data", command=self._download_data).pack(side=tk.LEFT, padx=5)
         ttk.Button(bottom_frame, text="Visualize Daily/Weekly/Monthly", command=self._visualize_all_timeframes).pack(side=tk.LEFT, padx=5)
         ttk.Button(bottom_frame, text="View HTML Report", command=self._view_html_report).pack(side=tk.LEFT, padx=5)
+        ttk.Button(bottom_frame, text="Compare % Performance", command=self._compare_percentage_performance).pack(side=tk.LEFT, padx=5)
         
         # Status bar
         self.status_var = tk.StringVar()
@@ -2338,46 +2368,68 @@ class StockDataGUI:
         # Display chart for the selected ticker
         self._display_chart(ticker)
     
-    def _display_chart(self, ticker):
-        """Display chart for the selected ticker"""
+    def _display_chart(self, ticker_or_path):
+        """Display chart for the selected ticker or direct path
+        
+        Args:
+            ticker_or_path (str): Either a ticker symbol or a full path to an image file
+        """
+        # Initialize variables that might be referenced in exception handler
+        is_direct_path = False
+        chart_path = None
+        ticker = None
+        
         try:
-            # Check if data exists for this ticker
-            data_path = self.manager._get_data_path(ticker)
-            if not os.path.exists(data_path):
-                # Download data if it doesn't exist
-                self.status_var.set(f"Downloading data for {ticker}...")
-                self.root.update_idletasks()
-                self.manager.update_data(ticker, force_download=True)
+            # Determine if this is a direct path to an image file or a ticker symbol
+            is_direct_path = ticker_or_path.lower().endswith(('.png', '.jpg', '.jpeg', '.gif'))
             
-            # Generate or update chart if needed
-            plots_dir = self.manager.plot_save_path
-            os.makedirs(plots_dir, exist_ok=True)
-            
-            timeframe_plot_path = os.path.join(plots_dir, f"{ticker}_daily_weekly_monthly.png")
-            chart_outdated = False
-            
-            # If chart doesn't exist, it needs to be generated
-            if not os.path.exists(timeframe_plot_path):
-                chart_outdated = True
-            # If chart exists, check if data file is newer than chart file
-            elif os.path.exists(data_path):
-                chart_mod_time = os.path.getmtime(timeframe_plot_path)
-                data_mod_time = os.path.getmtime(data_path)
+            if is_direct_path:
+                # Direct path to image file
+                chart_path = ticker_or_path
+                if not os.path.exists(chart_path):
+                    self.status_var.set(f"Chart file not found: {os.path.basename(chart_path)}")
+                    return
+            else:
+                # This is a ticker symbol
+                ticker = ticker_or_path
                 
-                # If data file is newer, chart is outdated
-                if data_mod_time > chart_mod_time:
+                # Check if data exists for this ticker
+                data_path = self.manager._get_data_path(ticker)
+                if not os.path.exists(data_path):
+                    # Download data if it doesn't exist
+                    self.status_var.set(f"Downloading data for {ticker}...")
+                    self.root.update_idletasks()
+                    self.manager.update_data(ticker, force_download=True)
+                
+                # Generate or update chart if needed
+                plots_dir = self.manager.plot_save_path
+                os.makedirs(plots_dir, exist_ok=True)
+                
+                chart_path = os.path.join(plots_dir, f"{ticker}_daily_weekly_monthly.png")
+                chart_outdated = False
+                
+                # If chart doesn't exist, it needs to be generated
+                if not os.path.exists(chart_path):
                     chart_outdated = True
-            
-            # Generate chart if needed
-            if chart_outdated:
-                self.status_var.set(f"Generating chart for {ticker}...")
-                self.root.update_idletasks()
-                self.manager.visualize_daily_vs_weekly(ticker)
+                # If chart exists, check if data file is newer than chart file
+                elif os.path.exists(data_path):
+                    chart_mod_time = os.path.getmtime(chart_path)
+                    data_mod_time = os.path.getmtime(data_path)
+                    
+                    # If data file is newer, chart is outdated
+                    if data_mod_time > chart_mod_time:
+                        chart_outdated = True
+                
+                # Generate chart if needed
+                if chart_outdated:
+                    self.status_var.set(f"Generating chart for {ticker}...")
+                    self.root.update_idletasks()
+                    self.manager.visualize_daily_vs_weekly(ticker)
             
             # Display the chart in the chart_label
-            if os.path.exists(timeframe_plot_path):
+            if os.path.exists(chart_path):
                 # Load and resize the image
-                img = Image.open(timeframe_plot_path)
+                img = Image.open(chart_path)
                 
                 # Get the chart frame size
                 chart_width = self.chart_frame.winfo_width()
@@ -2409,13 +2461,36 @@ class StockDataGUI:
                 self.chart_label.config(image=photo)
                 self.chart_label.image = photo  # Keep a reference to prevent garbage collection
                 
-                self.status_var.set(f"Displaying chart for {ticker}")
+                # Use the appropriate name for status message
+                if is_direct_path:
+                    chart_name = os.path.basename(chart_path)
+                    self.status_var.set(f"Displaying chart: {chart_name}")
+                else:
+                    self.status_var.set(f"Displaying chart for {ticker}")
             else:
-                self.status_var.set(f"Error: Chart for {ticker} not found")
+                # Use the appropriate name for error message
+                if is_direct_path:
+                    chart_name = os.path.basename(chart_path)
+                    self.status_var.set(f"Error: Chart file not found: {chart_name}")
+                else:
+                    self.status_var.set(f"Error: Chart for {ticker} not found")
                 
         except Exception as e:
-            messagebox.showerror("Error", f"Error displaying chart for {ticker}: {str(e)}")
-            self.status_var.set(f"Error displaying chart for {ticker}")
+            # Use the appropriate name for error message
+            try:
+                if is_direct_path and chart_path:
+                    chart_name = os.path.basename(chart_path or ticker_or_path)
+                    messagebox.showerror("Error", f"Error displaying chart: {chart_name}: {str(e)}")
+                    self.status_var.set(f"Error displaying chart: {chart_name}")
+                else:
+                    # Either it's a ticker or we couldn't determine the type
+                    chart_name = ticker or ticker_or_path
+                    messagebox.showerror("Error", f"Error displaying chart for {chart_name}: {str(e)}")
+                    self.status_var.set(f"Error displaying chart for {chart_name}")
+            except Exception:
+                # Fallback error handling if anything goes wrong in the error handler
+                messagebox.showerror("Error", f"Error displaying chart: {str(e)}")
+                self.status_var.set("Error displaying chart")
     
     def _download_data_in_background(self, tickers):
         """Download data for multiple tickers in a background thread
@@ -2562,6 +2637,196 @@ class StockDataGUI:
         except Exception as e:
             print(f"Error during cleanup: {str(e)}")
             # Don't re-raise the exception as we're already in cleanup
+    
+    def _compare_percentage_performance(self):
+        """Generate overlayed percentage comparison chart for selected tickers
+        using the common available data range"""
+        # Get selected tickers
+        try:
+            selected_tickers = self._get_selected_tickers()
+            if not selected_tickers:
+                return
+                
+            if len(selected_tickers) < 2:
+                messagebox.showwarning("Insufficient Selection", "Please select at least two tickers to compare.")
+                return
+                
+            logging.info(f"Selected tickers for comparison: {selected_tickers}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error getting selected tickers: {str(e)}")
+            logging.error(f"Error getting selected tickers: {str(e)}")
+            return
+        
+        # Update status
+        self.status_var.set(f"Generating percentage comparison chart for {len(selected_tickers)} tickers...")
+        self.root.update_idletasks()
+        
+        # Check for missing data
+        try:
+            missing_tickers = []
+            for ticker in selected_tickers:
+                data_path = self.manager._get_data_path(ticker)
+                if not os.path.exists(data_path):
+                    missing_tickers.append(ticker)
+            
+            if missing_tickers:
+                self.status_var.set(f"Downloading missing data for {len(missing_tickers)} tickers in background...")
+                self.root.update_idletasks()
+                self._download_data_in_background(missing_tickers)
+                messagebox.showinfo("Download in Progress", 
+                                   "Some ticker data is being downloaded in the background. "
+                                   "Please try generating the comparison chart again once the download completes.")
+                return
+        except Exception as e:
+            messagebox.showerror("Error", f"Error checking for missing data: {str(e)}")
+            logging.error(f"Error checking for missing data: {str(e)}")
+            return
+        
+        # Load data for all tickers
+        try:
+            ticker_data = {}
+            for ticker_symbol in selected_tickers:
+                try:
+                    data = self.manager.load_data(ticker_symbol)
+                    if data is not None and not data.empty:
+                        # Ensure index is datetime
+                        if not isinstance(data.index, pd.DatetimeIndex):
+                            data.index = pd.to_datetime(data.index)
+                        ticker_data[ticker_symbol] = data
+                    else:
+                        logging.warning(f"No data available for {ticker_symbol}. Skipping.")
+                except Exception as e:
+                    logging.error(f"Error loading data for {ticker_symbol}: {str(e)}. Skipping.")
+            
+            if len(ticker_data) < 2:
+                messagebox.showwarning("Insufficient Data", "Need at least two tickers with valid data to generate comparison.")
+                return
+        except Exception as e:
+            messagebox.showerror("Error", f"Error loading ticker data: {str(e)}")
+            logging.error(f"Error loading ticker data: {str(e)}")
+            return
+        
+        # Find common date range
+        try:
+            # Get min and max dates for each ticker
+            start_dates = []
+            end_dates = []
+            
+            # Debug log each ticker's date range
+            for ticker_symbol, df in ticker_data.items():
+                ticker_start = df.index.min()
+                ticker_end = df.index.max()
+                logging.info(f"Ticker {ticker_symbol} date range: {ticker_start} to {ticker_end}")
+                start_dates.append(ticker_start)
+                end_dates.append(ticker_end)
+            
+            if not start_dates or not end_dates:
+                messagebox.showwarning("Data Error", "Could not determine valid date ranges for the selected tickers.")
+                return
+                
+            # Find common range
+            common_start = max(start_dates)
+            common_end = min(end_dates)
+            
+            # Ensure we have proper datetime objects
+            common_start = pd.to_datetime(common_start)
+            common_end = pd.to_datetime(common_end)
+            
+            if common_start >= common_end:
+                messagebox.showwarning("No Common Range", "Selected tickers don't have a common date range for comparison.")
+                return
+                
+            logging.info(f"Common date range: {common_start.strftime('%Y-%m-%d')} to {common_end.strftime('%Y-%m-%d')}")
+            
+            # Verify the common range is reasonable (not epoch dates)
+            if common_start.year < 1980 or common_end.year < 1980:
+                logging.warning(f"Suspicious date range detected: {common_start} to {common_end}")
+                messagebox.showwarning("Date Range Issue", 
+                                     "The common date range appears to be invalid. Please try different tickers.")
+                return
+        except Exception as e:
+            messagebox.showerror("Error", f"Error determining common date range: {str(e)}")
+            logging.error(f"Error determining common date range: {str(e)}")
+            return
+        
+        # Create the plot
+        try:
+            plt.figure(figsize=(12, 8))
+            
+            # Plot each ticker's percentage change
+            plotted_tickers = []
+            
+            for ticker_symbol, data in ticker_data.items():
+                try:
+                    # Filter to common date range - common_start and common_end are already pd.Timestamp objects
+                    filtered_data = data.loc[(data.index >= common_start) & (data.index <= common_end)].copy()
+                    
+                    # Debug log the filtered data range
+                    if not filtered_data.empty:
+                        logging.info(f"Filtered data for {ticker_symbol}: {filtered_data.index.min()} to {filtered_data.index.max()}, {len(filtered_data)} rows")
+                    
+                    if not filtered_data.empty:
+                        # Calculate percentage change from first day
+                        first_close = filtered_data['Close'].iloc[0]
+                        filtered_data['pct_change'] = ((filtered_data['Close'] - first_close) / first_close) * 100
+                        
+                        # Plot the percentage change
+                        plt.plot(filtered_data.index, filtered_data['pct_change'], label=ticker_symbol)
+                        plotted_tickers.append(ticker_symbol)
+                        logging.info(f"Successfully plotted {ticker_symbol}")
+                    else:
+                        logging.warning(f"No data in common range for {ticker_symbol}")
+                except Exception as e:
+                    logging.error(f"Error plotting {ticker_symbol}: {str(e)}")
+            
+            if not plotted_tickers:
+                messagebox.showwarning("Plot Error", "Could not plot any tickers. Please try different tickers.")
+                plt.close()  # Close the figure to avoid memory leak
+                return
+                
+            # Add chart details
+            start_date_str = pd.Timestamp(common_start).strftime('%Y-%m-%d')
+            end_date_str = pd.Timestamp(common_end).strftime('%Y-%m-%d')
+            plt.title(f'Percentage Performance Comparison ({start_date_str} to {end_date_str})')
+            plt.xlabel('Date')
+            plt.ylabel('Percentage Change (%)')
+            plt.grid(True, alpha=0.3)
+            plt.legend(loc='best')
+            plt.gcf().autofmt_xdate()
+            plt.axhline(y=0, color='k', linestyle='-', alpha=0.3)  # Add horizontal line at 0%
+        except Exception as e:
+            messagebox.showerror("Error", f"Error creating plot: {str(e)}")
+            logging.error(f"Error creating plot: {str(e)}")
+            plt.close()  # Close the figure to avoid memory leak
+            return
+        
+        # Save and display the chart
+        try:
+            # Create directory if needed
+            plots_dir = self.manager.plot_save_path
+            os.makedirs(plots_dir, exist_ok=True)
+            
+            # Create filename from plotted tickers
+            tickers_str = '_'.join(plotted_tickers)
+            if len(tickers_str) > 50:  # Avoid excessively long filenames
+                tickers_str = f"{len(plotted_tickers)}_tickers_comparison"
+                
+            # Save the chart
+            chart_path = os.path.join(plots_dir, f"pct_comparison_{tickers_str}.png")
+            plt.savefig(chart_path, dpi=100, bbox_inches='tight')
+            plt.close()  # Close the figure to free memory
+            
+            # Display the chart in GUI only
+            if os.path.exists(chart_path):
+                self._display_chart(chart_path)
+                self.status_var.set(f"Generated percentage comparison chart for {len(plotted_tickers)} tickers")
+            else:
+                self.status_var.set("Error: Chart file not created")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error saving or displaying chart: {str(e)}")
+            logging.error(f"Error saving or displaying chart: {str(e)}")
+            plt.close()  # Ensure figure is closed
+            self.status_var.set("Error generating comparison chart")
     
     def _view_html_report(self):
         """Generate and view HTML report for the current ticker list"""
