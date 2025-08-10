@@ -283,12 +283,57 @@ canslim_8_3_2025_stocks = ["APP", "AVGO", "CLS", "EVR", "GFI", "HIMS", "HWM", "N
 watch_list = ["XMAR", "AMZN", "NEXT", "0700.HK", "TSM", "BRK-B", "tsm", "ALAB"]
 
 
+Jues401k_stocks_stocks = ["ALAB", "PSTR", "QQQ", "IWM", "GLD", "AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "META", "NVDA", "BRK-B", "AVGO", "COST", "MCD", "BABA", "AMD", "NIO", "AFRM", "CQQQ", "SPYX", "SPYV", "SPYU", "CRM", "ADI", "TXN", "AAOI", "EWS", "NKE", "AMZA", "YINN", "JD", "BIDU", "TNA", "TECS", "TECL", "INTC", "TSM", "LRCX", "MRVL", "SPMO", "WDC", "GS"]
+nucleus_stock_stocks = ["BX", "CEG", "SMR", "NLR", "URA", "CCJ", "URNM", "URAN", "BWXT"]
+sector_etfs = [
+    # Information Technology
+    "XLK",
+    "VGT",
+    "QQQ",
 
+    # Health Care
+    "XLV",
+    "VHT",
+    "IBB",
 
+    # Financials
+    "XLF",
+    "VFH",
+    "KRE",
 
+    # Consumer Discretionary
+    "XLY",
+    "VCR",
 
+    # Consumer Staples
+    "XLP",
+    "VDC",
 
+    # Industrials
+    "XLI",
+    "VIS",
 
+    # Energy
+    "XLE",
+    "VDE",
+    "XOP",
+
+    # Utilities
+    "XLU",
+    "VPU",
+
+    # Real Estate
+    "XLRE",
+    "VNQ",
+
+    # Materials
+    "XLB",
+    "VAW",
+
+    # Communication Services
+    "XLC",
+    "VOX"
+]
 
 
 
