@@ -1049,6 +1049,11 @@ class StockDataManager:
             column (str, optional): Price column to visualize. Defaults to 'Close'.
         """
         try:
+            # Set matplotlib to use non-interactive backend for thread safety
+            # This prevents warnings when called from background threads
+            import matplotlib
+            original_backend = matplotlib.get_backend()
+            matplotlib.use('Agg')  # Use non-interactive backend for thread safety
             # Load daily data with normalization and cleaning
             data = self.load_data(ticker)
             
@@ -1186,6 +1191,9 @@ class StockDataManager:
             plt.savefig(os.path.join(self.plot_save_path, f'{ticker}_daily_weekly_monthly.png'), dpi=300)
             
             plt.close(fig)
+            
+            # Restore original backend
+            matplotlib.use(original_backend)
             
             logging.info(f"Generated visualization for {ticker}")
         
@@ -1578,6 +1586,7 @@ class StockDataGUI:
         self.current_tickers = []
         self.watch_list = []
         self.current_image = None  # Store reference to prevent garbage collection
+        self.active_tab = "individual"  # Track which tab is active: "individual" or "comparison"
         
         # Load ticker lists from ticker_lists.py
         self.ticker_lists = {}
@@ -1892,9 +1901,27 @@ class StockDataGUI:
         # Apply date range button
         ttk.Button(date_range_frame, text="Apply Date Range", command=self._apply_date_range).pack(side=tk.LEFT)
         
-        # Create a label to display chart
-        self.chart_label = ttk.Label(self.chart_frame)
+        # Create a notebook with tabs for individual and comparison charts
+        self.chart_notebook = ttk.Notebook(self.chart_frame)
+        self.chart_notebook.pack(fill=tk.BOTH, expand=True, pady=(5, 0))
+        
+        # Create individual chart tab
+        self.individual_chart_frame = ttk.Frame(self.chart_notebook)
+        self.chart_notebook.add(self.individual_chart_frame, text="Individual Chart")
+        
+        # Create comparison chart tab
+        self.comparison_chart_frame = ttk.Frame(self.chart_notebook)
+        self.chart_notebook.add(self.comparison_chart_frame, text="Comparison Chart")
+        
+        # Bind tab change event
+        self.chart_notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+        
+        # Create labels to display charts in each tab
+        self.chart_label = ttk.Label(self.individual_chart_frame)
         self.chart_label.pack(fill=tk.BOTH, expand=True)
+        
+        self.comparison_chart_label = ttk.Label(self.comparison_chart_frame)
+        self.comparison_chart_label.pack(fill=tk.BOTH, expand=True)
         
         self.watch_listbox.config(yscrollcommand=watch_scrollbar.set)
         watch_scrollbar.config(command=self.watch_listbox.yview)
@@ -2433,23 +2460,125 @@ class StockDataGUI:
             self.manager.start_date = start_date if start_date else None
             self.manager.end_date = end_date if end_date else None
             
-            # Refresh the current chart if there's a ticker selected
-            selected_indices = self.ticker_listbox.curselection()
-            if selected_indices:
-                ticker_text = self.ticker_listbox.get(selected_indices[0])
-                ticker = ticker_text.split(' - ')[0].strip()
-                self._display_chart(ticker)
+            # Check which tab is active and update the appropriate chart
+            if self.active_tab == "comparison":
+                # If comparison tab is active, update the comparison chart
+                logging.info("Comparison tab is active, updating comparison chart with new date range")
+                self._compare_percentage_performance()
             else:
-                # Check watch list selection
-                selected_indices = self.watch_listbox.curselection()
+                # If individual tab is active or no tab is set, update the individual chart
+                # Refresh the current chart if there's a ticker selected
+                selected_indices = self.ticker_listbox.curselection()
                 if selected_indices:
-                    ticker = self.watch_listbox.get(selected_indices[0])
+                    ticker_text = self.ticker_listbox.get(selected_indices[0])
+                    ticker = ticker_text.split(' - ')[0].strip()
                     self._display_chart(ticker)
                 else:
-                    self.status_var.set("Date range set. Select a ticker to display chart.")
+                    # Check watch list selection
+                    selected_indices = self.watch_listbox.curselection()
+                    if selected_indices:
+                        ticker = self.watch_listbox.get(selected_indices[0])
+                        self._display_chart(ticker)
+                    else:
+                        self.status_var.set("Date range set. Select a ticker to display chart.")
         except Exception as e:
             messagebox.showerror("Error", f"Error applying date range: {str(e)}")
             logging.error(f"Error applying date range: {e}")
+    
+    def _on_ticker_selected(self, event):
+        """Handle ticker selection event from main ticker listbox
+        
+        Args:
+            event: The selection event
+        """
+        try:
+            # Get selected ticker indices
+            selected_indices = self.ticker_listbox.curselection()
+            if not selected_indices:
+                return
+                
+            # Get selected tickers
+            selected_tickers = []
+            for i in selected_indices:
+                ticker_text = self.ticker_listbox.get(i)
+                # Extract ticker symbol (it might have a comment after it)
+                ticker = ticker_text.split(' ')[0].strip()
+                selected_tickers.append(ticker)
+                
+            logging.info(f"Selected tickers from main list: {selected_tickers}")
+            
+            # Update chart based on active tab
+            if hasattr(self, 'active_tab') and self.active_tab == "comparison" and len(selected_tickers) > 1:
+                # If comparison tab is active and multiple tickers selected, update comparison chart
+                self._compare_percentage_performance()
+            else:
+                # Otherwise update individual chart for the first selected ticker
+                if selected_tickers:
+                    self._display_chart(selected_tickers[0])
+        except Exception as e:
+            logging.error(f"Error handling ticker selection: {e}")
+    
+    def _on_watch_ticker_selected(self, event):
+        """Handle ticker selection event from watch list
+        
+        Args:
+            event: The selection event
+        """
+        try:
+            # Get selected ticker indices
+            selected_indices = self.watch_listbox.curselection()
+            if not selected_indices:
+                return
+                
+            # Get selected tickers
+            selected_tickers = []
+            for i in selected_indices:
+                ticker = self.watch_listbox.get(i).strip()
+                selected_tickers.append(ticker)
+                
+            logging.info(f"Selected tickers from watch list: {selected_tickers}")
+            
+            # Update chart based on active tab
+            if hasattr(self, 'active_tab') and self.active_tab == "comparison" and len(selected_tickers) > 1:
+                # If comparison tab is active and multiple tickers selected, update comparison chart
+                self._compare_percentage_performance()
+            else:
+                # Otherwise update individual chart for the first selected ticker
+                if selected_tickers:
+                    self._display_chart(selected_tickers[0])
+        except Exception as e:
+            logging.error(f"Error handling watch ticker selection: {e}")
+    
+    def _on_tab_changed(self, event):
+        """Handle tab change event
+        
+        Args:
+            event: The tab change event
+        """
+        try:
+            # Get the currently selected tab
+            selected_tab = self.chart_notebook.select()
+            
+            # Update active tab tracking based on which tab is selected
+            if selected_tab == str(self.individual_chart_frame):
+                self.active_tab = "individual"
+                logging.info("Switched to individual chart tab")
+            elif selected_tab == str(self.comparison_chart_frame):
+                self.active_tab = "comparison"
+                logging.info("Switched to comparison chart tab")
+                
+            logging.info(f"Active tab is now: {self.active_tab}")
+            
+            # Update chart based on current selection and active tab
+            selected_tickers = self._get_selected_tickers()
+            if self.active_tab == "comparison" and len(selected_tickers) > 1:
+                # If comparison tab is active and multiple tickers selected, update comparison chart
+                self._compare_percentage_performance()
+            elif self.active_tab == "individual" and selected_tickers:
+                # If individual tab is active and a ticker is selected, update individual chart
+                self._display_chart(selected_tickers[0])
+        except Exception as e:
+            logging.error(f"Error handling tab change: {e}")
     
     def _is_valid_date(self, date_str):
         """Check if a string is a valid date in YYYY-MM-DD format"""
@@ -2461,36 +2590,103 @@ class StockDataGUI:
             return False
     
     def _update_chart_after_download(self, ticker):
-        """Update and display chart after background data download completes
+        """Update chart display after background download completes
         
         Args:
-            ticker (str): Ticker symbol for which data was downloaded
+            ticker (str): Ticker symbol to update chart for
         """
         try:
-            # Update status
-            self.status_var.set(f"Download complete for {ticker}, generating chart...")
+            self.status_var.set(f"Generating chart for {ticker} in background...")
             self.root.update_idletasks()
             
-            # Get data path
-            data_path = self.manager._get_data_path(ticker)
-            if not os.path.exists(data_path):
-                self.status_var.set(f"Error: Data file for {ticker} not found after download")
-                return
-                
-            # Generate chart
-            plots_dir = self.manager.plot_save_path
-            os.makedirs(plots_dir, exist_ok=True)
+            # Create a background thread for chart generation
+            def generate_chart_thread():
+                try:
+                    # Set matplotlib to use non-interactive backend for thread safety
+                    import matplotlib
+                    original_backend = matplotlib.get_backend()
+                    matplotlib.use('Agg')  # Use non-interactive backend in thread
+                    
+                    # Generate the chart
+                    self.manager.visualize_daily_vs_weekly(ticker)
+                    
+                    # Restore original backend
+                    matplotlib.use(original_backend)
+                    
+                    # After chart generation completes, update the display
+                    self.root.after(100, lambda: self._display_chart_after_generation(ticker))
+                except Exception as e:
+                    # Handle any exceptions in the thread
+                    logging.error(f"Error generating chart for {ticker} in background thread: {e}")
+                    self.root.after(0, lambda: self.status_var.set(f"Error generating chart for {ticker}: {str(e)}"))
             
-            chart_path = os.path.join(plots_dir, f"{ticker}_daily_weekly_monthly.png")
-            
-            # Generate the chart
-            self.manager.visualize_daily_vs_weekly(ticker)
-            
-            # Display the chart
-            self._display_chart(ticker)
+            # Start the chart generation thread
+            chart_thread = threading.Thread(target=generate_chart_thread)
+            chart_thread.daemon = True
+            chart_thread.start()
             
         except Exception as e:
             error_msg = f"Error updating chart after download for {ticker}: {str(e)}"
+            self.status_var.set(error_msg)
+            logging.error(error_msg)
+            
+    def _display_chart_after_generation(self, ticker):
+        """Display chart after background generation completes
+        
+        Args:
+            ticker (str): Ticker symbol to display chart for
+        """
+        try:
+            self.status_var.set(f"Chart generation for {ticker} complete. Displaying...")
+            self.root.update_idletasks()
+            
+            # Display the chart without regenerating it
+            plots_dir = self.manager.plot_save_path
+            chart_path = os.path.join(plots_dir, f"{ticker}_daily_weekly_monthly.png")
+            
+            if os.path.exists(chart_path):
+                # Load and resize the image
+                img = Image.open(chart_path)
+                
+                # Get the chart frame size
+                chart_width = self.individual_chart_frame.winfo_width()
+                chart_height = self.individual_chart_frame.winfo_height()
+                
+                # If the frame hasn't been rendered yet, use default size
+                if chart_width <= 1:
+                    chart_width = 800
+                if chart_height <= 1:
+                    chart_height = 600
+                
+                # Resize image to fit the frame while maintaining aspect ratio
+                img_width, img_height = img.size
+                aspect_ratio = img_width / img_height
+                
+                if chart_width / chart_height > aspect_ratio:
+                    # Frame is wider than image
+                    new_height = chart_height
+                    new_width = int(new_height * aspect_ratio)
+                else:
+                    # Frame is taller than image
+                    new_width = chart_width
+                    new_height = int(new_width / aspect_ratio)
+                
+                img = img.resize((new_width, new_height), Image.LANCZOS)
+                
+                # Convert to PhotoImage and display
+                photo = ImageTk.PhotoImage(img)
+                self.chart_label.config(image=photo)
+                self.chart_label.image = photo  # Keep a reference to prevent garbage collection
+                
+                # Select the individual chart tab
+                self.chart_notebook.select(self.individual_chart_frame)
+                
+                self.status_var.set(f"Displaying chart for {ticker}")
+            else:
+                self.status_var.set(f"Error: Chart for {ticker} not found")
+                
+        except Exception as e:
+            error_msg = f"Error displaying chart after generation for {ticker}: {str(e)}"
             self.status_var.set(error_msg)
             logging.error(error_msg)
     
@@ -2566,9 +2762,27 @@ class StockDataGUI:
                 
                 # Generate chart if needed
                 if chart_outdated:
-                    self.status_var.set(f"Generating chart for {ticker}...")
+                    self.status_var.set(f"Generating chart for {ticker} in background...")
                     self.root.update_idletasks()
-                    self.manager.visualize_daily_vs_weekly(ticker)
+                    
+                    # Create a background thread for chart generation
+                    def generate_chart_thread():
+                        try:
+                            self.manager.visualize_daily_vs_weekly(ticker)
+                            # After chart generation completes, update the display
+                            self.root.after(100, lambda: self._display_chart_after_generation(ticker))
+                        except Exception as e:
+                            # Handle any exceptions in the thread
+                            logging.error(f"Error generating chart for {ticker} in background thread: {e}")
+                            self.root.after(0, lambda: self.status_var.set(f"Error generating chart for {ticker}: {str(e)}"))
+                    
+                    # Start the chart generation thread
+                    chart_thread = threading.Thread(target=generate_chart_thread)
+                    chart_thread.daemon = True
+                    chart_thread.start()
+                    
+                    # Return early - the chart will be displayed when generation completes
+                    return
             
             # Display the chart in the chart_label
             if os.path.exists(chart_path):
@@ -2604,6 +2818,9 @@ class StockDataGUI:
                 photo = ImageTk.PhotoImage(img)
                 self.chart_label.config(image=photo)
                 self.chart_label.image = photo  # Keep a reference to prevent garbage collection
+                
+                # Select the individual chart tab
+                self.chart_notebook.select(self.individual_chart_frame)
                 
                 # Use the appropriate name for status message
                 if is_direct_path:
@@ -2920,6 +3137,11 @@ class StockDataGUI:
         
         # Create the plot
         try:
+            # Set matplotlib to use non-interactive backend for thread safety
+            import matplotlib
+            original_backend = matplotlib.get_backend()
+            matplotlib.use('Agg')  # Use non-interactive backend for thread safety
+            
             plt.figure(figsize=(12, 8))
             
             # Plot each ticker's percentage change
@@ -2990,9 +3212,49 @@ class StockDataGUI:
             plt.savefig(chart_path, dpi=100, bbox_inches='tight')
             plt.close()  # Close the figure to free memory
             
-            # Display the chart in GUI only
+            # Restore original backend
+            matplotlib.use(original_backend)
+            
+            # Display the chart in the comparison tab
             if os.path.exists(chart_path):
-                self._display_chart(chart_path)
+                # Load and resize the image
+                img = Image.open(chart_path)
+                
+                # Get the chart frame size
+                chart_width = self.comparison_chart_frame.winfo_width()
+                chart_height = self.comparison_chart_frame.winfo_height()
+                
+                # If the frame hasn't been rendered yet, use default size
+                if chart_width <= 1:
+                    chart_width = 800
+                if chart_height <= 1:
+                    chart_height = 600
+                
+                # Resize image to fit the frame while maintaining aspect ratio
+                img_width, img_height = img.size
+                aspect_ratio = img_width / img_height
+                
+                if chart_width / chart_height > aspect_ratio:
+                    # Frame is wider than image
+                    new_height = chart_height
+                    new_width = int(new_height * aspect_ratio)
+                else:
+                    # Frame is taller than image
+                    new_width = chart_width
+                    new_height = int(new_width / aspect_ratio)
+                
+                img = img.resize((new_width, new_height), Image.LANCZOS)
+                
+                # Convert to PhotoImage and display in comparison tab
+                photo = ImageTk.PhotoImage(img)
+                self.comparison_chart_label.config(image=photo)
+                self.comparison_chart_label.image = photo  # Keep a reference to prevent garbage collection
+                
+                # Select the comparison chart tab
+                self.chart_notebook.select(self.comparison_chart_frame)
+                # Update active tab tracking
+                self.active_tab = "comparison"
+                
                 self.status_var.set(f"Generated percentage comparison chart for {len(plotted_tickers)} tickers")
             else:
                 self.status_var.set("Error: Chart file not created")
