@@ -124,6 +124,7 @@ import yfinance as yf
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from PIL import Image, ImageTk
+from tkcalendar import DateEntry
 import time
 import pytz
 import yfinance as yf
@@ -1872,20 +1873,21 @@ class StockDataGUI:
         date_range_frame = ttk.Frame(self.chart_frame, padding="5")
         date_range_frame.pack(fill=tk.X, expand=False, pady=(0, 5))
         
-        # Start date entry
+        # Start date entry with calendar widget
         ttk.Label(date_range_frame, text="Start Date:").pack(side=tk.LEFT, padx=(0, 5))
         self.start_date_var = tk.StringVar()
-        self.start_date_entry = ttk.Entry(date_range_frame, textvariable=self.start_date_var, width=12)
+        self.start_date_entry = DateEntry(date_range_frame, textvariable=self.start_date_var, width=12, 
+                                        date_pattern='yyyy-mm-dd', background='darkblue', foreground='white',
+                                        borderwidth=2, locale='en_US')
         self.start_date_entry.pack(side=tk.LEFT, padx=(0, 10))
         
-        # End date entry
+        # End date entry with calendar widget
         ttk.Label(date_range_frame, text="End Date:").pack(side=tk.LEFT, padx=(0, 5))
         self.end_date_var = tk.StringVar()
-        self.end_date_entry = ttk.Entry(date_range_frame, textvariable=self.end_date_var, width=12)
+        self.end_date_entry = DateEntry(date_range_frame, textvariable=self.end_date_var, width=12,
+                                      date_pattern='yyyy-mm-dd', background='darkblue', foreground='white',
+                                      borderwidth=2, locale='en_US')
         self.end_date_entry.pack(side=tk.LEFT, padx=(0, 10))
-        
-        # Add a tooltip/hint about date format
-        ttk.Label(date_range_frame, text="(YYYY-MM-DD)", foreground="gray").pack(side=tk.LEFT, padx=(0, 10))
         
         # Apply date range button
         ttk.Button(date_range_frame, text="Apply Date Range", command=self._apply_date_range).pack(side=tk.LEFT)
@@ -2423,18 +2425,9 @@ class StockDataGUI:
     def _apply_date_range(self):
         """Apply the selected date range and refresh the current chart"""
         try:
-            # Validate date inputs
+            # Get date inputs from calendar widgets
             start_date = self.start_date_var.get().strip()
             end_date = self.end_date_var.get().strip()
-            
-            # Validate date format
-            if start_date and not self._is_valid_date(start_date):
-                messagebox.showerror("Invalid Date", "Start date must be in YYYY-MM-DD format")
-                return
-                
-            if end_date and not self._is_valid_date(end_date):
-                messagebox.showerror("Invalid Date", "End date must be in YYYY-MM-DD format")
-                return
             
             # If both dates are valid, store them in the manager
             self.manager.start_date = start_date if start_date else None
