@@ -919,6 +919,12 @@ class StockDataGUI:
                 messagebox.showwarning("Insufficient Data", f"Not enough data available for {ticker} to generate a seasonality chart.")
                 self.status_var.set(f"Not enough data for {ticker} seasonality chart")
                 return
+                
+            # Ensure numeric types for all columns that will be used in calculations
+            numeric_columns = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
+            for col in numeric_columns:
+                if col in data.columns:
+                    data[col] = pd.to_numeric(data[col], errors='coerce')
             
             # Apply date filters if set
             if self.manager.start_date:
@@ -943,7 +949,7 @@ class StockDataGUI:
             
             # Store data for each year
             year_data = {}
-            all_days = set()
+            all_trading_days = set()
             
             # Calculate percentage change for each year
             for year in years:
@@ -951,17 +957,24 @@ class StockDataGUI:
                 if len(year_df) < 30:  # Skip years with insufficient data
                     continue
                     
-                # Reset index to get day of year
+                # Reset index to prepare for trading day calculation
                 year_df = year_df.reset_index()
-                year_df['DayOfYear'] = year_df['Date'].dt.dayofyear
+                
+                # Instead of using calendar day, use trading day number (sequential counter)
+                # This ensures alignment across years regardless of weekends/holidays
+                year_df = year_df.sort_values('Date')  # Ensure chronological order
+                year_df['TradingDayNum'] = range(1, len(year_df) + 1)  # Sequential trading day counter
                 
                 # Calculate percentage change from first day of the year
-                first_close = year_df['Close'].iloc[0]
+                # Ensure first_close is a numeric value
+                first_close = float(year_df['Close'].iloc[0])
+                # Ensure Close column is numeric for calculation
+                year_df['Close'] = pd.to_numeric(year_df['Close'], errors='coerce')
                 year_df['PctChange'] = ((year_df['Close'] - first_close) / first_close) * 100
                 
-                # Store data for this year
-                year_data[year] = year_df[['DayOfYear', 'PctChange']].set_index('DayOfYear')['PctChange']
-                all_days.update(year_df['DayOfYear'])
+                # Store data for this year using trading day number as index
+                year_data[year] = year_df[['TradingDayNum', 'PctChange']].set_index('TradingDayNum')['PctChange']
+                all_trading_days.update(year_df['TradingDayNum'])
             
             if not year_data:
                 messagebox.showwarning("Insufficient Data", f"No complete years of data available for {ticker}.")
@@ -995,8 +1008,8 @@ class StockDataGUI:
                     plt.plot(pct_change.index, pct_change.values, label=f'{year}', color=colors[color_idx], alpha=0.7)
                 
                 # Calculate and plot the average percentage change across all years
-                # Create a DataFrame with all days and all years
-                avg_df = pd.DataFrame(index=sorted(all_days))
+                # Create a DataFrame with all trading days and all years
+                avg_df = pd.DataFrame(index=sorted(all_trading_days))
                 
                 # Add each year's data
                 for year, pct_change in year_data.items():
@@ -1004,6 +1017,11 @@ class StockDataGUI:
                 
                 # Calculate the average across years, ignoring NaN values
                 avg_df['Average'] = avg_df.mean(axis=1)
+                
+                # Apply a small rolling window to smooth the average line
+                # This helps reduce the jagged appearance caused by missing days
+                if len(avg_df) > 5:  # Only apply if we have enough data points
+                    avg_df['Average'] = avg_df['Average'].rolling(window=3, min_periods=1, center=True).mean()
                 
                 # Plot the average line with thicker line width and transparency
                 plt.plot(avg_df.index, avg_df['Average'], label='Average', color='black', linewidth=2.5, alpha=0.7)
@@ -1021,7 +1039,7 @@ class StockDataGUI:
             
             # Add chart details
             plt.title(chart_title)
-            plt.xlabel('Day of Year')
+            plt.xlabel('Trading Day Number')
             plt.ylabel('Percentage Change (%)')
             plt.grid(True, alpha=0.3)
             plt.legend(loc='best')
