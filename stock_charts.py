@@ -2467,6 +2467,40 @@ class StockDataGUI:
         except ValueError:
             return False
     
+    def _update_chart_after_download(self, ticker):
+        """Update and display chart after background data download completes
+        
+        Args:
+            ticker (str): Ticker symbol for which data was downloaded
+        """
+        try:
+            # Update status
+            self.status_var.set(f"Download complete for {ticker}, generating chart...")
+            self.root.update_idletasks()
+            
+            # Get data path
+            data_path = self.manager._get_data_path(ticker)
+            if not os.path.exists(data_path):
+                self.status_var.set(f"Error: Data file for {ticker} not found after download")
+                return
+                
+            # Generate chart
+            plots_dir = self.manager.plot_save_path
+            os.makedirs(plots_dir, exist_ok=True)
+            
+            chart_path = os.path.join(plots_dir, f"{ticker}_daily_weekly_monthly.png")
+            
+            # Generate the chart
+            self.manager.visualize_daily_vs_weekly(ticker)
+            
+            # Display the chart
+            self._display_chart(ticker)
+            
+        except Exception as e:
+            error_msg = f"Error updating chart after download for {ticker}: {str(e)}"
+            self.status_var.set(error_msg)
+            logging.error(error_msg)
+    
     def _display_chart(self, ticker_or_path):
         """Display chart for the selected ticker or direct path
         
@@ -2496,9 +2530,27 @@ class StockDataGUI:
                 data_path = self.manager._get_data_path(ticker)
                 if not os.path.exists(data_path):
                     # Download data if it doesn't exist
-                    self.status_var.set(f"Downloading data for {ticker}...")
+                    self.status_var.set(f"Downloading data for {ticker} in background...")
                     self.root.update_idletasks()
-                    self.manager.update_data(ticker, force_download=True)
+                    
+                    # Create a background thread for downloading data
+                    def download_data_thread():
+                        try:
+                            self.manager.update_data(ticker, force_download=True)
+                            # After download completes, update the chart
+                            self.root.after(100, lambda: self._update_chart_after_download(ticker))
+                        except Exception as e:
+                            # Handle any exceptions in the thread
+                            logging.error(f"Error downloading data for {ticker} in background thread: {e}")
+                            self.root.after(0, lambda: self.status_var.set(f"Error downloading data for {ticker}: {str(e)}"))
+                    
+                    # Start the download thread
+                    download_thread = threading.Thread(target=download_data_thread)
+                    download_thread.daemon = True
+                    download_thread.start()
+                    
+                    # Return early - the chart will be updated when download completes
+                    return
                 
                 # Generate or update chart if needed
                 plots_dir = self.manager.plot_save_path
@@ -2747,7 +2799,13 @@ class StockDataGUI:
                 return
                 
             if len(selected_tickers) < 2:
-                messagebox.showwarning("Insufficient Selection", "Please select at least two tickers to compare.")
+                # If only one ticker is selected, generate and display only the daily chart with date range
+                if len(selected_tickers) == 1:
+                    ticker = selected_tickers[0]
+                    logging.info(f"Single ticker selected: {ticker}, generating daily chart with date range")
+                    self._display_chart(ticker)
+                else:
+                    messagebox.showwarning("Insufficient Selection", "Please select at least two tickers to compare.")
                 return
                 
             logging.info(f"Selected tickers for comparison: {selected_tickers}")
