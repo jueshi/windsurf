@@ -213,6 +213,8 @@ class StockDataManager:
     Attributes:
         data_dir (str): Directory to store stock data files
         plot_save_path (str): Path to save plots
+        start_date (str): Start date for data retrieval
+        end_date (str): End date for data retrieval
     """
     
     def __init__(self, data_dir: str = STOCK_DATA_DIR, plot_save_path: str = STOCK_DATA_DIR):
@@ -226,6 +228,8 @@ class StockDataManager:
         self.data_dir = data_dir
         self.plot_save_path = plot_save_path
         os.makedirs(self.data_dir, exist_ok=True)
+        self.start_date = None
+        self.end_date = None
         self.last_request_time = 0
         self.min_request_interval = 2.0  # Minimum time between requests in seconds
     
@@ -1069,6 +1073,32 @@ class StockDataManager:
             else:
                 logging.error(f"Date column not found in {ticker} data")
                 return
+                
+            # Apply date range filtering if specified
+            if self.start_date:
+                # Convert to pandas Timestamp without timezone for consistent comparison
+                start_date = pd.Timestamp(self.start_date).tz_localize(None)
+                # Log the date range before filtering
+                logging.info(f"Applying start date filter: {self.start_date}, data range: {daily_data.index.min()} to {daily_data.index.max()}")
+                # Convert index to same timezone format for comparison
+                daily_data = daily_data[daily_data.index.tz_localize(None) >= start_date]
+                # Log the data range after filtering
+                logging.info(f"After start date filter: data range: {daily_data.index.min()} to {daily_data.index.max()}, rows: {len(daily_data)}")
+                
+            if self.end_date:
+                # Convert to pandas Timestamp without timezone for consistent comparison
+                end_date = pd.Timestamp(self.end_date).tz_localize(None)
+                # Log the date range before filtering
+                logging.info(f"Applying end date filter: {self.end_date}, data range: {daily_data.index.min()} to {daily_data.index.max()}")
+                # Convert index to same timezone format for comparison
+                daily_data = daily_data[daily_data.index.tz_localize(None) <= end_date]
+                # Log the data range after filtering
+                logging.info(f"After end date filter: data range: {daily_data.index.min()} to {daily_data.index.max()}, rows: {len(daily_data)}")
+                
+            # Check if we still have data after filtering
+            if daily_data.empty:
+                logging.warning(f"No data available for {ticker} in the specified date range")
+                return
             
             # Convert numeric columns to float
             numeric_columns = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
@@ -1838,6 +1868,28 @@ class StockDataGUI:
         self.chart_frame = ttk.LabelFrame(middle_frame, text="Chart Display", padding="5")
         self.chart_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 0))
         
+        # Add date range controls at the top of chart frame
+        date_range_frame = ttk.Frame(self.chart_frame, padding="5")
+        date_range_frame.pack(fill=tk.X, expand=False, pady=(0, 5))
+        
+        # Start date entry
+        ttk.Label(date_range_frame, text="Start Date:").pack(side=tk.LEFT, padx=(0, 5))
+        self.start_date_var = tk.StringVar()
+        self.start_date_entry = ttk.Entry(date_range_frame, textvariable=self.start_date_var, width=12)
+        self.start_date_entry.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # End date entry
+        ttk.Label(date_range_frame, text="End Date:").pack(side=tk.LEFT, padx=(0, 5))
+        self.end_date_var = tk.StringVar()
+        self.end_date_entry = ttk.Entry(date_range_frame, textvariable=self.end_date_var, width=12)
+        self.end_date_entry.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # Add a tooltip/hint about date format
+        ttk.Label(date_range_frame, text="(YYYY-MM-DD)", foreground="gray").pack(side=tk.LEFT, padx=(0, 10))
+        
+        # Apply date range button
+        ttk.Button(date_range_frame, text="Apply Date Range", command=self._apply_date_range).pack(side=tk.LEFT)
+        
         # Create a label to display chart
         self.chart_label = ttk.Label(self.chart_frame)
         self.chart_label.pack(fill=tk.BOTH, expand=True)
@@ -2368,6 +2420,53 @@ class StockDataGUI:
         # Display chart for the selected ticker
         self._display_chart(ticker)
     
+    def _apply_date_range(self):
+        """Apply the selected date range and refresh the current chart"""
+        try:
+            # Validate date inputs
+            start_date = self.start_date_var.get().strip()
+            end_date = self.end_date_var.get().strip()
+            
+            # Validate date format
+            if start_date and not self._is_valid_date(start_date):
+                messagebox.showerror("Invalid Date", "Start date must be in YYYY-MM-DD format")
+                return
+                
+            if end_date and not self._is_valid_date(end_date):
+                messagebox.showerror("Invalid Date", "End date must be in YYYY-MM-DD format")
+                return
+            
+            # If both dates are valid, store them in the manager
+            self.manager.start_date = start_date if start_date else None
+            self.manager.end_date = end_date if end_date else None
+            
+            # Refresh the current chart if there's a ticker selected
+            selected_indices = self.ticker_listbox.curselection()
+            if selected_indices:
+                ticker_text = self.ticker_listbox.get(selected_indices[0])
+                ticker = ticker_text.split(' - ')[0].strip()
+                self._display_chart(ticker)
+            else:
+                # Check watch list selection
+                selected_indices = self.watch_listbox.curselection()
+                if selected_indices:
+                    ticker = self.watch_listbox.get(selected_indices[0])
+                    self._display_chart(ticker)
+                else:
+                    self.status_var.set("Date range set. Select a ticker to display chart.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error applying date range: {str(e)}")
+            logging.error(f"Error applying date range: {e}")
+    
+    def _is_valid_date(self, date_str):
+        """Check if a string is a valid date in YYYY-MM-DD format"""
+        try:
+            if date_str:
+                datetime.strptime(date_str, '%Y-%m-%d')
+            return True
+        except ValueError:
+            return False
+    
     def _display_chart(self, ticker_or_path):
         """Display chart for the selected ticker or direct path
         
@@ -2728,6 +2827,25 @@ class StockDataGUI:
             common_start = max(start_dates)
             common_end = min(end_dates)
             
+            # Ensure all dates are timezone-naive for consistent comparison
+            start_dates = [date.tz_localize(None) if hasattr(date, 'tz_localize') else date for date in start_dates]
+            end_dates = [date.tz_localize(None) if hasattr(date, 'tz_localize') else date for date in end_dates]
+            
+            # Find common range with normalized timestamps
+            common_start = max(start_dates)
+            common_end = min(end_dates)
+            
+            # Apply user-specified date range if set
+            if self.manager.start_date:
+                user_start = pd.Timestamp(self.manager.start_date).tz_localize(None)
+                logging.info(f"Applying user-specified start date: {user_start} to comparison chart")
+                common_start = max(common_start, user_start)
+                
+            if self.manager.end_date:
+                user_end = pd.Timestamp(self.manager.end_date).tz_localize(None)
+                logging.info(f"Applying user-specified end date: {user_end} to comparison chart")
+                common_end = min(common_end, user_end)
+            
             # Ensure we have proper datetime objects
             common_start = pd.to_datetime(common_start)
             common_end = pd.to_datetime(common_end)
@@ -2758,8 +2876,13 @@ class StockDataGUI:
             
             for ticker_symbol, data in ticker_data.items():
                 try:
-                    # Filter to common date range - common_start and common_end are already pd.Timestamp objects
-                    filtered_data = data.loc[(data.index >= common_start) & (data.index <= common_end)].copy()
+                    # Filter to common date range - ensure timezone consistency
+                    # Convert index to timezone-naive for comparison
+                    data_index_naive = data.index.tz_localize(None) if hasattr(data.index, 'tz_localize') else data.index
+                    
+                    # Create a mask for filtering with consistent timezone handling
+                    mask = (data_index_naive >= common_start) & (data_index_naive <= common_end)
+                    filtered_data = data.loc[mask].copy()
                     
                     # Debug log the filtered data range
                     if not filtered_data.empty:
