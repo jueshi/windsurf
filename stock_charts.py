@@ -2508,7 +2508,7 @@ class StockDataGUI:
             logging.info(f"Selected tickers from main list: {selected_tickers}")
             
             # Update chart based on active tab
-            if hasattr(self, 'active_tab') and self.active_tab == "comparison" and len(selected_tickers) > 1:
+            if hasattr(self, 'active_tab') and self.active_tab == "comparison":
                 # If comparison tab is active and multiple tickers selected, update comparison chart
                 self._compare_percentage_performance()
             else:
@@ -2539,7 +2539,7 @@ class StockDataGUI:
             logging.info(f"Selected tickers from watch list: {selected_tickers}")
             
             # Update chart based on active tab
-            if hasattr(self, 'active_tab') and self.active_tab == "comparison" and len(selected_tickers) > 1:
+            if hasattr(self, 'active_tab') and self.active_tab == "comparison":
                 # If comparison tab is active and multiple tickers selected, update comparison chart
                 self._compare_percentage_performance()
             else:
@@ -3008,15 +3008,16 @@ class StockDataGUI:
             if not selected_tickers:
                 return
                 
-            if len(selected_tickers) < 2:
-                # If only one ticker is selected, generate and display only the daily chart with date range
-                if len(selected_tickers) == 1:
-                    ticker = selected_tickers[0]
-                    logging.info(f"Single ticker selected: {ticker}, generating daily chart with date range")
-                    self._display_chart(ticker)
-                else:
-                    messagebox.showwarning("Insufficient Selection", "Please select at least two tickers to compare.")
+            if len(selected_tickers) < 1:
+                messagebox.showwarning("Insufficient Selection", "Please select at least one ticker to compare.")
                 return
+                
+            # Set active tab to comparison
+            self.active_tab = "comparison"
+            self.chart_notebook.select(self.comparison_chart_frame)
+            
+            # If only one ticker is selected, we'll still create a percentage chart for it
+            # in the comparison tab (not switching to individual chart)
                 
             logging.info(f"Selected tickers for comparison: {selected_tickers}")
         except Exception as e:
@@ -3065,8 +3066,8 @@ class StockDataGUI:
                 except Exception as e:
                     logging.error(f"Error loading data for {ticker_symbol}: {str(e)}. Skipping.")
             
-            if len(ticker_data) < 2:
-                messagebox.showwarning("Insufficient Data", "Need at least two tickers with valid data to generate comparison.")
+            if len(ticker_data) < 1:
+                messagebox.showwarning("Insufficient Data", "Need at least one ticker with valid data to generate comparison.")
                 return
         except Exception as e:
             messagebox.showerror("Error", f"Error loading ticker data: {str(e)}")
@@ -3091,17 +3092,17 @@ class StockDataGUI:
                 messagebox.showwarning("Data Error", "Could not determine valid date ranges for the selected tickers.")
                 return
                 
-            # Find common range
-            common_start = max(start_dates)
-            common_end = min(end_dates)
-            
             # Ensure all dates are timezone-naive for consistent comparison
             start_dates = [date.tz_localize(None) if hasattr(date, 'tz_localize') else date for date in start_dates]
             end_dates = [date.tz_localize(None) if hasattr(date, 'tz_localize') else date for date in end_dates]
             
-            # Find common range with normalized timestamps
-            common_start = max(start_dates)
-            common_end = min(end_dates)
+            # Find common range (or just use the single ticker's range if only one ticker)
+            if len(start_dates) == 1:
+                common_start = start_dates[0]
+                common_end = end_dates[0]
+            else:
+                common_start = max(start_dates)
+                common_end = min(end_dates)
             
             # Apply user-specified date range if set
             if self.manager.start_date:
