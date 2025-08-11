@@ -2,6 +2,16 @@ import tkinter as tk
 import logging
 from data_manager import StockDataManager
 from gui import StockDataGUI
+from direct_fix import apply_direct_fixes
+from plotly_fix import apply_plotly_fix
+from emergency_fix import apply_emergency_fix
+from widget_fix import apply_widget_fix
+from direct_chart_fix import apply_direct_chart_fix
+from apply_button_fix import apply_fixes as apply_button_fixes
+from individual_chart_fix import apply_fixes as apply_individual_chart_fixes
+from fixed_height_chart_fix import apply_fixes as apply_fixed_height_chart_fixes
+from toolbar_fix import apply_fixes as apply_toolbar_fixes
+from comprehensive_toolbar_fix import apply_fixes as apply_comprehensive_fixes
 
 def suppress_tkinter_exit_errors():
     """Suppress tkinter cleanup exceptions on exit with enhanced error handling."""
@@ -87,6 +97,18 @@ def main():
 
     # Create the application
     app = StockDataGUI(root, manager)
+    
+    # Apply all fixes
+    apply_direct_fixes(app, manager)
+    apply_plotly_fix(app)
+    apply_emergency_fix(app)
+    apply_widget_fix(app)
+    apply_direct_chart_fix(app)
+    apply_button_fixes(app)  # Apply button visibility fix
+    apply_individual_chart_fixes(app)  # Apply individual chart button visibility fix
+    apply_fixed_height_chart_fixes(app)  # Apply fixed height chart solution
+    apply_toolbar_fixes(app)  # Apply toolbar visibility fix
+    apply_comprehensive_fixes(app)  # Apply comprehensive toolbar and button visibility fix
 
     # Define the on_closing handler
     def on_closing():
