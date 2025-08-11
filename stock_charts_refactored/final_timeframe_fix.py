@@ -12,10 +12,13 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import pandas as pd
 import plotly.graph_objects as go
+import plotly.io as pio
 from plotly.subplots import make_subplots
 import tempfile
 import webbrowser
 import os
+import io
+from PIL import Image, ImageTk
 
 def apply_final_timeframe_fix(app):
     """
@@ -66,32 +69,52 @@ def apply_final_timeframe_fix(app):
     # --- 2. Define Chart Generation and Display Logic ---
 
     def _display_chart_in_frame(frame, fig, ticker, timeframe):
-        """Helper function to display a Plotly figure in a given Tkinter frame."""
+        """
+        Helper function to display a Plotly figure in a given Tkinter frame.
+        It now displays a static image preview directly in the GUI.
+        """
         try:
             # Clear any existing widgets in the frame
             for widget in frame.winfo_children():
                 widget.destroy()
 
-            # Save chart to a temporary HTML file
+            # Save chart to a temporary HTML file for the "Open in Browser" button
             temp_dir = tempfile.gettempdir()
             html_path = os.path.join(temp_dir, f"{ticker}_{timeframe}_chart.html")
             fig.write_html(html_path)
 
-            # Create a container for the button and title
+            # --- Header ---
             header_frame = ttk.Frame(frame)
             header_frame.pack(fill=tk.X, pady=5, padx=5)
-
-            # Add a title label
             title = f"{ticker} - {timeframe.capitalize()} Chart"
             ttk.Label(header_frame, text=title, font=("Helvetica", 10, "bold")).pack(side=tk.LEFT)
-
-            # Add a button to open the interactive chart in a browser
             browser_button = ttk.Button(header_frame, text="Open in Browser",
                                         command=lambda p=html_path: webbrowser.open(f"file:///{os.path.abspath(p)}"))
             browser_button.pack(side=tk.RIGHT)
 
-            # Add a placeholder label indicating success
-            ttk.Label(frame, text=f"Interactive {timeframe} chart generated.").pack(pady=10)
+            # --- Static Image Preview ---
+            try:
+                # Generate a static image from the figure
+                img_bytes = pio.to_image(fig, format='png', width=800, height=250)
+
+                # Convert bytes to a PIL Image
+                img_data = io.BytesIO(img_bytes)
+                pil_img = Image.open(img_data)
+
+                # Convert PIL Image to a PhotoImage for Tkinter
+                photo_img = ImageTk.PhotoImage(pil_img)
+
+                # Create a label to hold the image
+                img_label = ttk.Label(frame, image=photo_img)
+                img_label.image = photo_img  # Keep a reference!
+                img_label.pack(pady=5, padx=5, fill=tk.BOTH, expand=True)
+
+            except Exception as img_e:
+                # This can happen if the 'kaleido' package is not installed
+                logging.warning(f"Could not generate static image for {ticker} {timeframe}: {img_e}")
+                fallback_label = ttk.Label(frame, text="Chart preview not available.\n(Requires the 'kaleido' package).\nUse 'Open in Browser' to view.")
+                fallback_label.pack(pady=10, padx=5)
+
             frame.update_idletasks()
         except Exception as e:
             logging.error(f"Error displaying {timeframe} chart in frame: {e}")
