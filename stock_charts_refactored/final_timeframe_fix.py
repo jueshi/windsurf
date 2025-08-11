@@ -183,26 +183,44 @@ def apply_final_timeframe_fix(app):
                 self._generate_and_display_timeframe_charts(ticker)
 
     def patched_on_tab_changed(self, event=None):
-        """Patched handler for tab changes."""
-        original_tab_changed(event)
-        if self.active_tab == "timeframe":
-            # When switching to the tab, try to refresh the chart with the last selected ticker
-            if hasattr(self, 'current_chart_ticker') and self.current_chart_ticker:
-                self._generate_and_display_timeframe_charts(self.current_chart_ticker)
-            else:
-                 # If no ticker is selected, you can check the listboxes
-                ticker = None
-                main_selection = self.ticker_listbox.curselection()
-                if main_selection:
-                    ticker_text = self.ticker_listbox.get(main_selection[0])
-                    ticker = ticker_text.split(' - ')[0].strip()
-                else:
-                    watch_selection = self.watch_listbox.curselection()
-                    if watch_selection:
-                        ticker = self.watch_listbox.get(watch_selection[0]).strip()
+        """
+        Patched handler for tab changes. This version correctly handles the
+        control flow to prevent the UI from switching back to the individual tab.
+        """
+        try:
+            selected_tab_widget = self.chart_notebook.select()
+            selected_tab_text = self.chart_notebook.tab(selected_tab_widget, "text")
+        except tk.TclError:
+            # This can happen during shutdown, so we fail gracefully.
+            return
 
-                if ticker:
-                    self._generate_and_display_timeframe_charts(ticker)
+        # Check if our custom tab is the one selected.
+        if selected_tab_text == "Timeframe Charts":
+            # If it is, we take full control.
+            self.active_tab = "timeframe"
+            logging.info("Switched to Timeframe Charts tab. Intercepting tab change logic.")
+
+            # Run the logic to update the charts in this tab.
+            ticker_to_load = None
+            main_selection = self.ticker_listbox.curselection()
+            watch_selection = self.watch_listbox.curselection()
+
+            if main_selection:
+                ticker_text = self.ticker_listbox.get(main_selection[0])
+                ticker_to_load = ticker_text.split(' - ')[0].strip()
+            elif watch_selection:
+                ticker_to_load = self.watch_listbox.get(watch_selection[0]).strip()
+            elif hasattr(self, 'current_chart_ticker') and self.current_chart_ticker:
+                # Fallback to the last known ticker if none is selected
+                ticker_to_load = self.current_chart_ticker
+
+            if ticker_to_load:
+                self._generate_and_display_timeframe_charts(ticker_to_load)
+        else:
+            # If any other tab is selected, we let the original handler do its job.
+            # This prevents the unwanted side effects.
+            logging.info(f"Switched to '{selected_tab_text}' tab. Running original handler.")
+            original_tab_changed(event)
 
     # Apply the new patched handlers
     app._on_ticker_selected = types.MethodType(patched_on_ticker_selected, app)
