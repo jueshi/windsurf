@@ -14,8 +14,9 @@ from toolbar_fix import apply_fixes as apply_toolbar_fixes
 from comprehensive_toolbar_fix import apply_fixes as apply_comprehensive_fixes
 from timeframe_chart_fix import apply_timeframe_chart_fix
 from embedded_timeframe_fix import apply_embedded_timeframe_fix
-from simple_timeframe_fix import apply_simple_timeframe_fix
-from ticker_timeframe_fix import apply_ticker_timeframe_fix
+from simple_timeframe_fix import apply_simple_timeframe_fix # Keep for now, might be needed
+from ticker_timeframe_fix import apply_ticker_timeframe_fix # Keep for now, might be needed
+from final_timeframe_fix import apply_final_timeframe_fix # Import the new comprehensive fix
 
 def suppress_tkinter_exit_errors():
     """Suppress tkinter cleanup exceptions on exit with enhanced error handling."""
@@ -115,10 +116,11 @@ def main():
     apply_comprehensive_fixes(app)  # Apply comprehensive toolbar and button visibility fix
     # apply_timeframe_chart_fix(app)  # Original timeframe chart implementation (disabled)
     # apply_embedded_timeframe_fix(app)  # Previous embedded Plotly charts implementation (disabled)
-    apply_simple_timeframe_fix(app)  # Apply simple and direct timeframe chart implementation
-    apply_ticker_timeframe_fix(app)  # Apply direct ticker selection handler for timeframe charts
-    from tab_switching_fix import apply_tab_switching_fix
-    apply_tab_switching_fix(app)  # Apply tab switching fix to prevent timeframe tab from switching back
+    # apply_simple_timeframe_fix(app)  # Disabled in favor of the comprehensive fix
+    # apply_ticker_timeframe_fix(app)  # Disabled in favor of the comprehensive fix
+    # from tab_switching_fix import apply_tab_switching_fix # Disabled in favor of the comprehensive fix
+    # apply_tab_switching_fix(app)  # Disabled in favor of the comprehensive fix
+    apply_final_timeframe_fix(app) # Apply the new, consolidated fix for timeframe charts
 
     # Define the on_closing handler
     def on_closing():
