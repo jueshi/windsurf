@@ -45,20 +45,25 @@ def apply_final_timeframe_fix(app):
         timeframe_tab_frame = ttk.Frame(app.chart_notebook)
         app.chart_notebook.add(timeframe_tab_frame, text="Timeframe Charts")
 
-        # Create and store dedicated frames for each chart
-        app.daily_chart_frame = ttk.LabelFrame(timeframe_tab_frame, text="Daily Chart")
-        app.daily_chart_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        # Create a top frame to hold the daily and weekly charts side-by-side
+        top_frame = ttk.Frame(timeframe_tab_frame)
+        top_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=(5, 0))
 
-        app.weekly_chart_frame = ttk.LabelFrame(timeframe_tab_frame, text="Weekly Chart")
-        app.weekly_chart_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        # Create and store dedicated frames for each chart, updating titles
+        app.daily_chart_frame = ttk.LabelFrame(top_frame, text="Daily Chart (Last 6 Months)")
+        app.daily_chart_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
 
-        app.monthly_chart_frame = ttk.LabelFrame(timeframe_tab_frame, text="Monthly Chart")
-        app.monthly_chart_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        app.weekly_chart_frame = ttk.LabelFrame(top_frame, text="Weekly Chart (Last 3 Years)")
+        app.weekly_chart_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5, 0))
+
+        # Create the monthly chart frame below the top frame
+        app.monthly_chart_frame = ttk.LabelFrame(timeframe_tab_frame, text="Monthly Chart (All Time)")
+        app.monthly_chart_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=(5, 5))
 
         # Set initial labels
-        ttk.Label(app.daily_chart_frame, text="Select a ticker to display the daily chart.").pack(pady=10)
-        ttk.Label(app.weekly_chart_frame, text="Select a ticker to display the weekly chart.").pack(pady=10)
-        ttk.Label(app.monthly_chart_frame, text="Select a ticker to display the monthly chart.").pack(pady=10)
+        ttk.Label(app.daily_chart_frame, text="Select a ticker.").pack(pady=10)
+        ttk.Label(app.weekly_chart_frame, text="Select a ticker.").pack(pady=10)
+        ttk.Label(app.monthly_chart_frame, text="Select a ticker.").pack(pady=10)
 
         logging.info("Timeframe chart tab and frames created successfully.")
 
@@ -122,10 +127,10 @@ def apply_final_timeframe_fix(app):
 
     def _generate_and_display_timeframe_charts(self, ticker):
         """
-        Fetches data and generates daily, weekly, and monthly charts for the given ticker.
-        This method is intended to be bound to the StockDataGUI instance.
+        Fetches data and generates daily, weekly, and monthly charts for the given ticker,
+        applying specific date ranges for each timeframe.
         """
-        logging.info(f"Generating all timeframe charts for {ticker}...")
+        logging.info(f"Generating all timeframe charts for {ticker} with date filtering...")
         self.current_chart_ticker = ticker
 
         # Correctly fetch data using the existing manager and method
@@ -135,32 +140,40 @@ def apply_final_timeframe_fix(app):
             messagebox.showwarning("No Data", f"No data available for {ticker}. Cannot generate timeframe charts.")
             return
 
-        # --- Generate Daily Chart ---
+        # --- Generate Daily Chart (Last 6 Months) ---
         try:
+            # Filter data for the last 6 months
+            daily_df_filtered = df[df.index >= (df.index.max() - pd.DateOffset(months=6))]
             fig_daily = go.Figure(data=[go.Candlestick(
-                x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close']
+                x=daily_df_filtered.index, open=daily_df_filtered['Open'], high=daily_df_filtered['High'],
+                low=daily_df_filtered['Low'], close=daily_df_filtered['Close']
             )])
             fig_daily.update_layout(title_text=f"{ticker} Daily", xaxis_rangeslider_visible=False, margin=dict(t=30, b=10, l=20, r=20))
             _display_chart_in_frame(self.daily_chart_frame, fig_daily, ticker, "daily")
         except Exception as e:
             logging.error(f"Failed to generate daily chart for {ticker}: {e}")
 
-        # --- Generate Weekly Chart ---
+        # --- Generate Weekly Chart (Last 3 Years) ---
         try:
             weekly_df = df.resample('W').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last'}).dropna()
+            # Filter data for the last 3 years
+            weekly_df_filtered = weekly_df[weekly_df.index >= (weekly_df.index.max() - pd.DateOffset(years=3))]
             fig_weekly = go.Figure(data=[go.Candlestick(
-                x=weekly_df.index, open=weekly_df['Open'], high=weekly_df['High'], low=weekly_df['Low'], close=weekly_df['Close']
+                x=weekly_df_filtered.index, open=weekly_df_filtered['Open'], high=weekly_df_filtered['High'],
+                low=weekly_df_filtered['Low'], close=weekly_df_filtered['Close']
             )])
             fig_weekly.update_layout(title_text=f"{ticker} Weekly", xaxis_rangeslider_visible=False, margin=dict(t=30, b=10, l=20, r=20))
             _display_chart_in_frame(self.weekly_chart_frame, fig_weekly, ticker, "weekly")
         except Exception as e:
             logging.error(f"Failed to generate weekly chart for {ticker}: {e}")
 
-        # --- Generate Monthly Chart ---
+        # --- Generate Monthly Chart (All Time) ---
         try:
             monthly_df = df.resample('M').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last'}).dropna()
+            # No filtering for the monthly chart
             fig_monthly = go.Figure(data=[go.Candlestick(
-                x=monthly_df.index, open=monthly_df['Open'], high=monthly_df['High'], low=monthly_df['Low'], close=monthly_df['Close']
+                x=monthly_df.index, open=monthly_df['Open'], high=monthly_df['High'],
+                low=monthly_df['Low'], close=monthly_df['Close']
             )])
             fig_monthly.update_layout(title_text=f"{ticker} Monthly", xaxis_rangeslider_visible=False, margin=dict(t=30, b=10, l=20, r=20))
             _display_chart_in_frame(self.monthly_chart_frame, fig_monthly, ticker, "monthly")
