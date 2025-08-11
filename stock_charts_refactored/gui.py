@@ -28,6 +28,15 @@ from typing import Optional, List, Any
 from random import uniform
 import math
 
+# Plotly imports for interactive charts
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import plotly.io as pio
+import plotly.offline as pyo
+from plotly.offline import plot
+import webbrowser
+import tempfile
+
 from data_manager import StockDataManager
 
 class StockDataGUI:
@@ -225,6 +234,130 @@ class StockDataGUI:
             logging.error(f"Error refreshing ticker lists: {str(e)}")
             messagebox.showerror("Error", f"Failed to refresh ticker lists: {str(e)}")
 
+    def _display_plotly_chart(self, fig, tab="individual"):
+        """Display a Plotly chart in the specified tab
+        
+        Args:
+            fig: Plotly figure to display
+            tab: Tab to display the chart in ("individual", "comparison", or "seasonality")
+        """
+        try:
+            # Check if root window still exists before proceeding
+            if not hasattr(self, 'root') or not self.root.winfo_exists():
+                logging.warning(f"Cannot display Plotly chart: root window no longer exists")
+                return
+                
+            # Create a temporary HTML file to display the chart
+            temp_dir = tempfile.gettempdir()
+            html_path = os.path.join(temp_dir, f"stock_chart_{tab}.html")
+            
+            # Configure the figure for better display
+            fig.update_layout(
+                autosize=True,
+                margin=dict(l=20, r=20, t=40, b=20),
+                hovermode="x unified",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                xaxis=dict(rangeslider=dict(visible=False)),  # Hide default range slider
+                template="plotly_white"
+            )
+            
+            # Add range selector buttons for time periods
+            fig.update_xaxes(
+                rangeselector=dict(
+                    buttons=list([
+                        dict(count=1, label="1m", step="month", stepmode="backward"),
+                        dict(count=3, label="3m", step="month", stepmode="backward"),
+                        dict(count=6, label="6m", step="month", stepmode="backward"),
+                        dict(count=1, label="YTD", step="year", stepmode="todate"),
+                        dict(count=1, label="1y", step="year", stepmode="backward"),
+                        dict(step="all")
+                    ])
+                )
+            )
+            
+            # Save the figure to HTML with full HTML header for browser display
+            plot(fig, filename=html_path, auto_open=False)
+            
+            # Create a frame to embed the HTML - check if widgets exist first
+            if tab == "individual":
+                if not hasattr(self, 'individual_chart_frame') or not self.individual_chart_frame.winfo_exists():
+                    logging.warning("Cannot update individual chart frame: widget no longer exists")
+                    return
+                    
+                try:
+                    for widget in self.individual_chart_frame.winfo_children():
+                        widget.destroy()
+                        
+                    # Create a button to open the chart in browser for better interaction
+                    btn_frame = ttk.Frame(self.individual_chart_frame)
+                    btn_frame.pack(fill=tk.X, pady=5)
+                    ttk.Button(btn_frame, text="Open in Browser", 
+                              command=lambda: webbrowser.open(f"file:///{html_path}")).pack()
+                    
+                    # Create a label to show that interactive chart is available
+                    ttk.Label(self.individual_chart_frame, 
+                             text=f"Interactive chart for {self.current_chart_ticker if hasattr(self, 'current_chart_ticker') else ''}\nUse mouse to zoom/pan").pack()
+                except tk.TclError as e:
+                    logging.error(f"TclError updating individual chart frame: {str(e)}")
+                    return
+                
+            elif tab == "comparison":
+                if not hasattr(self, 'comparison_chart_frame') or not self.comparison_chart_frame.winfo_exists():
+                    logging.warning("Cannot update comparison chart frame: widget no longer exists")
+                    return
+                    
+                try:
+                    for widget in self.comparison_chart_frame.winfo_children():
+                        widget.destroy()
+                        
+                    # Create a button to open the chart in browser for better interaction
+                    btn_frame = ttk.Frame(self.comparison_chart_frame)
+                    btn_frame.pack(fill=tk.X, pady=5)
+                    ttk.Button(btn_frame, text="Open in Browser", 
+                              command=lambda: webbrowser.open(f"file:///{html_path}")).pack()
+                    
+                    # Create a label to show that interactive chart is available
+                    ttk.Label(self.comparison_chart_frame, 
+                             text="Interactive comparison chart\nUse mouse to zoom/pan").pack()
+                except tk.TclError as e:
+                    logging.error(f"TclError updating comparison chart frame: {str(e)}")
+                    return
+                
+            elif tab == "seasonality":
+                if not hasattr(self, 'seasonality_chart_container') or not self.seasonality_chart_container.winfo_exists():
+                    logging.warning("Cannot update seasonality chart container: widget no longer exists")
+                    return
+                    
+                try:
+                    # Keep the controls frame but remove other widgets
+                    for widget in self.seasonality_chart_container.winfo_children():
+                        widget.destroy()
+                        
+                    # Create a button to open the chart in browser for better interaction
+                    btn_frame = ttk.Frame(self.seasonality_chart_container)
+                    btn_frame.pack(fill=tk.X, pady=5)
+                    ttk.Button(btn_frame, text="Open in Browser", 
+                              command=lambda: webbrowser.open(f"file:///{html_path}")).pack()
+                    
+                    # Create a label to show that interactive chart is available
+                    ttk.Label(self.seasonality_chart_container, 
+                             text=f"Interactive seasonality chart for {self.current_chart_ticker if hasattr(self, 'current_chart_ticker') else ''}\nUse mouse to zoom/pan").pack()
+                except tk.TclError as e:
+                    logging.error(f"TclError updating seasonality chart container: {str(e)}")
+                    return
+                         
+            # Update status if status_var exists
+            if hasattr(self, 'status_var'):
+                self.status_var.set(f"Displayed interactive {tab} chart")
+                
+            # Force update of the UI to ensure buttons remain visible
+            if hasattr(self, 'root') and self.root.winfo_exists():
+                self.root.update_idletasks()
+            
+        except Exception as e:
+            logging.error(f"Error displaying Plotly chart: {e}")
+            messagebox.showerror("Error", f"Failed to display interactive chart: {e}")
+    
     def _create_widgets(self):
         """Create all GUI widgets"""
         # Create main frame
@@ -265,19 +398,32 @@ class StockDataGUI:
         # Refresh Lists button reloads ticker lists from ticker_lists.py
         ttk.Button(button_frame, text="Refresh Lists", command=self._refresh_ticker_lists).pack(side=tk.LEFT)
 
-        # Add manual ticker entry
-        ttk.Label(top_frame, text="Add Ticker:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=5)
+        # Create a frame for the second row with Add Ticker and New List Name
+        second_row_frame = ttk.Frame(top_frame)
+        second_row_frame.grid(row=1, column=0, columnspan=3, sticky=tk.W+tk.E, padx=5, pady=5)
+        
+        # Add manual ticker entry (left side of second row)
+        ticker_frame = ttk.Frame(second_row_frame)
+        ticker_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        ttk.Label(ticker_frame, text="Add Ticker:").pack(side=tk.LEFT, padx=(0, 5))
         self.manual_ticker_var = tk.StringVar()
-        manual_ticker_entry = ttk.Entry(top_frame, textvariable=self.manual_ticker_var, width=80)
-        manual_ticker_entry.grid(row=1, column=1, sticky=tk.W, padx=5, pady=5)
-        ttk.Button(top_frame, text="Add", command=self._add_manual_ticker).grid(row=1, column=2, padx=5, pady=5)
-
-        # Add list name entry and save button
-        ttk.Label(top_frame, text="New List Name:").grid(row=2, column=0, sticky=tk.W, padx=5, pady=5)
+        manual_ticker_entry = ttk.Entry(ticker_frame, textvariable=self.manual_ticker_var, width=30)
+        manual_ticker_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        ttk.Button(ticker_frame, text="Add", command=self._add_manual_ticker).pack(side=tk.LEFT)
+        
+        # Add separator
+        ttk.Separator(second_row_frame, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=10)
+        
+        # Add list name entry and save button (right side of second row)
+        list_frame = ttk.Frame(second_row_frame)
+        list_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        ttk.Label(list_frame, text="New List Name:").pack(side=tk.LEFT, padx=(0, 5))
         self.list_name_var = tk.StringVar()
-        list_name_entry = ttk.Entry(top_frame, textvariable=self.list_name_var, width=80)
-        list_name_entry.grid(row=2, column=1, sticky=tk.W, padx=5, pady=5)
-        ttk.Button(top_frame, text="Save List", command=self._save_ticker_list).grid(row=2, column=2, padx=5, pady=5)
+        list_name_entry = ttk.Entry(list_frame, textvariable=self.list_name_var, width=30)
+        list_name_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        ttk.Button(list_frame, text="Save List", command=self._save_ticker_list).pack(side=tk.LEFT)
 
         # Create middle frame with three sections: available tickers, watch list, and chart display
         middle_frame = ttk.Frame(main_frame)
@@ -328,9 +474,15 @@ class StockDataGUI:
         self.watch_listbox = tk.Listbox(watch_frame, selectmode=tk.EXTENDED, height=20, width=10)
         self.watch_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        # Right section for chart display (takes remaining space)
+        # Right section for chart display (takes remaining space but with height constraint)
         self.chart_frame = ttk.LabelFrame(middle_frame, text="Chart Display", padding="5")
         self.chart_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 0))
+        
+        # Set a maximum height for the chart frame
+        middle_frame.update_idletasks()  # Force geometry update
+        screen_height = self.root.winfo_screenheight()
+        max_chart_height = int(screen_height * 0.6)  # 60% of screen height
+        self.chart_frame.configure(height=max_chart_height)
 
         # Add date range controls at the top of chart frame
         date_range_frame = ttk.Frame(self.chart_frame, padding="5")
@@ -902,22 +1054,33 @@ class StockDataGUI:
         self.status_var.set(f"Completed visualization for {len(selected_tickers)} tickers")
 
     def _generate_seasonality_chart(self, ticker):
-        """Generate and display seasonality chart for the selected ticker
+        """Generate and display interactive seasonality chart for the selected ticker using Plotly
         
         Args:
             ticker (str): Ticker symbol to generate seasonality chart for
         """
         try:
-            # Set matplotlib to use non-interactive backend for thread safety
-            import matplotlib
-            original_backend = matplotlib.get_backend()
-            matplotlib.use('Agg')  # Use non-interactive backend
+            # First check if the root window and widgets still exist
+            if not hasattr(self, 'root') or not self.root.winfo_exists():
+                logging.warning(f"Cannot generate seasonality chart for {ticker}: root window no longer exists")
+                return
+                
+            # Check if status_var exists before updating
+            if hasattr(self, 'status_var'):
+                self.status_var.set(f"Generating interactive seasonality chart for {ticker}...")
+                
+            try:
+                self.root.update_idletasks()
+            except tk.TclError as e:
+                logging.error(f"TclError updating idletasks: {str(e)}")
+                return
             
             # Load data for the ticker
             data = self.manager.load_data(ticker)
             if data is None or len(data) < 252:  # Need at least a year of data
                 messagebox.showwarning("Insufficient Data", f"Not enough data available for {ticker} to generate a seasonality chart.")
-                self.status_var.set(f"Not enough data for {ticker} seasonality chart")
+                if hasattr(self, 'status_var'):
+                    self.status_var.set(f"Not enough data for {ticker} seasonality chart")
                 return
                 
             # Ensure numeric types for all columns that will be used in calculations
@@ -926,20 +1089,10 @@ class StockDataGUI:
                 if col in data.columns:
                     data[col] = pd.to_numeric(data[col], errors='coerce')
             
-            # Apply date filters if set
-            if self.manager.start_date:
-                start_date = pd.Timestamp(self.manager.start_date)
-                if start_date > data.index.min():
-                    logging.info(f"Applying start date filter: {self.manager.start_date}, data range: {data.index.min()} to {data.index.max()}")
-                    data = data[data.index >= start_date]
-                    logging.info(f"After start date filter: data range: {data.index.min()} to {data.index.max()}, rows: {len(data)}")
-            
-            if self.manager.end_date:
-                end_date = pd.Timestamp(self.manager.end_date)
-                if end_date < data.index.max():
-                    logging.info(f"Applying end date filter: {self.manager.end_date}, data range: {data.index.min()} to {data.index.max()}")
-                    data = data[data.index <= end_date]
-                    logging.info(f"After end date filter: data range: {data.index.min()} to {data.index.max()}, rows: {len(data)}")
+            # Skip date range filtering for seasonality chart
+            # We'll use only the year selection for filtering
+            logging.info(f"Skipping date range filters for seasonality chart. Using full data range: {data.index.min()} to {data.index.max()}, rows: {len(data)}")
+            # Note: Year-based filtering is handled by the year dropdown selection
             
             # Extract year from each date and create a new column
             data['Year'] = data.index.year
@@ -973,7 +1126,7 @@ class StockDataGUI:
                 year_df['PctChange'] = ((year_df['Close'] - first_close) / first_close) * 100
                 
                 # Store data for this year using trading day number as index
-                year_data[year] = year_df[['TradingDayNum', 'PctChange']].set_index('TradingDayNum')['PctChange']
+                year_data[year] = year_df[['TradingDayNum', 'PctChange', 'Date']].set_index('TradingDayNum')
                 all_trading_days.update(year_df['TradingDayNum'])
             
             if not year_data:
@@ -981,39 +1134,67 @@ class StockDataGUI:
                 self.status_var.set(f"No complete years of data for {ticker}")
                 return
             
-            # Update the year dropdown with available years
-            year_options = ["All Years"] + [str(year) for year in sorted(year_data.keys())]
-            self.year_dropdown['values'] = year_options
+            # Update the year dropdown with available years if it exists
+            if not hasattr(self, 'year_dropdown') or not self.year_dropdown.winfo_exists():
+                logging.warning(f"Cannot update year dropdown for {ticker}: widget no longer exists")
+                return
+                
+            try:
+                year_options = ["All Years"] + [str(year) for year in sorted(year_data.keys())]
+                self.year_dropdown['values'] = year_options
+                
+                # If the current selection is not in the list, reset to "All Years"
+                if not hasattr(self, 'year_var'):
+                    logging.warning(f"Cannot update year selection for {ticker}: year_var no longer exists")
+                    return
+                    
+                if self.year_var.get() not in year_options:
+                    self.year_var.set("All Years")
+                
+                # Get the selected year from the dropdown
+                selected_year = self.year_var.get()
+            except tk.TclError as e:
+                logging.error(f"TclError updating year dropdown for {ticker}: {str(e)}")
+                return
             
-            # If the current selection is not in the list, reset to "All Years"
-            if self.year_var.get() not in year_options:
-                self.year_var.set("All Years")
-            
-            # Get the selected year from the dropdown
-            selected_year = self.year_var.get()
-            
-            # Create a new figure
-            plt.figure(figsize=(10, 6))
+            # Create a Plotly figure
+            fig = go.Figure()
             
             # Generate distinct colors for each year
-            colors = plt.cm.tab10.colors
-            if len(year_data) > len(colors):
-                colors = plt.cm.tab20.colors
+            # Use Plotly's default color sequence
+            plotly_colors = [
+                '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+                '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
+            ]
             
             # Plot based on the selected year
             if selected_year == "All Years":
                 # Plot all years
-                for i, (year, pct_change) in enumerate(year_data.items()):
-                    color_idx = i % len(colors)
-                    plt.plot(pct_change.index, pct_change.values, label=f'{year}', color=colors[color_idx], alpha=0.7)
+                for i, (year, year_df) in enumerate(year_data.items()):
+                    color_idx = i % len(plotly_colors)
+                    
+                    # Create hover text with date information
+                    hover_text = [f"Date: {date.strftime('%Y-%m-%d')}<br>Change: {pct:.2f}%" 
+                                 for date, pct in zip(year_df['Date'], year_df['PctChange'])]
+                    
+                    fig.add_trace(go.Scatter(
+                        x=year_df.index,
+                        y=year_df['PctChange'],
+                        mode='lines',
+                        name=f'{year}',
+                        line=dict(color=plotly_colors[color_idx], width=1.5),
+                        opacity=0.7,
+                        hovertext=hover_text,
+                        hoverinfo='text'
+                    ))
                 
                 # Calculate and plot the average percentage change across all years
                 # Create a DataFrame with all trading days and all years
                 avg_df = pd.DataFrame(index=sorted(all_trading_days))
                 
                 # Add each year's data
-                for year, pct_change in year_data.items():
-                    avg_df[year] = pct_change
+                for year, year_df in year_data.items():
+                    avg_df[year] = year_df['PctChange']
                 
                 # Calculate the average across years, ignoring NaN values
                 avg_df['Average'] = avg_df.mean(axis=1)
@@ -1023,89 +1204,139 @@ class StockDataGUI:
                 if len(avg_df) > 5:  # Only apply if we have enough data points
                     avg_df['Average'] = avg_df['Average'].rolling(window=3, min_periods=1, center=True).mean()
                 
-                # Plot the average line with thicker line width and transparency
-                plt.plot(avg_df.index, avg_df['Average'], label='Average', color='black', linewidth=2.5, alpha=0.7)
+                # Plot the average line with thicker line width
+                fig.add_trace(go.Scatter(
+                    x=avg_df.index,
+                    y=avg_df['Average'],
+                    mode='lines',
+                    name='Average',
+                    line=dict(color='black', width=3),
+                    opacity=0.8
+                ))
                 
                 chart_title = f'{ticker} Seasonality Chart - Yearly Percentage Performance'
             else:
                 # Plot only the selected year
                 year = int(selected_year)
                 if year in year_data:
-                    plt.plot(year_data[year].index, year_data[year].values, label=f'{year}', color=colors[0], linewidth=2.5)
+                    year_df = year_data[year]
+                    
+                    # Create hover text with date information
+                    hover_text = [f"Date: {date.strftime('%Y-%m-%d')}<br>Change: {pct:.2f}%" 
+                                 for date, pct in zip(year_df['Date'], year_df['PctChange'])]
+                    
+                    fig.add_trace(go.Scatter(
+                        x=year_df.index,
+                        y=year_df['PctChange'],
+                        mode='lines',
+                        name=f'{year}',
+                        line=dict(color=plotly_colors[0], width=2.5),
+                        hovertext=hover_text,
+                        hoverinfo='text'
+                    ))
                     chart_title = f'{ticker} Seasonality Chart - {year} Percentage Performance'
                 else:
                     self.status_var.set(f"Year {year} data not available for {ticker}")
                     return
             
-            # Add chart details
-            plt.title(chart_title)
-            plt.xlabel('Trading Day Number')
-            plt.ylabel('Percentage Change (%)')
-            plt.grid(True, alpha=0.3)
-            plt.legend(loc='best')
-            plt.axhline(y=0, color='k', linestyle='-', alpha=0.3)  # Add horizontal line at 0%
+            # Add horizontal line at 0%
+            fig.add_shape(
+                type="line",
+                x0=min(all_trading_days),
+                y0=0,
+                x1=max(all_trading_days),
+                y1=0,
+                line=dict(color="black", width=1, dash="dash"),
+            )
             
-            # Save the chart
-            plots_dir = self.manager.plot_save_path
-            os.makedirs(plots_dir, exist_ok=True)
-            chart_path = os.path.join(plots_dir, f"{ticker}_seasonality_chart.png")
-            plt.savefig(chart_path, dpi=100, bbox_inches='tight')
-            plt.close()
+            # Update layout with interactive features
+            fig.update_layout(
+                title=chart_title,
+                xaxis_title='Trading Day Number',
+                yaxis_title='Percentage Change (%)',
+                height=600,
+                hovermode='closest',
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                margin=dict(l=50, r=50, t=80, b=50)
+            )
             
-            # Restore original backend
-            matplotlib.use(original_backend)
+            # Add range slider for better navigation
+            fig.update_xaxes(
+                rangeslider_visible=True,
+                rangeselector=dict(
+                    buttons=list([
+                        dict(count=50, label="50d", step="day", stepmode="backward"),
+                        dict(count=100, label="100d", step="day", stepmode="backward"),
+                        dict(count=150, label="150d", step="day", stepmode="backward"),
+                        dict(step="all")
+                    ])
+                )
+            )
             
-            # Display the chart in the seasonality tab
-            if os.path.exists(chart_path):
-                # Load and resize the image
-                img = Image.open(chart_path)
+            # Store the current ticker for reference across tab changes and year selections
+            self.current_chart_ticker = ticker
+            
+            # Check if root window still exists before displaying chart
+            if not hasattr(self, 'root') or not self.root.winfo_exists():
+                logging.warning(f"Cannot display seasonality chart for {ticker}: root window no longer exists")
+                return
                 
-                # Get the chart frame size
-                chart_width = self.seasonality_chart_container.winfo_width()
-                chart_height = self.seasonality_chart_container.winfo_height()
-                
-                # If the frame hasn't been rendered yet, use default size
-                if chart_width <= 1:
-                    chart_width = 800
-                if chart_height <= 1:
-                    chart_height = 600
-                
-                # Resize image to fit the frame while maintaining aspect ratio
-                img_width, img_height = img.size
-                aspect_ratio = img_width / img_height
-                
-                if chart_width / chart_height > aspect_ratio:
-                    # Frame is wider than image
-                    new_height = chart_height
-                    new_width = int(new_height * aspect_ratio)
-                else:
-                    # Frame is taller than image
-                    new_width = chart_width
-                    new_height = int(new_width / aspect_ratio)
-                
-                img = img.resize((new_width, new_height), Image.LANCZOS)
-                
-                # Convert to PhotoImage and display in seasonality tab
-                photo = ImageTk.PhotoImage(img)
-                self.seasonality_chart_label.config(image=photo)
-                self.seasonality_chart_label.image = photo  # Keep a reference to prevent garbage collection
-                
-                # Store the current ticker for reference across tab changes and year selections
-                self.current_chart_ticker = ticker
-                
-                self.status_var.set(f"Generated seasonality chart for {ticker} with {len(year_data)} years of data")
-            else:
-                self.status_var.set(f"Error: Seasonality chart file for {ticker} not created")
-                
+            # Display the interactive chart
+            if hasattr(self, '_display_plotly_chart') and callable(self._display_plotly_chart):
+                self._display_plotly_chart(fig, tab="seasonality")
+            
+            # Update status if status_var exists
+            if hasattr(self, 'status_var'):
+                self.status_var.set(f"Generated interactive seasonality chart for {ticker} with {len(year_data)} years of data")
+            
         except Exception as e:
             error_msg = f"Error generating seasonality chart for {ticker}: {str(e)}"
-            messagebox.showerror("Error", error_msg)
+            self.status_var.set(error_msg)
             logging.error(error_msg)
-            self.status_var.set(f"Error generating seasonality chart for {ticker}")
-            plt.close()  # Ensure figure is closed
-    
+            
+            # Try to fall back to static chart if interactive chart fails
+            try:
+                # Set matplotlib to use non-interactive backend for thread safety
+                import matplotlib
+                original_backend = matplotlib.get_backend()
+                matplotlib.use('Agg')  # Use non-interactive backend
+                
+                # Create a simple static chart as fallback
+                plt.figure(figsize=(10, 6))
+                plt.title(f"{ticker} Seasonality Chart (Static Fallback)")
+                plt.xlabel('Trading Day')
+                plt.ylabel('% Change')
+                
+                # Plot at least one year's data if available
+                if year_data:
+                    year = list(year_data.keys())[0]
+                    plt.plot(year_data[year].index, year_data[year]['PctChange'], label=str(year))
+                    plt.legend()
+                
+                # Save and display the static chart
+                plots_dir = self.manager.plot_save_path
+                os.makedirs(plots_dir, exist_ok=True)
+                chart_path = os.path.join(plots_dir, f"{ticker}_seasonality_chart_fallback.png")
+                plt.savefig(chart_path, dpi=100, bbox_inches='tight')
+                plt.close()
+                
+                # Restore original backend
+                matplotlib.use(original_backend)
+                
+                # Display the static chart
+                self._display_static_chart(chart_path)
+                
+                self.status_var.set(f"Using static seasonality chart for {ticker} due to error")
+                
+            except Exception as fallback_error:
+                logging.error(f"Fallback chart also failed: {str(fallback_error)}")
+                self.status_var.set(f"Could not generate seasonality chart for {ticker}")
+                messagebox.showerror("Error", f"Failed to generate seasonality chart: {str(e)}")
+                plt.close()  # Ensure figure is closed
+
     def _on_ticker_selected(self, event):
         """Handle ticker selection from available tickers list"""
+        # ... (rest of the code remains the same)
         selected_indices = self.ticker_listbox.curselection()
         if not selected_indices:
             return
@@ -1295,19 +1526,31 @@ class StockDataGUI:
             event: The tab change event
         """
         try:
-            # Get the currently selected tab
-            selected_tab = self.chart_notebook.select()
-
-            # Update active tab tracking based on which tab is selected
-            if selected_tab == str(self.individual_chart_frame):
-                self.active_tab = "individual"
-                logging.info("Switched to individual chart tab")
-            elif selected_tab == str(self.comparison_chart_frame):
-                self.active_tab = "comparison"
-                logging.info("Switched to comparison chart tab")
-            elif selected_tab == str(self.seasonality_chart_frame):
-                self.active_tab = "seasonality"
-                logging.info("Switched to seasonality chart tab")
+            # Check if widgets still exist before proceeding
+            if not hasattr(self, 'chart_notebook') or not self.chart_notebook.winfo_exists():
+                logging.warning("Cannot handle tab change: chart notebook widget no longer exists")
+                return
+                
+            try:
+                # Get the currently selected tab
+                selected_tab = self.chart_notebook.select()
+                
+                # Check if frame widgets exist before comparing
+                if hasattr(self, 'individual_chart_frame') and self.individual_chart_frame.winfo_exists() and \
+                   selected_tab == str(self.individual_chart_frame):
+                    self.active_tab = "individual"
+                    logging.info("Switched to individual chart tab")
+                elif hasattr(self, 'comparison_chart_frame') and self.comparison_chart_frame.winfo_exists() and \
+                     selected_tab == str(self.comparison_chart_frame):
+                    self.active_tab = "comparison"
+                    logging.info("Switched to comparison chart tab")
+                elif hasattr(self, 'seasonality_chart_frame') and self.seasonality_chart_frame.winfo_exists() and \
+                     selected_tab == str(self.seasonality_chart_frame):
+                    self.active_tab = "seasonality"
+                    logging.info("Switched to seasonality chart tab")
+            except tk.TclError as e:
+                logging.error(f"TclError in tab change handler: {str(e)}")
+                return
 
             logging.info(f"Active tab is now: {self.active_tab}")
 
@@ -1332,6 +1575,123 @@ class StockDataGUI:
                 self._display_chart(selected_tickers[0])
         except Exception as e:
             logging.error(f"Error handling tab change: {e}")
+            
+    def _compare_percentage_performance(self):
+        """Generate and display an interactive comparison chart showing percentage performance of multiple stocks"""
+        try:
+            # Get selected tickers
+            selected_tickers = self._get_selected_tickers()
+            
+            if not selected_tickers or len(selected_tickers) < 2:
+                self.status_var.set("Please select at least two tickers for comparison")
+                return
+                
+            self.status_var.set(f"Generating comparison chart for {', '.join(selected_tickers)}...")
+            self.root.update_idletasks()
+            
+            # Create a Plotly figure for the comparison chart
+            fig = go.Figure()
+            
+            # Apply date range filter if specified
+            start_date = self.start_date_entry.get()
+            end_date = self.end_date_entry.get()
+            
+            # Process each ticker
+            for ticker in selected_tickers:
+                try:
+                    # Get data for this ticker
+                    df = self.manager.get_data(ticker)
+                    
+                    if df is None or df.empty:
+                        logging.warning(f"No data available for {ticker}")
+                        continue
+                        
+                    # Apply date filters if specified
+                    if self._is_valid_date(start_date):
+                        # Convert to datetime and normalize for consistent comparison
+                        start_date_obj = pd.to_datetime(start_date)
+                        start_date_norm = pd.Timestamp(start_date_obj.date())
+                        logging.info(f"Comparison chart: Filtering by start date: {start_date_norm}")
+                        
+                        # Ensure index is DatetimeIndex
+                        if not isinstance(df.index, pd.DatetimeIndex):
+                            df.index = pd.to_datetime(df.index)
+                            
+                        # Use normalized dates for comparison
+                        mask = df.index.normalize() >= start_date_norm
+                        df = df[mask]
+                        logging.info(f"Comparison chart: DataFrame shape after start date filter: {df.shape}")
+                        
+                    if self._is_valid_date(end_date):
+                        # Convert to datetime and normalize for consistent comparison
+                        end_date_obj = pd.to_datetime(end_date)
+                        # Add one day to include the end date in the results
+                        end_date_norm = pd.Timestamp(end_date_obj.date()) + pd.Timedelta(days=1)
+                        logging.info(f"Comparison chart: Filtering by end date: {end_date_norm}")
+                        
+                        # Ensure index is DatetimeIndex
+                        if not isinstance(df.index, pd.DatetimeIndex):
+                            df.index = pd.to_datetime(df.index)
+                            
+                        # Use normalized dates for comparison
+                        mask = df.index.normalize() < end_date_norm
+                        df = df[mask]
+                        logging.info(f"Comparison chart: DataFrame shape after end date filter: {df.shape}")
+                        
+                    if df.empty:
+                        logging.warning(f"No data available for {ticker} in the specified date range")
+                        continue
+                        
+                    # Ensure numeric types
+                    df['Close'] = pd.to_numeric(df['Close'], errors='coerce')
+                    
+                    # Calculate percentage change from first day
+                    first_close = df['Close'].iloc[0]
+                    df['pct_change'] = ((df['Close'] - first_close) / first_close) * 100
+                    
+                    # Add trace to the figure
+                    fig.add_trace(go.Scatter(
+                        x=df.index,
+                        y=df['pct_change'],
+                        mode='lines',
+                        name=ticker
+                    ))
+                    
+                except Exception as e:
+                    logging.error(f"Error processing {ticker} for comparison chart: {str(e)}")
+                    
+            # Update layout with interactive features
+            fig.update_layout(
+                title='Percentage Performance Comparison',
+                xaxis_title='Date',
+                yaxis_title='Percentage Change (%)',
+                height=600,
+                legend_title='Tickers',
+                hovermode='x unified'
+            )
+            
+            # Add range slider and selector
+            fig.update_xaxes(
+                rangeslider_visible=True,
+                rangeselector=dict(
+                    buttons=list([
+                        dict(count=1, label="1m", step="month", stepmode="backward"),
+                        dict(count=6, label="6m", step="month", stepmode="backward"),
+                        dict(count=1, label="YTD", step="year", stepmode="todate"),
+                        dict(count=1, label="1y", step="year", stepmode="backward"),
+                        dict(step="all")
+                    ])
+                )
+            )
+            
+            # Display the interactive chart
+            self._display_plotly_chart(fig, tab="comparison")
+            self.status_var.set(f"Generated interactive comparison chart for {len(selected_tickers)} tickers")
+            
+        except Exception as e:
+            error_msg = f"Error generating comparison chart: {str(e)}"
+            self.status_var.set(error_msg)
+            logging.error(error_msg)
 
     def _is_valid_date(self, date_str):
         """Check if a string is a valid date in YYYY-MM-DD format"""
@@ -1344,278 +1704,248 @@ class StockDataGUI:
 
     def _update_chart_after_download(self, ticker):
         """Update chart display after background download completes
-
+        
         Args:
             ticker (str): Ticker symbol to update chart for
         """
         try:
+            # Verify that the root window still exists and is not being destroyed
+            if not self.root.winfo_exists():
+                logging.warning(f"Cannot update chart for {ticker}: root window no longer exists")
+                return
+                
             self.status_var.set(f"Generating chart for {ticker} in background...")
             self.root.update_idletasks()
 
-            # Create a background thread for chart generation
-            def generate_chart_thread():
-                try:
-                    # Set matplotlib to use non-interactive backend for thread safety
-                    import matplotlib
-                    original_backend = matplotlib.get_backend()
-                    matplotlib.use('Agg')  # Use non-interactive backend in thread
-
-                    # Generate the chart
-                    self.manager.visualize_daily_vs_weekly(ticker)
-
-                    # Restore original backend
-                    matplotlib.use(original_backend)
-
-                    # After chart generation completes, update the display
-                    self.root.after(100, lambda: self._display_chart_after_generation(ticker))
-                except Exception as e:
-                    # Handle any exceptions in the thread
-                    logging.error(f"Error generating chart for {ticker} in background thread: {e}")
-                    self.root.after(0, lambda: self.status_var.set(f"Error generating chart for {ticker}: {str(e)}"))
-
-            # Start the chart generation thread
-            chart_thread = threading.Thread(target=generate_chart_thread)
-            chart_thread.daemon = True
+            # Create a thread to generate the chart
+            chart_thread = threading.Thread(
+                target=self._generate_chart_thread,
+                args=(ticker,),
+                daemon=True
+            )
             chart_thread.start()
-
+            
+        except tk.TclError as e:
+            logging.error(f"TclError updating chart for {ticker}: {str(e)}")
         except Exception as e:
             error_msg = f"Error updating chart after download for {ticker}: {str(e)}"
             self.status_var.set(error_msg)
             logging.error(error_msg)
-
-    def _display_chart_after_generation(self, ticker):
-        """Display chart after background generation completes
-
+            
+    def _generate_chart_thread(self, ticker):
+        """Generate chart in a background thread and display it when done
+        
         Args:
-            ticker (str): Ticker symbol to display chart for
+            ticker (str): Ticker symbol to generate chart for
         """
         try:
-            self.status_var.set(f"Chart generation for {ticker} complete. Displaying...")
-            self.root.update_idletasks()
+            # Set matplotlib to use non-interactive backend for thread safety
+            import matplotlib
+            original_backend = matplotlib.get_backend()
+            matplotlib.use('Agg')  # Use non-interactive backend in thread
 
-            # Display the chart without regenerating it
-            plots_dir = self.manager.plot_save_path
-            chart_path = os.path.join(plots_dir, f"{ticker}_daily_weekly_monthly.png")
+            # Generate the chart
+            self.manager.visualize_daily_vs_weekly(ticker)
 
-            if os.path.exists(chart_path):
-                # Load and resize the image
-                img = Image.open(chart_path)
-
-                # Get the chart frame size
-                chart_width = self.individual_chart_frame.winfo_width()
-                chart_height = self.individual_chart_frame.winfo_height()
-
-                # If the frame hasn't been rendered yet, use default size
-                if chart_width <= 1:
-                    chart_width = 800
-                if chart_height <= 1:
-                    chart_height = 600
-
-                # Resize image to fit the frame while maintaining aspect ratio
-                img_width, img_height = img.size
-                aspect_ratio = img_width / img_height
-
-                if chart_width / chart_height > aspect_ratio:
-                    # Frame is wider than image
-                    new_height = chart_height
-                    new_width = int(new_height * aspect_ratio)
-                else:
-                    # Frame is taller than image
-                    new_width = chart_width
-                    new_height = int(new_width / aspect_ratio)
-
-                img = img.resize((new_width, new_height), Image.LANCZOS)
-
-                # Convert to PhotoImage and display
-                photo = ImageTk.PhotoImage(img)
-                self.chart_label.config(image=photo)
-                self.chart_label.image = photo  # Keep a reference to prevent garbage collection
-
-                # Select the individual chart tab if we're not already on another tab
-                if self.active_tab != "seasonality" and self.active_tab != "comparison":
-                    self.chart_notebook.select(self.individual_chart_frame)
-                    self.active_tab = "individual"
-                
-                # Store the current ticker for reference across tab changes and year selections
-                self.current_chart_ticker = ticker
-
-                self.status_var.set(f"Displaying chart for {ticker}")
-            else:
-                self.status_var.set(f"Error: Chart for {ticker} not found")
-
+            # Restore original backend
+            matplotlib.use(original_backend)
+            
+            # Schedule display of the chart in the main thread, but first check if root still exists
+            def safe_display_chart():
+                try:
+                    # Check if root window still exists before updating UI
+                    if hasattr(self, 'root') and self.root.winfo_exists():
+                        self._display_chart(ticker)
+                    else:
+                        logging.warning(f"Cannot display chart for {ticker}: root window no longer exists")
+                except tk.TclError as e:
+                    logging.error(f"TclError displaying chart for {ticker}: {str(e)}")
+                except Exception as e:
+                    logging.error(f"Error displaying chart for {ticker}: {str(e)}")
+            
+            self.root.after(100, safe_display_chart)
+            
         except Exception as e:
-            error_msg = f"Error displaying chart after generation for {ticker}: {str(e)}"
+            # Handle any exceptions in the thread
+            logging.error(f"Error generating chart for {ticker} in background thread: {e}")
+            
+            # Safely update status if root still exists
+            def safe_update_status():
+                try:
+                    if hasattr(self, 'root') and self.root.winfo_exists() and hasattr(self, 'status_var'):
+                        self.status_var.set(f"Error generating chart for {ticker}: {str(e)}")
+                except Exception as inner_e:
+                    logging.error(f"Error updating status: {str(inner_e)}")
+                    
+            self.root.after(0, safe_update_status)
+            
+    def _display_static_chart(self, image_path):
+        """Display a static chart image in the appropriate chart container
+        
+        Args:
+            image_path (str): Path to the image file to display
+        """
+        try:
+            # Clear the current chart container
+            for widget in self.chart_frame.winfo_children():
+                widget.destroy()
+                
+            # Load the image
+            img = Image.open(image_path)
+            
+            # Resize image to fit the chart frame while maintaining aspect ratio
+            frame_width = self.chart_frame.winfo_width() or 800
+            frame_height = self.chart_frame.winfo_height() or 600
+            
+            # Calculate resize dimensions while maintaining aspect ratio
+            img_width, img_height = img.size
+            ratio = min(frame_width/img_width, frame_height/img_height)
+            new_width = int(img_width * ratio * 0.9)  # 90% of available space
+            new_height = int(img_height * ratio * 0.9)  # 90% of available space
+            
+            # Resize the image
+            img = img.resize((new_width, new_height), Image.LANCZOS)
+            
+            # Convert to PhotoImage for Tkinter
+            photo = ImageTk.PhotoImage(img)
+            
+            # Create a label to display the image
+            img_label = tk.Label(self.chart_frame, image=photo)
+            img_label.image = photo  # Keep a reference to prevent garbage collection
+            img_label.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+            
+            # Update the status
+            self.status_var.set(f"Displayed chart from {os.path.basename(image_path)}")
+            
+        except Exception as e:
+            error_msg = f"Error displaying static chart: {str(e)}"
             self.status_var.set(error_msg)
             logging.error(error_msg)
-
     def _display_chart(self, ticker_or_path):
-        """Display chart for the selected ticker or direct path
+        """Display interactive chart for the selected ticker or direct path
 
         Args:
             ticker_or_path (str): Either a ticker symbol or a full path to an image file
         """
-        # Initialize variables that might be referenced in exception handler
-        is_direct_path = False
-        chart_path = None
-        ticker = None
-
         try:
-            # Determine if this is a direct path to an image file or a ticker symbol
-            is_direct_path = ticker_or_path.lower().endswith(('.png', '.jpg', '.jpeg', '.gif'))
-
-            if is_direct_path:
-                # Direct path to image file
-                chart_path = ticker_or_path
-                if not os.path.exists(chart_path):
-                    self.status_var.set(f"Chart file not found: {os.path.basename(chart_path)}")
-                    return
-            else:
-                # This is a ticker symbol
-                ticker = ticker_or_path
-
-                # Check if data exists for this ticker
-                data_path = self.manager._get_data_path(ticker)
-                if not os.path.exists(data_path):
-                    # Download data if it doesn't exist
-                    self.status_var.set(f"Downloading data for {ticker} in background...")
-                    self.root.update_idletasks()
-
-                    # Create a background thread for downloading data
-                    def download_data_thread():
-                        try:
-                            self.manager.update_data(ticker, force_download=True)
-                            # After download completes, update the chart
-                            self.root.after(100, lambda: self._update_chart_after_download(ticker))
-                        except Exception as e:
-                            # Handle any exceptions in the thread
-                            logging.error(f"Error downloading data for {ticker} in background thread: {e}")
-                            self.root.after(0, lambda: self.status_var.set(f"Error downloading data for {ticker}: {str(e)}"))
-
-                    # Start the download thread
-                    download_thread = threading.Thread(target=download_data_thread)
-                    download_thread.daemon = True
-                    download_thread.start()
-
-                    # Return early - the chart will be updated when download completes
-                    return
-
-                # Generate or update chart if needed
-                plots_dir = self.manager.plot_save_path
-                os.makedirs(plots_dir, exist_ok=True)
-
-                chart_path = os.path.join(plots_dir, f"{ticker}_daily_weekly_monthly.png")
-                chart_outdated = False
-
-                # If chart doesn't exist, it needs to be generated
-                if not os.path.exists(chart_path):
-                    chart_outdated = True
-                # If chart exists, check if data file is newer than chart file
-                elif os.path.exists(data_path):
-                    chart_mod_time = os.path.getmtime(chart_path)
-                    data_mod_time = os.path.getmtime(data_path)
-
-                    # If data file is newer, chart is outdated
-                    if data_mod_time > chart_mod_time:
-                        chart_outdated = True
-
-                # Generate chart if needed
-                if chart_outdated:
-                    self.status_var.set(f"Generating chart for {ticker} in background...")
-                    self.root.update_idletasks()
-
-                    # Create a background thread for chart generation
-                    def generate_chart_thread():
-                        try:
-                            self.manager.visualize_daily_vs_weekly(ticker)
-                            # After chart generation completes, update the display
-                            self.root.after(100, lambda: self._display_chart_after_generation(ticker))
-                        except Exception as e:
-                            # Handle any exceptions in the thread
-                            logging.error(f"Error generating chart for {ticker} in background thread: {e}")
-                            self.root.after(0, lambda: self.status_var.set(f"Error generating chart for {ticker}: {str(e)}"))
-
-                    # Start the chart generation thread
-                    chart_thread = threading.Thread(target=generate_chart_thread)
-                    chart_thread.daemon = True
-                    chart_thread.start()
-
-                    # Return early - the chart will be displayed when generation completes
-                    return
-
-            # Display the chart in the chart_label
-            if os.path.exists(chart_path):
-                # Load and resize the image
-                img = Image.open(chart_path)
-
-                # Get the chart frame size
-                chart_width = self.chart_frame.winfo_width()
-                chart_height = self.chart_frame.winfo_height()
-
-                # If the frame hasn't been rendered yet, use default size
-                if chart_width <= 1:
-                    chart_width = 800
-                if chart_height <= 1:
-                    chart_height = 600
-
-                # Resize image to fit the frame while maintaining aspect ratio
-                img_width, img_height = img.size
-                aspect_ratio = img_width / img_height
-
-                if chart_width / chart_height > aspect_ratio:
-                    # Frame is wider than image
-                    new_height = chart_height
-                    new_width = int(new_height * aspect_ratio)
-                else:
-                    # Frame is taller than image
-                    new_width = chart_width
-                    new_height = int(new_width / aspect_ratio)
-
-                img = img.resize((new_width, new_height), Image.LANCZOS)
+            # First check if the root window and widgets still exist
+            if not hasattr(self, 'root') or not self.root.winfo_exists():
+                logging.warning(f"Cannot display chart for {ticker_or_path}: root window no longer exists")
+                return
                 
-                # Convert to PhotoImage and display
-                photo = ImageTk.PhotoImage(img)
-                self.chart_label.config(image=photo)
-                self.chart_label.image = photo  # Keep a reference to prevent garbage collection
-
-                # Only select the individual chart tab if we're not already on another tab
-                if self.active_tab != "seasonality" and self.active_tab != "comparison":
-                    self.chart_notebook.select(self.individual_chart_frame)
-                    self.active_tab = "individual"
+            # Determine if input is a ticker or a path
+            if os.path.exists(ticker_or_path):
+                # It's a path to an image file, display it directly
+                self._display_static_chart(ticker_or_path)
+                # Extract ticker from filename if possible
+                ticker = os.path.basename(ticker_or_path).split('_')[0]
+                self.current_chart_ticker = ticker
+                if hasattr(self, 'status_var'):
+                    self.status_var.set(f"Displayed chart for {ticker}")
+                return
+            
+            # It's a ticker symbol, generate interactive chart
+            ticker = ticker_or_path
+            self.current_chart_ticker = ticker
+            
+            # Check if chart_notebook widget exists before trying to access it
+            if not hasattr(self, 'chart_notebook') or not self.chart_notebook.winfo_exists():
+                logging.warning(f"Cannot display chart for {ticker}: chart notebook widget no longer exists")
+                return
                 
-                # Store the current ticker for reference across tab changes and year selections
-                if not is_direct_path and ticker:
-                    self.current_chart_ticker = ticker
-
-                # Use the appropriate name for status message
-                if is_direct_path:
-                    chart_name = os.path.basename(chart_path)
-                    self.status_var.set(f"Displaying chart: {chart_name}")
-                else:
-                    self.status_var.set(f"Displaying chart for {ticker}")
-            else:
-                # Use the appropriate name for error message
-                if is_direct_path:
-                    chart_name = os.path.basename(chart_path)
-                    self.status_var.set(f"Error: Chart file not found: {chart_name}")
-                else:
-                    self.status_var.set(f"Error: Chart for {ticker} not found")
-
-        except Exception as e:
-            # Use the appropriate name for error message
+            # Switch to the appropriate tab based on active_tab
             try:
-                if is_direct_path and chart_path:
-                    chart_name = os.path.basename(chart_path or ticker_or_path)
-                    messagebox.showerror("Error", f"Error displaying chart: {chart_name}: {str(e)}")
-                    self.status_var.set(f"Error displaying chart: {chart_name}")
+                if self.active_tab == "individual":
+                    self.chart_notebook.select(0)  # Individual chart tab
+                elif self.active_tab == "comparison":
+                    self.chart_notebook.select(1)  # Comparison chart tab
+                elif self.active_tab == "seasonality":
+                    self.chart_notebook.select(2)  # Seasonality chart tab
+                    self._generate_seasonality_chart(ticker)
+                    return
+            except tk.TclError as e:
+                logging.error(f"TclError switching tabs for {ticker}: {str(e)}")
+                return
+            
+            # For individual chart, create interactive Plotly chart
+            try:
+                # Get stock data
+                df = self.manager.get_data(ticker)
+                if df is None or df.empty:
+                    self.status_var.set(f"No data available for {ticker}")
+                    return
+                
+                # Apply date range filter if specified
+                start_date = self.start_date_entry.get()
+                end_date = self.end_date_entry.get()
+                if self._is_valid_date(start_date):
+                    df = df[df.index >= start_date]
+                if self._is_valid_date(end_date):
+                    df = df[df.index <= end_date]
+                
+                # Ensure numeric types for calculations
+                for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors='coerce')
+                
+                # Create interactive Plotly figure with subplots
+                fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
+                                   vertical_spacing=0.1, 
+                                   row_heights=[0.7, 0.3])
+                
+                # Add price candlestick chart
+                fig.add_trace(
+                    go.Candlestick(
+                        x=df.index,
+                        open=df['Open'],
+                        high=df['High'],
+                        low=df['Low'],
+                        close=df['Close'],
+                        name=ticker
+                    ),
+                    row=1, col=1
+                )
+                
+                # Add volume bar chart
+                fig.add_trace(
+                    go.Bar(x=df.index, y=df['Volume'], name='Volume', marker_color='rgba(0,0,255,0.5)'),
+                    row=2, col=1
+                )
+                
+                # Update layout
+                fig.update_layout(
+                    title=f'{ticker} Stock Price',
+                    xaxis_title='Date',
+                    yaxis_title='Price ($)',
+                    yaxis2_title='Volume',
+                    height=600,
+                    xaxis_rangeslider_visible=False
+                )
+                
+                # Display the interactive chart
+                self._display_plotly_chart(fig, tab="individual")
+                self.status_var.set(f"Generated interactive chart for {ticker}")
+                
+            except Exception as e:
+                # If Plotly chart fails, fall back to static chart
+                logging.error(f"Error creating Plotly chart for {ticker}: {str(e)}")
+                self.status_var.set(f"Using static chart for {ticker} due to error: {str(e)}")
+                
+                # Generate static chart as fallback
+                plots_dir = self.manager.plot_save_path
+                chart_path = os.path.join(plots_dir, f"{ticker}_daily_weekly_monthly.png")
+                
+                if os.path.exists(chart_path):
+                    self._display_static_chart(chart_path)
                 else:
-                    # Either it's a ticker or we couldn't determine the type
-                    chart_name = ticker or ticker_or_path
-                    messagebox.showerror("Error", f"Error displaying chart for {chart_name}: {str(e)}")
-                    self.status_var.set(f"Error displaying chart for {chart_name}")
-            except Exception:
-                # Fallback error handling if anything goes wrong in the error handler
-                messagebox.showerror("Error", f"Error displaying chart: {str(e)}")
-                self.status_var.set("Error displaying chart")
+                    self.status_var.set(f"Error: No chart available for {ticker}")
+        
+        except Exception as e:
+            chart_name = ticker_or_path
+            error_msg = f"Error displaying chart for {chart_name}: {str(e)}"
+            self.status_var.set(error_msg)
+            logging.error(error_msg)
+            messagebox.showerror("Error", error_msg)
 
     def _download_data_in_background(self, tickers):
         """Download data for multiple tickers in a background thread
