@@ -1,5 +1,6 @@
 import os
 import sys
+import io
 import re
 import json
 import time
@@ -324,24 +325,42 @@ class StockDataGUI:
                     return
                 
             elif tab == "seasonality":
-                if not hasattr(self, 'seasonality_chart_container') or not self.seasonality_chart_container.winfo_exists():
+                container = self.seasonality_chart_container
+                if not hasattr(self, 'seasonality_chart_container') or not container.winfo_exists():
                     logging.warning("Cannot update seasonality chart container: widget no longer exists")
                     return
                     
                 try:
-                    # Keep the controls frame but remove other widgets
-                    for widget in self.seasonality_chart_container.winfo_children():
+                    # Clear the container
+                    for widget in container.winfo_children():
                         widget.destroy()
                         
-                    # Create a button to open the chart in browser for better interaction
-                    btn_frame = ttk.Frame(self.seasonality_chart_container)
-                    btn_frame.pack(fill=tk.X, pady=5)
-                    ttk.Button(btn_frame, text="Open in Browser", 
-                              command=lambda: webbrowser.open(f"file:///{html_path}")).pack()
-                    
-                    # Create a label to show that interactive chart is available
-                    ttk.Label(self.seasonality_chart_container, 
-                             text=f"Interactive seasonality chart for {self.current_chart_ticker if hasattr(self, 'current_chart_ticker') else ''}\nUse mouse to zoom/pan").pack()
+                    # --- Header with Open in Browser button ---
+                    header_frame = ttk.Frame(container)
+                    header_frame.pack(fill=tk.X, pady=5, padx=5)
+                    ticker_name = self.current_chart_ticker if hasattr(self, 'current_chart_ticker') else ''
+                    ttk.Label(header_frame, text=f"Seasonality Chart for {ticker_name}", font=("Helvetica", 10, "bold")).pack(side=tk.LEFT)
+                    ttk.Button(header_frame, text="Open in Browser",
+                              command=lambda: webbrowser.open(f"file:///{html_path}")).pack(side=tk.RIGHT)
+
+                    # --- Static Image Preview ---
+                    try:
+                        # Generate static image
+                        img_bytes = pio.to_image(fig, format='png', width=800, height=400)
+                        img_data = io.BytesIO(img_bytes)
+                        pil_img = Image.open(img_data)
+
+                        # Convert to PhotoImage and display
+                        photo_img = ImageTk.PhotoImage(pil_img)
+                        img_label = ttk.Label(container, image=photo_img)
+                        img_label.image = photo_img  # Keep a reference!
+                        img_label.pack(pady=5, padx=5, fill=tk.BOTH, expand=True)
+
+                    except Exception as img_e:
+                        logging.warning(f"Could not generate static image for seasonality chart: {img_e}")
+                        fallback_label = ttk.Label(container, text="Chart preview not available.\n(Requires the 'kaleido' package).\nUse 'Open in Browser' to view.")
+                        fallback_label.pack(pady=10, padx=5)
+
                 except tk.TclError as e:
                     logging.error(f"TclError updating seasonality chart container: {str(e)}")
                     return
