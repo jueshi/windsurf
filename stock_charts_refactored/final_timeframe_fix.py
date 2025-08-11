@@ -183,26 +183,52 @@ def apply_final_timeframe_fix(app):
                 self._generate_and_display_timeframe_charts(ticker)
 
     def patched_on_tab_changed(self, event=None):
-        """Patched handler for tab changes."""
-        original_tab_changed(event)
-        if self.active_tab == "timeframe":
-            # When switching to the tab, try to refresh the chart with the last selected ticker
-            if hasattr(self, 'current_chart_ticker') and self.current_chart_ticker:
-                self._generate_and_display_timeframe_charts(self.current_chart_ticker)
-            else:
-                 # If no ticker is selected, you can check the listboxes
-                ticker = None
-                main_selection = self.ticker_listbox.curselection()
-                if main_selection:
-                    ticker_text = self.ticker_listbox.get(main_selection[0])
-                    ticker = ticker_text.split(' - ')[0].strip()
-                else:
-                    watch_selection = self.watch_listbox.curselection()
-                    if watch_selection:
-                        ticker = self.watch_listbox.get(watch_selection[0]).strip()
+        """
+        Patched handler for tab changes. This is the key fix for the bug
+        where the app state wasn't updated correctly.
+        """
+        # It's crucial to find out the text of the selected tab first.
+        try:
+            selected_tab_widget = self.chart_notebook.select()
+            selected_tab_text = self.chart_notebook.tab(selected_tab_widget, "text")
+        except tk.TclError:
+            # This can happen during shutdown, so we fail gracefully.
+            return
 
-                if ticker:
-                    self._generate_and_display_timeframe_charts(ticker)
+        # Explicitly set the active_tab state based on the tab's text.
+        # This is the missing piece of logic.
+        if selected_tab_text == "Timeframe Charts":
+            self.active_tab = "timeframe"
+        elif selected_tab_text == "Individual Chart":
+            self.active_tab = "individual"
+        elif selected_tab_text == "Comparison Chart":
+            self.active_tab = "comparison"
+        elif selected_tab_text == "Seasonality Chart":
+            self.active_tab = "seasonality"
+
+        logging.info(f"Tab changed. Active tab is now explicitly set to: '{self.active_tab}'")
+
+        # Call the original handler to perform any other necessary actions.
+        original_tab_changed(event)
+
+        # Now, if the timeframe tab is the active one, refresh its charts.
+        if self.active_tab == "timeframe":
+            ticker_to_load = None
+            # Prioritize the currently selected ticker in the listbox
+            main_selection = self.ticker_listbox.curselection()
+            watch_selection = self.watch_listbox.curselection()
+
+            if main_selection:
+                ticker_text = self.ticker_listbox.get(main_selection[0])
+                ticker_to_load = ticker_text.split(' - ')[0].strip()
+            elif watch_selection:
+                ticker_to_load = self.watch_listbox.get(watch_selection[0]).strip()
+            elif hasattr(self, 'current_chart_ticker') and self.current_chart_ticker:
+                # Fallback to the last known ticker
+                ticker_to_load = self.current_chart_ticker
+
+            if ticker_to_load:
+                self._generate_and_display_timeframe_charts(ticker_to_load)
 
     # Apply the new patched handlers
     app._on_ticker_selected = types.MethodType(patched_on_ticker_selected, app)
