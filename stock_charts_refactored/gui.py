@@ -352,12 +352,19 @@ class StockDataGUI:
 
                         # Convert to PhotoImage and display
                         photo_img = ImageTk.PhotoImage(pil_img)
-                        img_label = ttk.Label(container, image=photo_img)
-                        img_label.image = photo_img  # Keep a reference!
+                        # Store a persistent reference to the image to prevent garbage collection
+                        self.seasonality_photo_img = photo_img
+                        img_label = ttk.Label(container, image=self.seasonality_photo_img)
                         img_label.pack(pady=5, padx=5, fill=tk.BOTH, expand=True)
 
                     except Exception as img_e:
                         logging.warning(f"Could not generate static image for seasonality chart: {img_e}")
+                        messagebox.showwarning(
+                            "Preview Generation Failed",
+                            "Could not generate the chart preview image.\n\n"
+                            "This may be because the required 'kaleido' package is not installed.\n\n"
+                            "You can still view the chart using the 'Open in Browser' button."
+                        )
                         fallback_label = ttk.Label(container, text="Chart preview not available.\n(Requires the 'kaleido' package).\nUse 'Open in Browser' to view.")
                         fallback_label.pack(pady=10, padx=5)
 
