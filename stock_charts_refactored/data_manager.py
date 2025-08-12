@@ -311,32 +311,14 @@ class StockDataManager:
 
             # Check if we should use existing data
             if os.path.exists(data_path) and not force_download:
-                # Load existing data
-                existing_data = pd.read_csv(data_path, sep='\t')
+                # Load existing data using the more robust load_data method
+                existing_data = self.load_data(ticker)
 
-                # Check if columns are complex (tuples as strings) and fix them
-                if any(['(' in str(col) for col in existing_data.columns]):
-                    logging.info(f"Detected complex column structure in {ticker} data, normalizing columns")
-                    # Create a new DataFrame with standardized columns
-                    standard_columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
-                    new_df = pd.DataFrame(columns=standard_columns)
-
-                    # Map complex columns to standard ones
-                    for std_col in standard_columns:
-                        for col in existing_data.columns:
-                            if std_col in str(col):
-                                new_df[std_col] = existing_data[col]
-                                break
-
-                    # Ensure Date column is present
-                    if 'Date' not in new_df.columns and 'Date' in existing_data.columns:
-                        new_df['Date'] = existing_data['Date']
-
-                    existing_data = new_df
-
-                    # Save the normalized data back to file
-                    existing_data.to_csv(data_path, sep='\t', index=False)
-                    logging.info(f"Normalized column structure for {ticker} data")
+                if existing_data is None or existing_data.empty:
+                    # handle case where file exists but is empty/invalid
+                    force_download = True
+                else:
+                    existing_data = existing_data.reset_index()
 
                 # Convert Date column to datetime with UTC=True
                 existing_data['Date'] = pd.to_datetime(existing_data['Date'], utc=True)
@@ -1375,6 +1357,53 @@ class StockDataManager:
 
         except Exception as e:
             logging.error(f"Error processing stock data: {e}")
+
+    def get_data(self, ticker, start_date=None, end_date=None):
+        """
+        Wrapper method to handle get_data calls by redirecting to appropriate methods.
+
+        Args:
+            ticker (str): Stock ticker symbol
+            start_date (str, optional): Start date for data retrieval
+            end_date (str, optional): End date for data retrieval
+
+        Returns:
+            pd.DataFrame: Stock data for the specified ticker
+        """
+        logging.info(f"get_data wrapper called for {ticker}")
+
+        try:
+            # Try to use _load_stock_data if it exists
+            if hasattr(self, '_load_stock_data'):
+                logging.info(f"Redirecting to _load_stock_data for {ticker}")
+                return self._load_stock_data(ticker)
+
+            # Try to use download_stock_data if it exists
+            elif hasattr(self, 'download_stock_data'):
+                logging.info(f"Redirecting to download_stock_data for {ticker}")
+                return self.download_stock_data(ticker, start_date, end_date)
+
+            # If neither method exists, try to find any method that might return stock data
+            else:
+                for method_name in dir(self):
+                    if method_name.startswith('_') and ('load' in method_name or 'get' in method_name) and 'data' in method_name:
+                        method = getattr(self, method_name)
+                        if callable(method):
+                            try:
+                                logging.info(f"Trying alternative method {method_name} for {ticker}")
+                                result = method(ticker)
+                                if isinstance(result, pd.DataFrame) and not result.empty:
+                                    return result
+                            except Exception as e:
+                                logging.warning(f"Method {method_name} failed: {str(e)}")
+
+                # If all else fails, raise an informative error
+                raise AttributeError(f"Could not find a suitable method to get data for {ticker}")
+
+        except Exception as e:
+            logging.error(f"Error in get_data wrapper: {str(e)}")
+            # Return empty DataFrame as fallback
+            return pd.DataFrame()
 
     def _get_folder_name(self, tickers, name=None):
         """
