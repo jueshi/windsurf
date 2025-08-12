@@ -55,6 +55,7 @@ class StockDataGUI:
         self._debounce_job = None       # For debouncing resize events
         self.year_selection_vars = {}  # For multi-select year checkbuttons
         self.seasonality_year_menubutton = None # The new menubutton for year selection
+        self.year_menu = None # A direct reference to the year selection menu
 
         # Load ticker lists from ticker_lists.py
         self.ticker_lists = {}
@@ -518,8 +519,8 @@ class StockDataGUI:
         self.seasonality_year_menubutton.pack(side=tk.LEFT)
 
         # The menu itself will be created and populated dynamically in _generate_seasonality_chart
-        year_menu = tk.Menu(self.seasonality_year_menubutton, tearoff=0)
-        self.seasonality_year_menubutton.config(menu=year_menu)
+        self.year_menu = tk.Menu(self.seasonality_year_menubutton, tearoff=0)
+        self.seasonality_year_menubutton.config(menu=self.year_menu)
 
         # Bind tab change event
         self.chart_notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
@@ -1145,7 +1146,10 @@ class StockDataGUI:
 
     def _update_year_selection_menu(self, available_years):
         """Dynamically populates the year selection menu."""
-        menu = self.seasonality_year_menubutton.config('menu')[-1]
+        menu = self.year_menu
+        if not menu:
+            logging.error("Year menu has not been initialized.")
+            return
         menu.delete(0, tk.END)
 
         menu.add_command(label="Select Last 5 Years", command=lambda: self._select_last_five_years(available_years))
