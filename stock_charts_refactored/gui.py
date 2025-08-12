@@ -52,6 +52,7 @@ class StockDataGUI:
         self.current_image = None  # Store reference to prevent garbage collection
         self.active_tab = "individual"  # Track which tab is active: "individual" or "comparison"
         self.seasonality_pil_img = None  # To store the high-res seasonality chart
+        self.seasonality_chart_ticker = None # Tracks the ticker for the current seasonality chart
         self._debounce_job = None       # For debouncing resize events
         self.year_selection_vars = {}  # For multi-select year checkbuttons
         self.seasonality_year_menubutton = None # The new menubutton for year selection
@@ -1051,17 +1052,19 @@ class StockDataGUI:
 
         self.status_var.set(f"Completed visualization for {len(selected_tickers)} tickers")
 
-    def _generate_seasonality_chart(self, ticker, is_new_ticker=False):
+    def _generate_seasonality_chart(self, ticker):
         """
         Generate and display interactive seasonality chart with multi-year selection.
         
         Args:
             ticker (str): Ticker symbol to generate seasonality chart for.
-            is_new_ticker (bool): Flag to indicate if this is the first load for a new ticker.
         """
         try:
             if not hasattr(self, 'root') or not self.root.winfo_exists():
                 return
+
+            is_new_ticker = (ticker != self.seasonality_chart_ticker)
+            self.seasonality_chart_ticker = ticker
 
             self.status_var.set(f"Generating seasonality chart for {ticker}...")
             self.root.update_idletasks()
@@ -1337,7 +1340,7 @@ class StockDataGUI:
                     self._compare_percentage_performance()
                 elif self.active_tab == "seasonality" and selected_tickers:
                     # If seasonality tab is active and a ticker is selected, update seasonality chart
-                    self._generate_seasonality_chart(selected_tickers[0], is_new_ticker=True)
+                    self._generate_seasonality_chart(selected_tickers[0])
                 elif self.active_tab == "individual" and selected_tickers:
                     # If individual tab is active and a ticker is selected, update individual chart
                     self._display_chart(selected_tickers[0])
@@ -1375,7 +1378,7 @@ class StockDataGUI:
                     self._compare_percentage_performance()
                 elif self.active_tab == "seasonality" and selected_tickers:
                     # If seasonality tab is active and a ticker is selected, update seasonality chart
-                    self._generate_seasonality_chart(selected_tickers[0], is_new_ticker=True)
+                    self._generate_seasonality_chart(selected_tickers[0])
                 elif self.active_tab == "individual" and selected_tickers:
                     # If individual tab is active and a ticker is selected, update individual chart
                     self._display_chart(selected_tickers[0])
