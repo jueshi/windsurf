@@ -405,13 +405,16 @@ class StockDataGUI:
         list_name_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
         ttk.Button(list_frame, text="Save List", command=self._save_ticker_list).pack(side=tk.LEFT)
 
-        # Create middle frame with three sections: available tickers, watch list, and chart display
-        middle_frame = ttk.Frame(main_frame)
-        middle_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        # Create a PanedWindow for resizable sections
+        paned_window = ttk.PanedWindow(main_frame, orient=tk.HORIZONTAL)
+        paned_window.pack(fill=tk.BOTH, expand=True, pady=5)
 
-        # Left section for available tickers (limited width)
-        left_frame = ttk.LabelFrame(middle_frame, text="Available Tickers", padding="5")
-        left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 5))
+        # --- Left Pane: Available Tickers ---
+        left_pane_frame = ttk.Frame(paned_window)
+        paned_window.add(left_pane_frame, weight=1) # Give less weight initially
+
+        left_frame = ttk.LabelFrame(left_pane_frame, text="Available Tickers", padding="5")
+        left_frame.pack(fill=tk.BOTH, expand=True)
 
         # Add filter entry for ticker list
         filter_frame = ttk.Frame(left_frame)
@@ -432,16 +435,18 @@ class StockDataGUI:
         scrollbar = ttk.Scrollbar(ticker_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        # Limit width to 5 letters (approximately 40 pixels)
         self.ticker_listbox = tk.Listbox(ticker_frame, selectmode=tk.EXTENDED, height=20, width=10)
         self.ticker_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         self.ticker_listbox.config(yscrollcommand=scrollbar.set)
         scrollbar.config(command=self.ticker_listbox.yview)
 
-        # Middle section for watch list (limited width)
-        middle_list_frame = ttk.LabelFrame(middle_frame, text="Watch List", padding="5")
-        middle_list_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 5))
+        # --- Middle Pane: Watch List ---
+        middle_pane_frame = ttk.Frame(paned_window)
+        paned_window.add(middle_pane_frame, weight=1) # Give less weight initially
+
+        middle_list_frame = ttk.LabelFrame(middle_pane_frame, text="Watch List", padding="5")
+        middle_list_frame.pack(fill=tk.BOTH, expand=True)
 
         # Create watch list listbox with scrollbar
         watch_frame = ttk.Frame(middle_list_frame)
@@ -450,19 +455,15 @@ class StockDataGUI:
         watch_scrollbar = ttk.Scrollbar(watch_frame)
         watch_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        # Limit width to 5 letters (approximately 40 pixels)
         self.watch_listbox = tk.Listbox(watch_frame, selectmode=tk.EXTENDED, height=20, width=10)
         self.watch_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        # Right section for chart display (takes remaining space but with height constraint)
-        self.chart_frame = ttk.LabelFrame(middle_frame, text="Chart Display", padding="5")
-        self.chart_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 0))
-        
-        # Set a maximum height for the chart frame
-        middle_frame.update_idletasks()  # Force geometry update
-        screen_height = self.root.winfo_screenheight()
-        max_chart_height = int(screen_height * 0.6)  # 60% of screen height
-        self.chart_frame.configure(height=max_chart_height)
+        # --- Right Pane: Chart Display ---
+        right_pane_frame = ttk.Frame(paned_window)
+        paned_window.add(right_pane_frame, weight=6) # Give more weight to the chart
+
+        self.chart_frame = ttk.LabelFrame(right_pane_frame, text="Chart Display", padding="5")
+        self.chart_frame.pack(fill=tk.BOTH, expand=True)
 
         # Add date range controls at the top of chart frame
         date_range_frame = ttk.Frame(self.chart_frame, padding="5")
