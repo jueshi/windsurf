@@ -118,16 +118,22 @@ def apply_direct_chart_fix(app):
                 
                 # Check if custom date range is applied
                 has_custom_range = False
-                
-                if start_date and is_valid_date(start_date):
-                    has_custom_range = True
-                    start_date_obj = pd.to_datetime(start_date)
-                    logging.info(f"Will filter by start date: {start_date} -> {start_date_obj}")
-                
-                if end_date and is_valid_date(end_date):
-                    has_custom_range = True
-                    end_date_obj = pd.to_datetime(end_date)
-                    logging.info(f"Will filter by end date: {end_date} -> {end_date_obj}")
+
+                # New logic: if start and end dates are the same, treat as no custom range
+                if is_valid_date(start_date) and start_date == end_date:
+                    logging.info(f"Start and end dates are identical ({start_date}). Displaying full history.")
+                    has_custom_range = False
+                else:
+                    # Original logic for applying date range
+                    if start_date and is_valid_date(start_date):
+                        has_custom_range = True
+                        start_date_obj = pd.to_datetime(start_date)
+                        logging.info(f"Will filter by start date: {start_date} -> {start_date_obj}")
+
+                    if end_date and is_valid_date(end_date):
+                        has_custom_range = True
+                        end_date_obj = pd.to_datetime(end_date)
+                        logging.info(f"Will filter by end date: {end_date} -> {end_date_obj}")
                 
                 # If no custom range is applied, use all available data
                 if not has_custom_range:
