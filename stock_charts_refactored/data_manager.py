@@ -530,16 +530,84 @@ class StockDataManager:
         try:
             data_path = os.path.join(self.data_dir, f"{ticker}_stock_data.tsv")
             if os.path.exists(data_path):
-                data = pd.read_csv(data_path, sep='\t')
+                # First, check if the file is valid and has proper structure
+                try:
+                    # Try to read the first few lines to check structure
+                    with open(data_path, 'r') as f:
+                        first_lines = [next(f) for _ in range(5) if f]
+                    
+                    # Check if file appears to be malformed
+                    if len(first_lines) < 2 or not all('\t' in line for line in first_lines):
+                        logging.warning(f"Malformed data file for {ticker}, attempting to re-download")
+                        # Re-download the data
+                        self.update_data(ticker, force_download=True)
+                        # If re-download fails, return None
+                        if not os.path.exists(data_path):
+                            return None
+                except Exception as file_error:
+                    logging.warning(f"Error checking file structure for {ticker}: {file_error}, attempting to re-download")
+                    # Re-download the data
+                    self.update_data(ticker, force_download=True)
+                    # If re-download fails, return None
+                    if not os.path.exists(data_path):
+                        return None
+                
+                # Now try to read the data with error handling
+                try:
+                    data = pd.read_csv(data_path, sep='\t')
+                except Exception as read_error:
+                    logging.error(f"Error reading data file for {ticker}: {read_error}, attempting to re-download")
+                    # Re-download the data
+                    self.update_data(ticker, force_download=True)
+                    try:
+                        data = pd.read_csv(data_path, sep='\t')
+                    except Exception as retry_error:
+                        logging.error(f"Failed to read data for {ticker} after re-download: {retry_error}")
+                        return None
+
+                # Check if data is empty or has too few rows
+                if data.empty or len(data) < 5:
+                    logging.warning(f"Empty or insufficient data for {ticker}, attempting to re-download")
+                    self.update_data(ticker, force_download=True)
+                    try:
+                        data = pd.read_csv(data_path, sep='\t')
+                        if data.empty or len(data) < 5:
+                            logging.error(f"Still insufficient data for {ticker} after re-download")
+                            return None
+                    except Exception:
+                        return None
 
                 # Always normalize columns to ensure consistent structure
                 logging.info(f"Normalizing column structure for {ticker} data")
                 # Create a new DataFrame with standardized columns
                 standard_columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
+                
+                # Create an empty DataFrame with the standard columns
                 new_df = pd.DataFrame(columns=standard_columns)
-
-                # Map columns to standard ones, handling various formats
+                
+                # First ensure we have a Date column
+                if 'Date' in data.columns:
+                    new_df['Date'] = data['Date']
+                else:
+                    # Try to find a date column with a different name
+                    date_found = False
+                    for col in data.columns:
+                        if 'date' in str(col).lower():
+                            new_df['Date'] = data[col]
+                            date_found = True
+                            break
+                    
+                    if not date_found:
+                        logging.error(f"No Date column found in {ticker} data")
+                        # Re-download the data
+                        self.update_data(ticker, force_download=True)
+                        return self.load_data(ticker)  # Recursive call with fresh data
+                
+                # Map other columns to standard ones, handling various formats
                 for std_col in standard_columns:
+                    if std_col == 'Date':  # Already handled Date column
+                        continue
+                        
                     # Try exact match first
                     if std_col in data.columns:
                         new_df[std_col] = data[std_col]
@@ -557,35 +625,63 @@ class StockDataManager:
                             if std_col in str(col):
                                 new_df[std_col] = data[col]
                                 break
-
-                # Special handling for Date column which is critical
-                if 'Date' not in new_df.columns and 'Date' in data.columns:
-                    new_df['Date'] = data['Date']
+                
+                # Ensure we have at least Close price data
+                if 'Close' not in new_df.columns and 'Adj Close' not in new_df.columns:
+                    # If we don't have Close data, try to find any numeric column
+                    for col in data.columns:
+                        if col != 'Date' and pd.to_numeric(data[col], errors='coerce').notna().any():
+                            new_df['Close'] = data[col]
+                            logging.warning(f"Using column '{col}' as 'Close' for {ticker}")
+                            break
+                    else:
+                        logging.error(f"No suitable price data found for {ticker}")
+                        # Re-download the data
+                        self.update_data(ticker, force_download=True)
+                        return self.load_data(ticker)  # Recursive call with fresh data
 
                 # If we have a valid DataFrame with at least Date and one price column, use it
                 if 'Date' in new_df.columns and any(col in new_df.columns for col in ['Close', 'Adj Close']):
-                    data = new_df
-
+                    # Convert all price columns to numeric
+                    for col in new_df.columns:
+                        if col != 'Date':
+                            new_df[col] = pd.to_numeric(new_df[col], errors='coerce')
+                    
                     # Ensure Date column is properly formatted as datetime
-                    if 'Date' in data.columns:
-                        data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
-                        # Drop any rows with invalid dates
-                        data = data.dropna(subset=['Date'])
-                        # Set Date as index for easier filtering
-                        data = data.set_index('Date')
+                    new_df['Date'] = pd.to_datetime(new_df['Date'], errors='coerce')
+                    
+                    # Drop any rows with invalid dates or all NaN values
+                    new_df = new_df.dropna(subset=['Date'])
+                    new_df = new_df.dropna(how='all', subset=[col for col in new_df.columns if col != 'Date'])
+                    
+                    # Set Date as index for easier filtering
+                    data = new_df.set_index('Date')
 
                     # Save the normalized data back to file
-                    data_to_save = data.reset_index()
-                    data_to_save.to_csv(data_path, sep='\t', index=False)
-                    logging.info(f"Normalized column structure for {ticker} data while loading")
+                    try:
+                        data_to_save = data.reset_index()
+                        data_to_save.to_csv(data_path, sep='\t', index=False)
+                        logging.info(f"Normalized column structure for {ticker} data while loading")
+                    except Exception as save_error:
+                        logging.warning(f"Could not save normalized data for {ticker}: {save_error}")
 
-                return data
+                    return data
+                else:
+                    logging.error(f"Failed to normalize data for {ticker}")
+                    # Re-download as a last resort
+                    self.update_data(ticker, force_download=True)
+                    return None
             else:
                 logging.warning(f"No data file found for {ticker}")
                 return None
         except Exception as e:
             logging.error(f"Error loading data for {ticker}: {e}")
-            return None
+            # Try to re-download as a last resort
+            try:
+                self.update_data(ticker, force_download=True)
+                return self.load_data(ticker)  # Recursive call with fresh data
+            except:
+                return None
 
     def visualize_data(self,
                        ticker: str,
