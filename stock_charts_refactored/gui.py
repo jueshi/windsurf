@@ -53,6 +53,8 @@ class StockDataGUI:
         self.active_tab = "individual"  # Track which tab is active: "individual" or "comparison"
         self.seasonality_pil_img = None  # To store the high-res seasonality chart
         self._debounce_job = None       # For debouncing resize events
+        self.year_selection_vars = {}  # For multi-select year checkbuttons
+        self.seasonality_year_menubutton = None # The new menubutton for year selection
 
         # Load ticker lists from ticker_lists.py
         self.ticker_lists = {}
@@ -510,12 +512,14 @@ class StockDataGUI:
         self.seasonality_controls_frame = ttk.Frame(self.seasonality_chart_frame)
         self.seasonality_controls_frame.pack(fill=tk.X, padx=5, pady=5)
         
-        # Create year selection dropdown
-        ttk.Label(self.seasonality_controls_frame, text="Select Year:").pack(side=tk.LEFT, padx=(0, 5))
-        self.year_var = tk.StringVar(value="All Years")
-        self.year_dropdown = ttk.Combobox(self.seasonality_controls_frame, textvariable=self.year_var, state="readonly", width=15)
-        self.year_dropdown.pack(side=tk.LEFT)
-        self.year_dropdown.bind("<<ComboboxSelected>>", self._on_year_selected)
+        # Create year selection dropdown using a Menubutton for multi-select
+        ttk.Label(self.seasonality_controls_frame, text="Select Years:").pack(side=tk.LEFT, padx=(0, 5))
+        self.seasonality_year_menubutton = ttk.Menubutton(self.seasonality_controls_frame, text="Select Years")
+        self.seasonality_year_menubutton.pack(side=tk.LEFT)
+
+        # The menu itself will be created and populated dynamically in _generate_seasonality_chart
+        year_menu = tk.Menu(self.seasonality_year_menubutton, tearoff=0)
+        self.seasonality_year_menubutton.config(menu=year_menu)
 
         # Bind tab change event
         self.chart_notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
@@ -1046,230 +1050,139 @@ class StockDataGUI:
 
         self.status_var.set(f"Completed visualization for {len(selected_tickers)} tickers")
 
-    def _generate_seasonality_chart(self, ticker):
-        """Generate and display interactive seasonality chart for the selected ticker using Plotly
+    def _generate_seasonality_chart(self, ticker, is_new_ticker=False):
+        """
+        Generate and display interactive seasonality chart with multi-year selection.
         
         Args:
-            ticker (str): Ticker symbol to generate seasonality chart for
+            ticker (str): Ticker symbol to generate seasonality chart for.
+            is_new_ticker (bool): Flag to indicate if this is the first load for a new ticker.
         """
         try:
-            # First check if the root window and widgets still exist
             if not hasattr(self, 'root') or not self.root.winfo_exists():
-                logging.warning(f"Cannot generate seasonality chart for {ticker}: root window no longer exists")
                 return
-                
-            # Check if status_var exists before updating
-            if hasattr(self, 'status_var'):
-                self.status_var.set(f"Generating interactive seasonality chart for {ticker}...")
-                
-            try:
-                self.root.update_idletasks()
-            except tk.TclError as e:
-                logging.error(f"TclError updating idletasks: {str(e)}")
-                return
+
+            self.status_var.set(f"Generating seasonality chart for {ticker}...")
+            self.root.update_idletasks()
             
-            # Load data for the ticker
             data = self.manager.load_data(ticker)
-            if data is None or len(data) < 252:  # Need at least a year of data
-                messagebox.showwarning("Insufficient Data", f"Not enough data available for {ticker} to generate a seasonality chart.")
-                if hasattr(self, 'status_var'):
-                    self.status_var.set(f"Not enough data for {ticker} seasonality chart")
+            if data is None or len(data) < 252:
+                messagebox.showwarning("Insufficient Data", f"Not enough data for {ticker} seasonality.")
                 return
-                
-            # Ensure numeric types for all columns that will be used in calculations
-            numeric_columns = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
-            for col in numeric_columns:
-                if col in data.columns:
-                    data[col] = pd.to_numeric(data[col], errors='coerce')
             
-            # Skip date range filtering for seasonality chart
-            # We'll use only the year selection for filtering
-            logging.info(f"Skipping date range filters for seasonality chart. Using full data range: {data.index.min()} to {data.index.max()}, rows: {len(data)}")
-            # Note: Year-based filtering is handled by the year dropdown selection
-            
-            # Extract year from each date and create a new column
             data['Year'] = data.index.year
+            all_available_years = sorted(data['Year'].unique())
+
+            # --- Update Year Selection Menu ---
+            if is_new_ticker:
+                self.year_selection_vars.clear()
+                for year in all_available_years:
+                    self.year_selection_vars[year] = tk.BooleanVar()
+                # Default to last 5 years
+                self._select_last_five_years(all_available_years)
+
+            self._update_year_selection_menu(all_available_years)
             
-            # Get unique years in the data
-            years = sorted(data['Year'].unique())
-            
-            # Store data for each year
+            # --- Get Selected Years ---
+            selected_years = [year for year, var in self.year_selection_vars.items() if var.get()]
+            if not selected_years:
+                messagebox.showwarning("No Years Selected", "Please select at least one year to display.")
+                self.seasonality_img_label.config(image="", text="No years selected.")
+                self.seasonality_pil_img = None
+                return
+
+            # --- Process Data for Selected Years ---
             year_data = {}
             all_trading_days = set()
-            
-            # Calculate percentage change for each year
-            for year in years:
+            for year in selected_years:
                 year_df = data[data['Year'] == year].copy()
-                if len(year_df) < 30:  # Skip years with insufficient data
-                    continue
-                    
-                # Reset index to prepare for trading day calculation
-                year_df = year_df.reset_index()
+                if len(year_df) < 30: continue
                 
-                # Instead of using calendar day, use trading day number (sequential counter)
-                # This ensures alignment across years regardless of weekends/holidays
-                year_df = year_df.sort_values('Date')  # Ensure chronological order
-                year_df['TradingDayNum'] = range(1, len(year_df) + 1)  # Sequential trading day counter
-                
-                # Calculate percentage change from first day of the year
-                # Ensure first_close is a numeric value
+                year_df = year_df.sort_values('Date').reset_index()
+                year_df['TradingDayNum'] = range(1, len(year_df) + 1)
                 first_close = float(year_df['Close'].iloc[0])
-                # Ensure Close column is numeric for calculation
-                year_df['Close'] = pd.to_numeric(year_df['Close'], errors='coerce')
                 year_df['PctChange'] = ((year_df['Close'] - first_close) / first_close) * 100
                 
-                # Store data for this year using trading day number as index
                 year_data[year] = year_df[['TradingDayNum', 'PctChange', 'Date']].set_index('TradingDayNum')
                 all_trading_days.update(year_df['TradingDayNum'])
-            
+
             if not year_data:
-                messagebox.showwarning("Insufficient Data", f"No complete years of data available for {ticker}.")
-                self.status_var.set(f"No complete years of data for {ticker}")
-                return
-            
-            # Update the year dropdown with available years if it exists
-            if not hasattr(self, 'year_dropdown') or not self.year_dropdown.winfo_exists():
-                logging.warning(f"Cannot update year dropdown for {ticker}: widget no longer exists")
+                messagebox.showwarning("Insufficient Data", f"No valid years with enough data for {ticker}.")
                 return
                 
-            try:
-                year_options = ["All Years"] + [str(year) for year in sorted(year_data.keys())]
-                self.year_dropdown['values'] = year_options
-                
-                # If the current selection is not in the list, reset to "All Years"
-                if not hasattr(self, 'year_var'):
-                    logging.warning(f"Cannot update year selection for {ticker}: year_var no longer exists")
-                    return
-                    
-                if self.year_var.get() not in year_options:
-                    self.year_var.set("All Years")
-                
-                # Get the selected year from the dropdown
-                selected_year = self.year_var.get()
-            except tk.TclError as e:
-                logging.error(f"TclError updating year dropdown for {ticker}: {str(e)}")
-                return
-            
-            # Create a Plotly figure
+            # --- Create Plotly Figure ---
             fig = go.Figure()
-            
-            # Generate distinct colors for each year
-            # Use Plotly's default color sequence
-            plotly_colors = [
-                '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
-                '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
-            ]
-            
-            # Plot based on the selected year
-            if selected_year == "All Years":
-                # Plot all years
-                for i, (year, year_df) in enumerate(year_data.items()):
-                    color_idx = i % len(plotly_colors)
-                    
-                    # Create hover text with date information
-                    hover_text = [f"Date: {date.strftime('%Y-%m-%d')}<br>Change: {pct:.2f}%" 
-                                 for date, pct in zip(year_df['Date'], year_df['PctChange'])]
-                    
-                    fig.add_trace(go.Scatter(
-                        x=year_df.index,
-                        y=year_df['PctChange'],
-                        mode='lines',
-                        name=f'{year}',
-                        line=dict(color=plotly_colors[color_idx], width=1.5),
-                        opacity=0.7,
-                        hovertext=hover_text,
-                        hoverinfo='text'
-                    ))
-                
-                # Calculate and plot the average percentage change across all years
-                # Create a DataFrame with all trading days and all years
+            plotly_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+
+            for i, (year, year_df) in enumerate(year_data.items()):
+                hover_text = [f"Date: {date.strftime('%Y-%m-%d')}<br>Change: {pct:.2f}%" for date, pct in zip(year_df['Date'], year_df['PctChange'])]
+                fig.add_trace(go.Scatter(x=year_df.index, y=year_df['PctChange'], mode='lines', name=f'{year}',
+                                         line=dict(color=plotly_colors[i % len(plotly_colors)], width=1.5), opacity=0.7,
+                                         hovertext=hover_text, hoverinfo='text'))
+
+            # --- Calculate and Plot Average ---
+            if len(selected_years) > 1:
                 avg_df = pd.DataFrame(index=sorted(all_trading_days))
-                
-                # Add each year's data
                 for year, year_df in year_data.items():
                     avg_df[year] = year_df['PctChange']
-                
-                # Calculate the average across years, ignoring NaN values
                 avg_df['Average'] = avg_df.mean(axis=1)
-                
-                # Apply a small rolling window to smooth the average line
-                # This helps reduce the jagged appearance caused by missing days
-                if len(avg_df) > 5:  # Only apply if we have enough data points
+                if len(avg_df) > 5:
                     avg_df['Average'] = avg_df['Average'].rolling(window=3, min_periods=1, center=True).mean()
-                
-                # Plot the average line with thicker line width
-                fig.add_trace(go.Scatter(
-                    x=avg_df.index,
-                    y=avg_df['Average'],
-                    mode='lines',
-                    name='Average',
-                    line=dict(color='black', width=3),
-                    opacity=0.8
-                ))
-                
-                chart_title = f'{ticker} Seasonality Chart - Yearly Percentage Performance'
-            else:
-                # Plot only the selected year
-                year = int(selected_year)
-                if year in year_data:
-                    year_df = year_data[year]
-                    
-                    # Create hover text with date information
-                    hover_text = [f"Date: {date.strftime('%Y-%m-%d')}<br>Change: {pct:.2f}%" 
-                                 for date, pct in zip(year_df['Date'], year_df['PctChange'])]
-                    
-                    fig.add_trace(go.Scatter(
-                        x=year_df.index,
-                        y=year_df['PctChange'],
-                        mode='lines',
-                        name=f'{year}',
-                        line=dict(color=plotly_colors[0], width=2.5),
-                        hovertext=hover_text,
-                        hoverinfo='text'
-                    ))
-                    chart_title = f'{ticker} Seasonality Chart - {year} Percentage Performance'
-                else:
-                    self.status_var.set(f"Year {year} data not available for {ticker}")
-                    return
+                fig.add_trace(go.Scatter(x=avg_df.index, y=avg_df['Average'], mode='lines', name='Average', line=dict(color='black', width=3), opacity=0.8))
+
+            # --- Finalize and Display Figure ---
+            fig.add_shape(type="line", x0=min(all_trading_days), y0=0, x1=max(all_trading_days), y1=0, line=dict(color="black", width=1, dash="dash"))
+            fig.update_layout(title=f'{ticker} Seasonality - Selected Years', xaxis_title='Trading Day Number', yaxis_title='Percentage Change (%)',
+                              height=600, hovermode='closest', legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                              margin=dict(l=50, r=50, t=80, b=50))
             
-            # Add horizontal line at 0%
-            fig.add_shape(
-                type="line",
-                x0=min(all_trading_days),
-                y0=0,
-                x1=max(all_trading_days),
-                y1=0,
-                line=dict(color="black", width=1, dash="dash"),
-            )
-            
-            # Update layout with interactive features
-            fig.update_layout(
-                title=chart_title,
-                xaxis_title='Trading Day Number',
-                yaxis_title='Percentage Change (%)',
-                height=600,
-                hovermode='closest',
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                margin=dict(l=50, r=50, t=80, b=50)
-            )
-            
-            # Add range slider for better navigation
-            fig.update_xaxes(
-                rangeslider_visible=True,
-                rangeselector=dict(
-                    buttons=list([
-                        dict(count=50, label="50d", step="day", stepmode="backward"),
-                        dict(count=100, label="100d", step="day", stepmode="backward"),
-                        dict(count=150, label="150d", step="day", stepmode="backward"),
-                        dict(step="all")
-                    ])
-                )
-            )
-            
-            # Store the current ticker for reference
             self.current_chart_ticker = ticker
+            self._display_seasonality_figure(fig)
+
+        except Exception as e:
+            logging.error(f"Error in _generate_seasonality_chart: {e}")
+            messagebox.showerror("Error", f"Could not generate seasonality chart: {e}")
+
+    def _update_year_selection_menu(self, available_years):
+        """Dynamically populates the year selection menu."""
+        menu = self.seasonality_year_menubutton.config('menu')[-1]
+        menu.delete(0, tk.END)
+
+        menu.add_command(label="Select Last 5 Years", command=lambda: self._select_last_five_years(available_years))
+        menu.add_command(label="Select All", command=lambda: self._select_all_years(available_years))
+        menu.add_command(label="Deselect All", command=self._deselect_all_years(available_years))
+        menu.add_separator()
+
+        for year in available_years:
+            menu.add_checkbutton(label=str(year), variable=self.year_selection_vars[year],
+                                 command=self._on_year_selection_change)
+
+    def _select_all_years(self, years):
+        for year in years:
+            if year in self.year_selection_vars: self.year_selection_vars[year].set(True)
+        self._on_year_selection_change()
+
+    def _select_last_five_years(self, years):
+        for year in years:
+            if year in self.year_selection_vars: self.year_selection_vars[year].set(False)
+        last_five_years = sorted(years, reverse=True)[:5]
+        for year in last_five_years:
+            if year in self.year_selection_vars: self.year_selection_vars[year].set(True)
+        self._on_year_selection_change()
+
+    def _deselect_all_years(self, years):
+        for year in years:
+            if year in self.year_selection_vars: self.year_selection_vars[year].set(False)
+        self._on_year_selection_change()
+
+    def _on_year_selection_change(self):
+        """Handles the change in year selection and regenerates the chart."""
+        if self.current_chart_ticker:
+            self._generate_seasonality_chart(self.current_chart_ticker)
             
-            # --- Display Logic moved here from _display_plotly_chart ---
+    def _display_seasonality_figure(self, fig):
+        """Handles the rendering of the Plotly figure to an image and displaying it."""
+        try:
             container = self.seasonality_chart_container
             if not container.winfo_exists():
                 logging.warning("Cannot update seasonality chart container: widget no longer exists")
@@ -1277,83 +1190,27 @@ class StockDataGUI:
 
             # Save to HTML for the 'Open in Browser' button
             temp_dir = tempfile.gettempdir()
-            html_path = os.path.join(temp_dir, f"stock_chart_seasonality.html")
+            html_path = os.path.join(temp_dir, "stock_chart_seasonality.html")
             plot(fig, filename=html_path, auto_open=False)
 
-            # Update the persistent widgets
-            self.seasonality_title_label.config(text=f"Seasonality Chart for {ticker}")
             self.seasonality_browser_button.config(command=lambda: webbrowser.open(f"file:///{html_path}"), state="normal")
 
-            try:
-                # Generate a high-resolution static image
-                img_bytes = pio.to_image(fig, format='png', width=1200, height=600)
-                img_data = io.BytesIO(img_bytes)
-                self.seasonality_pil_img = Image.open(img_data)
-                
-                # Trigger the initial resize to fit the current window
-                # The event object can be faked for the first call
-                class FakeEvent:
-                    def __init__(self, w, h):
-                        self.width = w
-                        self.height = h
-
-                self.root.update_idletasks() # Ensure container has a size
-                width = self.seasonality_chart_container.winfo_width()
-                height = self.seasonality_chart_container.winfo_height()
-                self._on_seasonality_resize(FakeEvent(width, height))
-
-                if hasattr(self, 'status_var'):
-                    self.status_var.set(f"Generated seasonality chart for {ticker}")
-            except Exception as img_e:
-                logging.warning(f"Could not generate static image for seasonality chart: {img_e}")
-                self.seasonality_pil_img = None # Clear image on failure
-                self.seasonality_img_label.config(image="", text="Chart preview not available.\n(Requires 'kaleido' package).")
-                messagebox.showwarning("Preview Generation Failed", "Could not generate chart preview. Please ensure 'kaleido' is installed.")
+            # Generate and store high-res image
+            img_bytes = pio.to_image(fig, format='png', width=1200, height=600)
+            self.seasonality_pil_img = Image.open(io.BytesIO(img_bytes))
             
-        except Exception as e:
-            error_msg = f"Error generating seasonality chart for {ticker}: {str(e)}"
-            self.status_var.set(error_msg)
-            logging.error(error_msg)
+            # Trigger resize to fit current window
+            class FakeEvent:
+                def __init__(self, w, h): self.width = w; self.height = h
+            self.root.update_idletasks()
+            self._on_seasonality_resize(FakeEvent(container.winfo_width(), container.winfo_height()))
             
-            # Try to fall back to static chart if interactive chart fails
-            try:
-                # Set matplotlib to use non-interactive backend for thread safety
-                import matplotlib
-                original_backend = matplotlib.get_backend()
-                matplotlib.use('Agg')  # Use non-interactive backend
-                
-                # Create a simple static chart as fallback
-                plt.figure(figsize=(10, 6))
-                plt.title(f"{ticker} Seasonality Chart (Static Fallback)")
-                plt.xlabel('Trading Day')
-                plt.ylabel('% Change')
-                
-                # Plot at least one year's data if available
-                if year_data:
-                    year = list(year_data.keys())[0]
-                    plt.plot(year_data[year].index, year_data[year]['PctChange'], label=str(year))
-                    plt.legend()
-                
-                # Save and display the static chart
-                plots_dir = self.manager.plot_save_path
-                os.makedirs(plots_dir, exist_ok=True)
-                chart_path = os.path.join(plots_dir, f"{ticker}_seasonality_chart_fallback.png")
-                plt.savefig(chart_path, dpi=100, bbox_inches='tight')
-                plt.close()
-                
-                # Restore original backend
-                matplotlib.use(original_backend)
-                
-                # Display the static chart
-                self._display_static_chart(chart_path)
-                
-                self.status_var.set(f"Using static seasonality chart for {ticker} due to error")
-                
-            except Exception as fallback_error:
-                logging.error(f"Fallback chart also failed: {str(fallback_error)}")
-                self.status_var.set(f"Could not generate seasonality chart for {ticker}")
-                messagebox.showerror("Error", f"Failed to generate seasonality chart: {str(e)}")
-                plt.close()  # Ensure figure is closed
+            self.status_var.set(f"Generated seasonality chart for {self.current_chart_ticker}")
+        except Exception as img_e:
+            logging.warning(f"Could not generate static image for seasonality chart: {img_e}")
+            self.seasonality_pil_img = None
+            self.seasonality_img_label.config(image="", text="Chart preview not available.\n(Requires 'kaleido' package).")
+            messagebox.showwarning("Preview Generation Failed", "Please ensure 'kaleido' is installed.")
 
     def _on_seasonality_resize(self, event):
         """Debounce and handle the resize event for the seasonality chart."""
@@ -1478,7 +1335,7 @@ class StockDataGUI:
                     self._compare_percentage_performance()
                 elif self.active_tab == "seasonality" and selected_tickers:
                     # If seasonality tab is active and a ticker is selected, update seasonality chart
-                    self._generate_seasonality_chart(selected_tickers[0])
+                    self._generate_seasonality_chart(selected_tickers[0], is_new_ticker=True)
                 elif self.active_tab == "individual" and selected_tickers:
                     # If individual tab is active and a ticker is selected, update individual chart
                     self._display_chart(selected_tickers[0])
@@ -1526,51 +1383,6 @@ class StockDataGUI:
                     self._display_chart(selected_tickers[0])
         except Exception as e:
             logging.error(f"Error handling watch ticker selection: {e}")
-
-    def _on_year_selected(self, event):
-        """Handle year selection event from the seasonality chart year dropdown
-        
-        Args:
-            event: The combobox selection event
-        """
-        try:
-            # Try to get the current ticker from different sources
-            current_ticker = None
-            
-            # First check if we have a current chart ticker (highest priority)
-            if hasattr(self, 'current_chart_ticker') and self.current_chart_ticker:
-                current_ticker = self.current_chart_ticker
-                logging.info(f"Using current_chart_ticker: {current_ticker}")
-            
-            # If no current chart ticker, check main ticker list selection
-            if not current_ticker:
-                main_selected_indices = self.ticker_listbox.curselection()
-                if main_selected_indices:
-                    ticker_text = self.ticker_listbox.get(main_selected_indices[0])
-                    current_ticker = ticker_text.split(' - ')[0].strip()
-                    logging.info(f"Using main ticker list selection: {current_ticker}")
-            
-            # If still no ticker, check watch list selection
-            if not current_ticker:
-                watch_selected_indices = self.watch_listbox.curselection()
-                if watch_selected_indices:
-                    current_ticker = self.watch_listbox.get(watch_selected_indices[0]).strip()
-                    logging.info(f"Using watch list selection: {current_ticker}")
-            
-            if not current_ticker:
-                messagebox.showwarning("No Selection", "Please select a ticker first.")
-                return
-                
-            # Regenerate the seasonality chart with the selected year
-            self._generate_seasonality_chart(current_ticker)
-            
-            # Store this ticker as the current chart ticker
-            self.current_chart_ticker = current_ticker
-            
-        except Exception as e:
-            logging.error(f"Error handling year selection: {e}")
-            messagebox.showerror("Error", f"Error updating chart: {str(e)}")
-            self.status_var.set(f"Error updating chart: {str(e)}")
 
     def _on_tab_changed(self, event):
         """Handle tab change event
