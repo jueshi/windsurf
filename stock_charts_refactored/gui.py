@@ -1072,7 +1072,7 @@ class StockDataGUI:
                 return
             
             data['Year'] = data.index.year
-            all_available_years = sorted(data['Year'].unique())
+            all_available_years = sorted([int(y) for y in data['Year'].unique()])
 
             # --- Update Year Selection Menu ---
             if is_new_ticker:
