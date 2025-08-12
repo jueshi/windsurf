@@ -51,6 +51,8 @@ class StockDataGUI:
         self.watch_list = []
         self.current_image = None  # Store reference to prevent garbage collection
         self.active_tab = "individual"  # Track which tab is active: "individual" or "comparison"
+        self.seasonality_pil_img = None  # To store the high-res seasonality chart
+        self._debounce_job = None       # For debouncing resize events
 
         # Load ticker lists from ticker_lists.py
         self.ticker_lists = {}
@@ -528,6 +530,7 @@ class StockDataGUI:
         # Create a container for the seasonality chart display
         self.seasonality_chart_container = ttk.Frame(self.seasonality_chart_frame)
         self.seasonality_chart_container.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.seasonality_chart_container.bind("<Configure>", self._on_seasonality_resize)
 
         # --- Create persistent widgets for the seasonality chart view ---
         self.seasonality_header_frame = ttk.Frame(self.seasonality_chart_container)
@@ -1282,20 +1285,28 @@ class StockDataGUI:
             self.seasonality_browser_button.config(command=lambda: webbrowser.open(f"file:///{html_path}"), state="normal")
 
             try:
-                # Generate and display the static image preview
-                img_bytes = pio.to_image(fig, format='png', width=800, height=400)
+                # Generate a high-resolution static image
+                img_bytes = pio.to_image(fig, format='png', width=1200, height=600)
                 img_data = io.BytesIO(img_bytes)
-                pil_img = Image.open(img_data)
+                self.seasonality_pil_img = Image.open(img_data)
                 
-                photo_img = ImageTk.PhotoImage(pil_img)
-                self.seasonality_photo_img = photo_img  # Store persistent reference
-                self.seasonality_img_label.config(image=self.seasonality_photo_img, text="")
-                self.seasonality_img_label.image = self.seasonality_photo_img
+                # Trigger the initial resize to fit the current window
+                # The event object can be faked for the first call
+                class FakeEvent:
+                    def __init__(self, w, h):
+                        self.width = w
+                        self.height = h
+
+                self.root.update_idletasks() # Ensure container has a size
+                width = self.seasonality_chart_container.winfo_width()
+                height = self.seasonality_chart_container.winfo_height()
+                self._on_seasonality_resize(FakeEvent(width, height))
 
                 if hasattr(self, 'status_var'):
                     self.status_var.set(f"Generated seasonality chart for {ticker}")
             except Exception as img_e:
                 logging.warning(f"Could not generate static image for seasonality chart: {img_e}")
+                self.seasonality_pil_img = None # Clear image on failure
                 self.seasonality_img_label.config(image="", text="Chart preview not available.\n(Requires 'kaleido' package).")
                 messagebox.showwarning("Preview Generation Failed", "Could not generate chart preview. Please ensure 'kaleido' is installed.")
             
@@ -1343,6 +1354,38 @@ class StockDataGUI:
                 self.status_var.set(f"Could not generate seasonality chart for {ticker}")
                 messagebox.showerror("Error", f"Failed to generate seasonality chart: {str(e)}")
                 plt.close()  # Ensure figure is closed
+
+    def _on_seasonality_resize(self, event):
+        """Debounce and handle the resize event for the seasonality chart."""
+        if self._debounce_job:
+            self.root.after_cancel(self._debounce_job)
+        self._debounce_job = self.root.after(200, lambda: self._resize_seasonality_image(event))
+
+    def _resize_seasonality_image(self, event):
+        """Resize the seasonality PIL image to fit the container."""
+        if not self.seasonality_pil_img:
+            return
+
+        # Get container dimensions, with some padding
+        container_width = event.width - 10
+        container_height = event.height - 10
+
+        if container_width <= 1 or container_height <= 1:
+            return
+
+        try:
+            # Create a copy to resize
+            img_copy = self.seasonality_pil_img.copy()
+
+            # Use thumbnail to resize while maintaining aspect ratio
+            img_copy.thumbnail((container_width, container_height), Image.LANCZOS)
+
+            # Update the label with the new image
+            photo_img = ImageTk.PhotoImage(img_copy)
+            self.seasonality_img_label.config(image=photo_img)
+            self.seasonality_img_label.image = photo_img
+        except Exception as e:
+            logging.error(f"Error resizing seasonality image: {e}")
 
     def _on_ticker_selected(self, event):
         """Handle ticker selection from available tickers list"""
