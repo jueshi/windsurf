@@ -1152,9 +1152,10 @@ class StockDataGUI:
             return
         menu.delete(0, tk.END)
 
-        menu.add_command(label="Select Last 5 Years", command=lambda: self._select_last_five_years(available_years))
-        menu.add_command(label="Select All", command=lambda: self._select_all_years(available_years))
-        menu.add_command(label="Deselect All", command=self._deselect_all_years(available_years))
+        # Chain commands to select years and then trigger the update
+        menu.add_command(label="Select Last 5 Years", command=lambda: (self._select_last_five_years(available_years), self._on_year_selection_change()))
+        menu.add_command(label="Select All", command=lambda: (self._select_all_years(available_years), self._on_year_selection_change()))
+        menu.add_command(label="Deselect All", command=lambda: (self._deselect_all_years(available_years), self._on_year_selection_change()))
         menu.add_separator()
 
         for year in available_years:
@@ -1164,7 +1165,6 @@ class StockDataGUI:
     def _select_all_years(self, years):
         for year in years:
             if year in self.year_selection_vars: self.year_selection_vars[year].set(True)
-        self._on_year_selection_change()
 
     def _select_last_five_years(self, years):
         for year in years:
@@ -1172,12 +1172,10 @@ class StockDataGUI:
         last_five_years = sorted(years, reverse=True)[:5]
         for year in last_five_years:
             if year in self.year_selection_vars: self.year_selection_vars[year].set(True)
-        self._on_year_selection_change()
 
     def _deselect_all_years(self, years):
         for year in years:
             if year in self.year_selection_vars: self.year_selection_vars[year].set(False)
-        self._on_year_selection_change()
 
     def _on_year_selection_change(self):
         """Handles the change in year selection and regenerates the chart."""
