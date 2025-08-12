@@ -185,94 +185,91 @@ def apply_final_timeframe_fix(app):
     # Bind the new method to the application instance
     app._generate_and_display_timeframe_charts = types.MethodType(_generate_and_display_timeframe_charts, app)
 
-    # --- 3. Patch Event Handlers ---
+    # --- 3. Definitive Event Handlers ---
 
-    # Store original handlers if they exist
-    original_ticker_selected = app._on_ticker_selected
-    original_watch_ticker_selected = app._on_watch_ticker_selected
+    # Store the original tab change handler, as its core logic is still needed for other tabs.
     original_tab_changed = app._on_tab_changed
 
-    def patched_on_ticker_selected(self, event=None):
-        """Patched handler for ticker selection from the main list."""
-        # Call the original handler first to maintain other functionalities
-        original_ticker_selected(event)
-
-        # Now, add the new functionality
-        if self.active_tab == "timeframe":
-            selected_indices = self.ticker_listbox.curselection()
-            if not selected_indices:
-                return
-            ticker_text = self.ticker_listbox.get(selected_indices[0])
-            ticker = ticker_text.split(' - ')[0].strip()
-            if ticker:
-                self._generate_and_display_timeframe_charts(ticker)
-
-    def patched_on_watch_ticker_selected(self, event=None):
-        """Patched handler for ticker selection from the watch list."""
-        original_watch_ticker_selected(event)
-        if self.active_tab == "timeframe":
-            selected_indices = self.watch_listbox.curselection()
-            if not selected_indices:
-                return
-            ticker = self.watch_listbox.get(selected_indices[0]).strip()
-            if ticker:
-                self._generate_and_display_timeframe_charts(ticker)
-
-    def patched_on_tab_changed(self, event=None):
+    def definitive_on_ticker_selected(self, event, source_listbox):
         """
-        Patched handler for tab changes. This version correctly handles the
-        control flow to prevent the UI from switching back to the individual tab.
+        This is the single, definitive event handler for ticker selection.
+        It replaces the broken patch chain and correctly routes actions for all tabs.
+        """
+        selected_indices = source_listbox.curselection()
+        if not selected_indices:
+            return
+
+        ticker_text = source_listbox.get(selected_indices[0])
+        ticker = ticker_text.split(' - ')[0].strip()
+
+        if not ticker:
+            return
+
+        logging.info(f"Definitive handler triggered for ticker '{ticker}' with active tab '{self.active_tab}'")
+
+        # Branch logic based on the active tab
+        if self.active_tab == "timeframe":
+            self._generate_and_display_timeframe_charts(ticker)
+        elif self.active_tab == "seasonality":
+            self._generate_seasonality_chart(ticker)
+        elif self.active_tab == "comparison":
+            self._compare_percentage_performance()
+        else:  # Default to "individual"
+            self._display_chart(ticker)
+
+    def definitive_on_tab_changed(self, event=None):
+        """
+        This is the single, definitive event handler for tab changes.
+        It correctly sets the active tab state and calls the appropriate update logic.
         """
         try:
             selected_tab_widget = self.chart_notebook.select()
             selected_tab_text = self.chart_notebook.tab(selected_tab_widget, "text")
         except tk.TclError:
-            # This can happen during shutdown, so we fail gracefully.
-            return
+            return # Fails gracefully on shutdown
 
-        # Check if our custom tab is the one selected.
+        # First, set the active tab state. This is crucial.
         if selected_tab_text == "Timeframe Charts":
-            # If it is, we take full control.
             self.active_tab = "timeframe"
-            logging.info("Switched to Timeframe Charts tab. Intercepting tab change logic.")
+        # For other tabs, we rely on the original handler's logic.
+        # However, to be safe, we can set them here too.
+        elif selected_tab_text == "Individual Chart":
+            self.active_tab = "individual"
+        elif selected_tab_text == "Comparison Chart":
+            self.active_tab = "comparison"
+        elif selected_tab_text == "Seasonality Chart":
+            self.active_tab = "seasonality"
 
-            # Run the logic to update the charts in this tab.
+        logging.info(f"Definitive tab handler set active tab to: '{self.active_tab}'")
+
+        # Now, decide what to do.
+        if self.active_tab == "timeframe":
+            # For our custom tab, we trigger our own logic.
             ticker_to_load = None
-            main_selection = self.ticker_listbox.curselection()
-            watch_selection = self.watch_listbox.curselection()
-
-            if main_selection:
-                ticker_text = self.ticker_listbox.get(main_selection[0])
+            if self.ticker_listbox.curselection():
+                ticker_text = self.ticker_listbox.get(self.ticker_listbox.curselection()[0])
                 ticker_to_load = ticker_text.split(' - ')[0].strip()
-            elif watch_selection:
-                ticker_to_load = self.watch_listbox.get(watch_selection[0]).strip()
+            elif self.watch_listbox.curselection():
+                 ticker_to_load = self.watch_listbox.get(self.watch_listbox.curselection()[0]).strip()
             elif hasattr(self, 'current_chart_ticker') and self.current_chart_ticker:
-                # Fallback to the last known ticker if none is selected
                 ticker_to_load = self.current_chart_ticker
 
             if ticker_to_load:
                 self._generate_and_display_timeframe_charts(ticker_to_load)
         else:
-            # If any other tab is selected, we let the original handler do its job.
-            # This prevents the unwanted side effects.
-            logging.info(f"Switched to '{selected_tab_text}' tab. Running original handler.")
+            # For all other tabs, we let the original logic run.
+            # This is safer than trying to replicate its functionality.
             original_tab_changed(event)
 
-    # Apply the new patched handlers
-    app._on_ticker_selected = types.MethodType(patched_on_ticker_selected, app)
-    app._on_watch_ticker_selected = types.MethodType(patched_on_watch_ticker_selected, app)
-    app._on_tab_changed = types.MethodType(patched_on_tab_changed, app)
+    # Bind the definitive methods to the app instance, completely replacing the old ones.
+    app.definitive_on_ticker_selected = types.MethodType(definitive_on_ticker_selected, app)
+    app._on_ticker_selected = lambda event, s=app: s.definitive_on_ticker_selected(event, s.ticker_listbox)
+    app._on_watch_ticker_selected = lambda event, s=app: s.definitive_on_ticker_selected(event, s.watch_listbox)
+    app._on_tab_changed = types.MethodType(definitive_on_tab_changed, app)
 
-    # Re-bind to ensure the new handlers are used, as the original might have been bound directly
+    # Re-bind the events to ensure our new handlers are called.
     app.ticker_listbox.bind("<<ListboxSelect>>", app._on_ticker_selected)
     app.watch_listbox.bind("<<ListboxSelect>>", app._on_watch_ticker_selected)
     app.chart_notebook.bind("<<NotebookTabChanged>>", app._on_tab_changed)
 
-    # Set the active_tab attribute to "timeframe" if the timeframe tab is currently selected
-    # This ensures that if the app starts with the timeframe tab selected, the logic will work correctly
-    current_tab_text = app.chart_notebook.tab(app.chart_notebook.select(), "text")
-    if current_tab_text == "Timeframe Charts":
-        app.active_tab = "timeframe"
-
-
-    logging.info("Comprehensive timeframe chart fix applied successfully.")
+    logging.info("Definitive event handlers applied successfully.")
