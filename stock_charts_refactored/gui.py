@@ -1104,6 +1104,11 @@ class StockDataGUI:
                 
                 year_df = year_df.sort_values('Date').reset_index()
                 year_df['TradingDayNum'] = range(1, len(year_df) + 1)
+                # Convert Close column to float to avoid type mismatch
+                year_df['Close'] = pd.to_numeric(year_df['Close'], errors='coerce')
+                # Drop any rows where conversion failed
+                year_df = year_df.dropna(subset=['Close'])
+                if len(year_df) < 30: continue
                 first_close = float(year_df['Close'].iloc[0])
                 year_df['PctChange'] = ((year_df['Close'] - first_close) / first_close) * 100
                 
