@@ -324,39 +324,7 @@ class StockDataGUI:
                     logging.error(f"TclError updating comparison chart frame: {str(e)}")
                     return
                 
-            elif tab == "seasonality":
-                if not hasattr(self, 'seasonality_chart_container') or not self.seasonality_chart_container.winfo_exists():
-                    logging.warning("Cannot update seasonality chart container: widget no longer exists")
-                    return
-
-                # --- Update Persistent Widgets ---
-                ticker_name = self.current_chart_ticker if hasattr(self, 'current_chart_ticker') else ''
-                self.seasonality_title_label.config(text=f"Seasonality Chart for {ticker_name}")
-                self.seasonality_browser_button.config(command=lambda: webbrowser.open(f"file:///{html_path}"), state="normal")
-
-                # --- Static Image Preview ---
-                try:
-                    # Generate static image
-                    img_bytes = pio.to_image(fig, format='png', width=800, height=400)
-                    img_data = io.BytesIO(img_bytes)
-                    pil_img = Image.open(img_data)
-
-                    # Convert to PhotoImage and update the label
-                    photo_img = ImageTk.PhotoImage(pil_img)
-                    self.seasonality_photo_img = photo_img  # Store persistent reference
-                    self.seasonality_img_label.config(image=self.seasonality_photo_img, text="") # Update image and clear text
-                    self.seasonality_img_label.image = self.seasonality_photo_img # Keep a reference!
-
-                except Exception as img_e:
-                    logging.warning(f"Could not generate static image for seasonality chart: {img_e}")
-                    # Clear any old image and show the fallback text
-                    self.seasonality_img_label.config(image="", text="Chart preview not available.\n(Requires the 'kaleido' package).\nUse 'Open in Browser' to view.")
-                    messagebox.showwarning(
-                        "Preview Generation Failed",
-                        "Could not generate the chart preview image.\n\n"
-                        "This may be because the required 'kaleido' package is not installed.\n\n"
-                        "You can still view the chart using the 'Open in Browser' button."
-                    )
+            # The 'seasonality' case is now handled entirely within _generate_seasonality_chart
                          
             # Update status if status_var exists
             if hasattr(self, 'status_var'):
@@ -1294,21 +1262,41 @@ class StockDataGUI:
                 )
             )
             
-            # Store the current ticker for reference across tab changes and year selections
+            # Store the current ticker for reference
             self.current_chart_ticker = ticker
             
-            # Check if root window still exists before displaying chart
-            if not hasattr(self, 'root') or not self.root.winfo_exists():
-                logging.warning(f"Cannot display seasonality chart for {ticker}: root window no longer exists")
+            # --- Display Logic moved here from _display_plotly_chart ---
+            container = self.seasonality_chart_container
+            if not container.winfo_exists():
+                logging.warning("Cannot update seasonality chart container: widget no longer exists")
                 return
+
+            # Save to HTML for the 'Open in Browser' button
+            temp_dir = tempfile.gettempdir()
+            html_path = os.path.join(temp_dir, f"stock_chart_seasonality.html")
+            plot(fig, filename=html_path, auto_open=False)
+
+            # Update the persistent widgets
+            self.seasonality_title_label.config(text=f"Seasonality Chart for {ticker}")
+            self.seasonality_browser_button.config(command=lambda: webbrowser.open(f"file:///{html_path}"), state="normal")
+
+            try:
+                # Generate and display the static image preview
+                img_bytes = pio.to_image(fig, format='png', width=800, height=400)
+                img_data = io.BytesIO(img_bytes)
+                pil_img = Image.open(img_data)
                 
-            # Display the interactive chart
-            if hasattr(self, '_display_plotly_chart') and callable(self._display_plotly_chart):
-                self._display_plotly_chart(fig, tab="seasonality")
-            
-            # Update status if status_var exists
-            if hasattr(self, 'status_var'):
-                self.status_var.set(f"Generated interactive seasonality chart for {ticker} with {len(year_data)} years of data")
+                photo_img = ImageTk.PhotoImage(pil_img)
+                self.seasonality_photo_img = photo_img  # Store persistent reference
+                self.seasonality_img_label.config(image=self.seasonality_photo_img, text="")
+                self.seasonality_img_label.image = self.seasonality_photo_img
+
+                if hasattr(self, 'status_var'):
+                    self.status_var.set(f"Generated seasonality chart for {ticker}")
+            except Exception as img_e:
+                logging.warning(f"Could not generate static image for seasonality chart: {img_e}")
+                self.seasonality_img_label.config(image="", text="Chart preview not available.\n(Requires 'kaleido' package).")
+                messagebox.showwarning("Preview Generation Failed", "Could not generate chart preview. Please ensure 'kaleido' is installed.")
             
         except Exception as e:
             error_msg = f"Error generating seasonality chart for {ticker}: {str(e)}"
