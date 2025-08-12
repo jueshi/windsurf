@@ -175,7 +175,8 @@ def apply_final_timeframe_fix(app):
                 x=monthly_df.index, open=monthly_df['Open'], high=monthly_df['High'],
                 low=monthly_df['Low'], close=monthly_df['Close']
             )])
-            fig_monthly.update_layout(title_text=f"{ticker} Monthly", xaxis_rangeslider_visible=False, margin=dict(t=30, b=10, l=20, r=20))
+            fig_monthly.update_layout(title_text=f"{ticker} Monthly (Log Scale)", xaxis_rangeslider_visible=False,
+                                      margin=dict(t=30, b=10, l=20, r=20), yaxis_type='log')
             _display_chart_in_frame(self.monthly_chart_frame, fig_monthly, ticker, "monthly")
         except Exception as e:
             logging.error(f"Failed to generate monthly chart for {ticker}: {e}")
