@@ -8,7 +8,7 @@ import types
 import os
 import tkinter as tk
 from tkinter import ttk
-import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import pandas as pd
 import pytz
@@ -189,7 +189,8 @@ def apply_direct_chart_fix(app):
                     plot_df = df.copy()
                 
                 # Create figure and axes before checking data
-                fig, ax1 = plt.subplots(figsize=(10, 6))
+                fig = Figure(figsize=(10, 6), dpi=100)
+                ax1 = fig.add_subplot(111)
                 
                 # Check if we have data to plot
                 if plot_df.empty:
