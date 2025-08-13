@@ -1452,27 +1452,31 @@ class StockDataGUI:
 
             logging.info(f"Active tab is now: {self.active_tab}")
 
-            # Update chart based on current selection and active tab
-            selected_tickers = self._get_selected_tickers()
-            if self.active_tab == "comparison" and len(selected_tickers) > 1:
-                # If comparison tab is active and multiple tickers selected, update comparison chart
-                self._compare_percentage_performance()
-            elif self.active_tab == "seasonality":
-                # If seasonality tab is active, use current_chart_ticker if available, otherwise use selection
-                ticker_to_use = None
-                if hasattr(self, 'current_chart_ticker') and self.current_chart_ticker:
-                    ticker_to_use = self.current_chart_ticker
-                elif selected_tickers:
-                    ticker_to_use = selected_tickers[0]
+            # Update view based on the new active tab and current selection
+            # Get selected tickers from either listbox without showing a popup
+            selected_tickers = []
+            selected_indices = self.ticker_listbox.curselection()
+            if selected_indices:
+                for i in selected_indices:
+                    ticker_text = self.ticker_listbox.get(i)
+                    selected_tickers.append(ticker_text.split(' ')[0].strip())
+            else:
+                watch_indices = self.watch_listbox.curselection()
+                for i in watch_indices:
+                    selected_tickers.append(self.watch_listbox.get(i).strip())
 
-                if ticker_to_use:
-                    # Update seasonality chart with the appropriate ticker
-                    self._generate_seasonality_chart(ticker_to_use)
-            elif self.active_tab == "fundamental" and selected_tickers:
+            logging.info(f"Tab changed to {self.active_tab}. Current selection: {selected_tickers}")
+
+            if self.active_tab == "fundamental":
+                # Always update fundamental tab, even if selection is empty (to clear it)
                 self._display_fundamental_data(selected_tickers)
-            elif self.active_tab == "individual" and selected_tickers:
-                # If individual tab is active and a ticker is selected, update individual chart
-                self._display_chart(selected_tickers[0])
+            elif selected_tickers: # For other tabs, only update if there is a selection
+                if self.active_tab == "comparison":
+                    self._compare_percentage_performance()
+                elif self.active_tab == "seasonality":
+                    self._generate_seasonality_chart(selected_tickers[0])
+                elif self.active_tab == "individual":
+                    self._display_chart(selected_tickers[0])
         except Exception as e:
             logging.error(f"Error handling tab change: {e}")
             
