@@ -1501,6 +1501,24 @@ class StockDataManager:
             # Return empty DataFrame as fallback
             return pd.DataFrame()
 
+    def get_fundamental_data(self, ticker: str) -> Optional[Dict[str, Any]]:
+        """
+        Get fundamental data for a given ticker.
+
+        Args:
+            ticker (str): Stock ticker symbol
+
+        Returns:
+            Optional[Dict[str, Any]]: A dictionary with fundamental data or None if it fails.
+        """
+        try:
+            logging.info(f"Fetching fundamental data for {ticker}")
+            ticker_obj = yf.Ticker(ticker)
+            return ticker_obj.info
+        except Exception as e:
+            logging.error(f"Error fetching fundamental data for {ticker}: {e}")
+            return None
+
     def _get_folder_name(self, tickers, name=None):
         """
         Get a folder name for storing ticker data
