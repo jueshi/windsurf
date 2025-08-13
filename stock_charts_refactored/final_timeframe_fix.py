@@ -35,6 +35,9 @@ def apply_final_timeframe_fix(app):
     """
     logging.info("Applying the final, comprehensive timeframe chart fix...")
 
+    # Create a persistent list to hold PhotoImage references
+    app.timeframe_chart_images = []
+
     # --- 1. Create UI Elements ---
     try:
         if not hasattr(app, 'chart_notebook'):
@@ -109,9 +112,12 @@ def apply_final_timeframe_fix(app):
                 # Convert PIL Image to a PhotoImage for Tkinter
                 photo_img = ImageTk.PhotoImage(pil_img)
 
+                # Store a persistent reference to the image to prevent garbage collection
+                app.timeframe_chart_images.append(photo_img)
+
                 # Create a label to hold the image
                 img_label = ttk.Label(frame, image=photo_img)
-                img_label.image = photo_img  # Keep a reference!
+                img_label.image = photo_img  # Keep a reference on the widget itself too
                 img_label.pack(pady=5, padx=5, fill=tk.BOTH, expand=True)
 
             except Exception as img_e:
@@ -130,6 +136,9 @@ def apply_final_timeframe_fix(app):
         Fetches data and generates daily, weekly, and monthly charts for the given ticker,
         applying specific date ranges for each timeframe.
         """
+        # Clear the old image references before creating new ones
+        self.timeframe_chart_images.clear()
+
         logging.info(f"Generating all timeframe charts for {ticker} with date filtering...")
         self.current_chart_ticker = ticker
 
@@ -171,7 +180,7 @@ def apply_final_timeframe_fix(app):
 
         # --- Generate Monthly Chart (All Time) ---
         try:
-            monthly_df = df.resample('M').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last'}).dropna()
+            monthly_df = df.resample('ME').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last'}).dropna()
             # No filtering for the monthly chart
             fig_monthly = go.Figure(data=[go.Candlestick(
                 x=monthly_df.index, open=monthly_df['Open'], high=monthly_df['High'],
