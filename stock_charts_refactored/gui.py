@@ -1375,17 +1375,18 @@ class StockDataGUI:
 
             logging.info(f"Selected tickers from main list: {selected_tickers}")
 
-            # Directly check the current tab to decide which view to update
-            selected_tab_widget = self.chart_notebook.nametowidget(self.chart_notebook.select())
+            # Get the numerical index of the current tab
+            current_tab_index = self.chart_notebook.index("current")
 
-            if selected_tab_widget == self.fundamental_analysis_frame:
+            # Tab indices are: 0: Individual, 1: Comparison, 2: Seasonality, 3: Fundamental
+            if current_tab_index == 3:
                 self._display_fundamental_data(selected_tickers)
             elif selected_tickers:  # Only update other tabs if there's a selection
-                if selected_tab_widget == self.comparison_chart_frame:
+                if current_tab_index == 1:
                     self._compare_percentage_performance(tickers=selected_tickers)
-                elif selected_tab_widget == self.seasonality_chart_frame:
+                elif current_tab_index == 2:
                     self._generate_seasonality_chart(selected_tickers[0])
-                elif selected_tab_widget == self.individual_chart_frame:
+                elif current_tab_index == 0:
                     self._display_chart(selected_tickers[0])
         except Exception as e:
             logging.error(f"Error handling ticker selection: {e}")
@@ -1402,17 +1403,18 @@ class StockDataGUI:
 
             logging.info(f"Selected tickers from watch list: {selected_tickers}")
 
-            # Directly check the current tab to decide which view to update
-            selected_tab_widget = self.chart_notebook.nametowidget(self.chart_notebook.select())
+            # Get the numerical index of the current tab
+            current_tab_index = self.chart_notebook.index("current")
 
-            if selected_tab_widget == self.fundamental_analysis_frame:
+            # Tab indices are: 0: Individual, 1: Comparison, 2: Seasonality, 3: Fundamental
+            if current_tab_index == 3:
                 self._display_fundamental_data(selected_tickers)
             elif selected_tickers:  # Only update other tabs if there's a selection
-                if selected_tab_widget == self.comparison_chart_frame:
+                if current_tab_index == 1:
                     self._compare_percentage_performance(tickers=selected_tickers)
-                elif selected_tab_widget == self.seasonality_chart_frame:
+                elif current_tab_index == 2:
                     self._generate_seasonality_chart(selected_tickers[0])
-                elif selected_tab_widget == self.individual_chart_frame:
+                elif current_tab_index == 0:
                     self._display_chart(selected_tickers[0])
         except Exception as e:
             logging.error(f"Error handling watch ticker selection: {e}")
