@@ -1040,13 +1040,18 @@ class StockDataGUI:
                 self.status_var.set(f"Visualizing all timeframes for {ticker}...")
                 self.root.update_idletasks()
 
-                # Use the existing visualize_daily_vs_weekly method which already shows daily, weekly, and monthly data
+                # Generate the chart
                 self.manager.visualize_daily_vs_weekly(ticker)
 
-                # Open the saved chart in the default web browser
-                chart_path = os.path.join(self.manager.plot_save_path, f"{ticker}_daily_vs_weekly_price.png")
+                # Get the path to the generated chart
+                chart_path = os.path.join(self.manager.plot_save_path, f"{ticker}_daily_weekly_monthly.png")
+
+                # Display the chart in the GUI
                 if os.path.exists(chart_path):
-                    webbrowser.open(f"file:///{os.path.abspath(chart_path)}")
+                    self._display_chart(chart_path)
+                else:
+                    messagebox.showerror("Error", f"Chart file not found for {ticker}")
+
             except Exception as e:
                 messagebox.showerror("Error", f"Error visualizing {ticker}: {str(e)}")
 
@@ -1655,39 +1660,28 @@ class StockDataGUI:
             self.root.after(0, safe_update_status)
             
     def _display_static_chart(self, image_path):
-        """Display a static chart image in the appropriate chart container
+        """Display a static chart image in the individual chart tab.
         
         Args:
             image_path (str): Path to the image file to display
         """
         try:
-            # Clear the current chart container
-            for widget in self.chart_frame.winfo_children():
-                widget.destroy()
-                
             # Load the image
             img = Image.open(image_path)
             
-            # Resize image to fit the chart frame while maintaining aspect ratio
-            frame_width = self.chart_frame.winfo_width() or 800
-            frame_height = self.chart_frame.winfo_height() or 600
+            # Get the frame size
+            frame_width = self.individual_chart_frame.winfo_width() or 800
+            frame_height = self.individual_chart_frame.winfo_height() or 600
             
-            # Calculate resize dimensions while maintaining aspect ratio
-            img_width, img_height = img.size
-            ratio = min(frame_width/img_width, frame_height/img_height)
-            new_width = int(img_width * ratio * 0.9)  # 90% of available space
-            new_height = int(img_height * ratio * 0.9)  # 90% of available space
-            
-            # Resize the image
-            img = img.resize((new_width, new_height), Image.LANCZOS)
+            # Resize image to fit the frame while maintaining aspect ratio
+            img.thumbnail((frame_width, frame_height), Image.LANCZOS)
             
             # Convert to PhotoImage for Tkinter
             photo = ImageTk.PhotoImage(img)
             
-            # Create a label to display the image
-            img_label = tk.Label(self.chart_frame, image=photo)
-            img_label.image = photo  # Keep a reference to prevent garbage collection
-            img_label.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+            # Update the label with the new image
+            self.chart_label.config(image=photo)
+            self.chart_label.image = photo  # Keep a reference
             
             # Update the status
             self.status_var.set(f"Displayed chart from {os.path.basename(image_path)}")
