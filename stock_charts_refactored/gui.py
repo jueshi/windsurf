@@ -1311,30 +1311,61 @@ class StockDataGUI:
             logging.error(f"Error resizing seasonality image: {e}")
 
     def _on_ticker_selected(self, event):
-        """Handle ticker selection from available tickers list"""
-        # ... (rest of the code remains the same)
-        selected_indices = self.ticker_listbox.curselection()
-        if not selected_indices:
-            return
+        """Handle ticker selection event from main ticker listbox, including deselection."""
+        try:
+            # Get selected ticker indices and build the list of selected tickers
+            selected_indices = self.ticker_listbox.curselection()
+            selected_tickers = []
+            for i in selected_indices:
+                ticker_text = self.ticker_listbox.get(i)
+                ticker = ticker_text.split(' ')[0].strip()
+                selected_tickers.append(ticker)
 
-        # Get the selected ticker
-        ticker_text = self.ticker_listbox.get(selected_indices[0])
-        ticker = ticker_text.split(' - ')[0].strip()
+            logging.info(f"Selected tickers from main list: {selected_tickers}")
 
-        # Display chart for the selected ticker
-        self._display_chart(ticker)
+            # Get the numerical index of the current tab
+            current_tab_index = self.chart_notebook.index("current")
+
+            # Tab indices are: 0: Individual, 1: Comparison, 2: Seasonality, 3: Fundamental
+            if current_tab_index == 3:
+                self._display_fundamental_data(selected_tickers)
+            elif selected_tickers:  # Only update other tabs if there's a selection
+                if current_tab_index == 1:
+                    self._compare_percentage_performance(tickers=selected_tickers)
+                elif current_tab_index == 2:
+                    self._generate_seasonality_chart(selected_tickers[0])
+                elif current_tab_index == 0:
+                    self._display_chart(selected_tickers[0])
+        except Exception as e:
+            logging.error(f"Error handling ticker selection: {e}")
 
     def _on_watch_ticker_selected(self, event):
-        """Handle ticker selection from watch list"""
-        selected_indices = self.watch_listbox.curselection()
-        if not selected_indices:
-            return
+        """Handle ticker selection event from watch list, including deselection."""
+        try:
+            # Get selected ticker indices and build the list of selected tickers
+            selected_indices = self.watch_listbox.curselection()
+            selected_tickers = []
+            for i in selected_indices:
+                ticker = self.watch_listbox.get(i).strip()
+                selected_tickers.append(ticker)
 
-        # Get the selected ticker
-        ticker = self.watch_listbox.get(selected_indices[0])
+            logging.info(f"Selected tickers from watch list: {selected_tickers}")
 
-        # Display chart for the selected ticker
-        self._display_chart(ticker)
+            # Get the numerical index of the current tab
+            current_tab_index = self.chart_notebook.index("current")
+
+            # Tab indices are: 0: Individual, 1: Comparison, 2: Seasonality, 3: Fundamental
+            if current_tab_index == 3:
+                self._display_fundamental_data(selected_tickers)
+            elif selected_tickers:  # Only update other tabs if there's a selection
+                if current_tab_index == 1:
+                    self._compare_percentage_performance(tickers=selected_tickers)
+                elif current_tab_index == 2:
+                    self._generate_seasonality_chart(selected_tickers[0])
+                elif current_tab_index == 0:
+                    self._display_chart(selected_tickers[0])
+        except Exception as e:
+            logging.error(f"Error handling watch ticker selection: {e}")
 
     def _apply_date_range(self):
         """Apply the selected date range and refresh the current chart"""
