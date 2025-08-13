@@ -149,6 +149,7 @@ def apply_final_timeframe_fix(app):
                 low=daily_df_filtered['Low'], close=daily_df_filtered['Close']
             )])
             fig_daily.update_layout(title_text=f"{ticker} Daily", xaxis_rangeslider_visible=False, margin=dict(t=30, b=10, l=20, r=20))
+            fig_daily.update_xaxes(type='date', tickformat='%b %d, %Y')
             _display_chart_in_frame(self.daily_chart_frame, fig_daily, ticker, "daily")
         except Exception as e:
             logging.error(f"Failed to generate daily chart for {ticker}: {e}")
@@ -163,6 +164,7 @@ def apply_final_timeframe_fix(app):
                 low=weekly_df_filtered['Low'], close=weekly_df_filtered['Close']
             )])
             fig_weekly.update_layout(title_text=f"{ticker} Weekly", xaxis_rangeslider_visible=False, margin=dict(t=30, b=10, l=20, r=20))
+            fig_weekly.update_xaxes(type='date', tickformat='%b %d, %Y')
             _display_chart_in_frame(self.weekly_chart_frame, fig_weekly, ticker, "weekly")
         except Exception as e:
             logging.error(f"Failed to generate weekly chart for {ticker}: {e}")
@@ -177,6 +179,7 @@ def apply_final_timeframe_fix(app):
             )])
             fig_monthly.update_layout(title_text=f"{ticker} Monthly (Log Scale)", xaxis_rangeslider_visible=False,
                                       margin=dict(t=30, b=10, l=20, r=20), yaxis_type='log')
+            fig_monthly.update_xaxes(type='date', tickformat='%b %Y')
             _display_chart_in_frame(self.monthly_chart_frame, fig_monthly, ticker, "monthly")
         except Exception as e:
             logging.error(f"Failed to generate monthly chart for {ticker}: {e}")
