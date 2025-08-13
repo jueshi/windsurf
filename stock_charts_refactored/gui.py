@@ -514,9 +514,23 @@ class StockDataGUI:
         self.fundamental_analysis_frame = ttk.Frame(self.chart_notebook)
         self.chart_notebook.add(self.fundamental_analysis_frame, text="Fundamental Analysis")
 
-        # Create a text widget to display fundamental data
-        self.fundamental_data_text = tk.Text(self.fundamental_analysis_frame, wrap=tk.WORD, height=20, width=80)
-        self.fundamental_data_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        # Create a treeview to display fundamental data in a table
+        self.fundamental_data_tree = ttk.Treeview(self.fundamental_analysis_frame, columns=('Metric', 'Value'), show='headings')
+        self.fundamental_data_tree.heading('Metric', text='Metric')
+        self.fundamental_data_tree.heading('Value', text='Value')
+        self.fundamental_data_tree.column('Metric', width=200)
+        self.fundamental_data_tree.column('Value', width=400)
+        self.fundamental_data_tree.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        # Define important fundamental metrics to highlight
+        self.important_metrics = [
+            'longName', 'sector', 'industry', 'marketCap', 'trailingPE',
+            'forwardPE', 'dividendYield', 'beta', 'fiftyTwoWeekHigh',
+            'fiftyTwoWeekLow', 'longBusinessSummary'
+        ]
+
+        # Configure a tag for bold text in the fundamental data view
+        self.fundamental_data_tree.tag_configure("bold", font=("Helvetica", 10, "bold"))
         
         # Create a frame for year selection in seasonality tab
         self.seasonality_controls_frame = ttk.Frame(self.seasonality_chart_frame)
@@ -1839,16 +1853,14 @@ class StockDataGUI:
     def _display_fundamental_data(self, ticker):
         """Fetch and display fundamental data for the selected ticker"""
         try:
-            # Check if the fundamental analysis frame and text widgets exist
-            if not hasattr(self, 'fundamental_analysis_frame') or \
-               not self.fundamental_analysis_frame.winfo_exists() or \
-               not hasattr(self, 'fundamental_data_text') or \
-               not self.fundamental_data_text.winfo_exists():
-                logging.warning("Fundamental analysis widgets no longer exist, cannot display data.")
+            # Check if the treeview widget exists
+            if not hasattr(self, 'fundamental_data_tree') or not self.fundamental_data_tree.winfo_exists():
+                logging.warning("Fundamental analysis treeview no longer exists, cannot display data.")
                 return
 
             # Clear previous data
-            self.fundamental_data_text.delete('1.0', tk.END)
+            for item in self.fundamental_data_tree.get_children():
+                self.fundamental_data_tree.delete(item)
 
             # Fetch fundamental data
             self.status_var.set(f"Fetching fundamental data for {ticker}...")
@@ -1857,12 +1869,13 @@ class StockDataGUI:
             fundamental_data = self.manager.get_fundamental_data(ticker)
 
             if fundamental_data:
-                # Format and display the data
+                # Populate the treeview with the new data
                 for key, value in fundamental_data.items():
-                    self.fundamental_data_text.insert(tk.END, f"{key}: {value}\n")
+                    tags = ("bold",) if key in self.important_metrics else ()
+                    self.fundamental_data_tree.insert('', tk.END, values=(key, value), tags=tags)
                 self.status_var.set(f"Displayed fundamental data for {ticker}")
             else:
-                self.fundamental_data_text.insert(tk.END, f"No fundamental data available for {ticker}")
+                self.fundamental_data_tree.insert('', tk.END, values=("Error", f"No fundamental data available for {ticker}"))
                 self.status_var.set(f"No fundamental data available for {ticker}")
 
         except Exception as e:
