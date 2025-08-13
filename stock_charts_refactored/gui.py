@@ -57,6 +57,8 @@ class StockDataGUI:
         self.year_selection_vars = {}  # For multi-select year checkbuttons
         self.seasonality_year_menubutton = None # The new menubutton for year selection
         self.year_menu = None # A direct reference to the year selection menu
+        self.fundamental_data_cache = [] # Cache for fundamental data
+        self.fundamental_filter_var = tk.StringVar() # Filter for fundamental data
 
         # Load ticker lists from ticker_lists.py
         self.ticker_lists = {}
@@ -520,19 +522,27 @@ class StockDataGUI:
         style.configure("Custom.Treeview", font=('Helvetica', 12))  # Set font size to 12
         style.configure("Custom.Treeview.Heading", font=('Helvetica', 14, 'bold')) # Set heading font size
 
+        # Create a frame for the filter widget
+        fa_filter_frame = ttk.Frame(self.fundamental_analysis_frame)
+        fa_filter_frame.pack(fill=tk.X, padx=5, pady=5)
+        ttk.Label(fa_filter_frame, text="Filter Metric:").pack(side=tk.LEFT, padx=(0, 5))
+        fa_filter_entry = ttk.Entry(fa_filter_frame, textvariable=self.fundamental_filter_var)
+        fa_filter_entry.pack(fill=tk.X, expand=True)
+        fa_filter_entry.bind("<KeyRelease>", self._populate_fundamental_treeview)
+
         # Create a frame to hold the treeview and scrollbar
-        fa_frame = ttk.Frame(self.fundamental_analysis_frame)
-        fa_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        fa_tree_frame = ttk.Frame(self.fundamental_analysis_frame)
+        fa_tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
         # Create a treeview to display fundamental data in a table
-        self.fundamental_data_tree = ttk.Treeview(fa_frame, columns=('Metric', 'Value'), show='headings', style="Custom.Treeview")
+        self.fundamental_data_tree = ttk.Treeview(fa_tree_frame, columns=('Metric', 'Value'), show='headings', style="Custom.Treeview")
         self.fundamental_data_tree.heading('Metric', text='Metric')
         self.fundamental_data_tree.heading('Value', text='Value')
         self.fundamental_data_tree.column('Metric', width=200)
         self.fundamental_data_tree.column('Value', width=400)
 
         # Add a vertical scrollbar
-        vsb = ttk.Scrollbar(fa_frame, orient="vertical", command=self.fundamental_data_tree.yview)
+        vsb = ttk.Scrollbar(fa_tree_frame, orient="vertical", command=self.fundamental_data_tree.yview)
         self.fundamental_data_tree.configure(yscrollcommand=vsb.set)
 
         # Pack the scrollbar and the treeview
@@ -1854,18 +1864,13 @@ class StockDataGUI:
                 logging.warning("Fundamental analysis treeview no longer exists, cannot display data.")
                 return
 
-            # Always clear previous data from the treeview
-            for item in self.fundamental_data_tree.get_children():
-                self.fundamental_data_tree.delete(item)
+            # Clear the cache and the filter
+            self.fundamental_data_cache.clear()
+            self.fundamental_filter_var.set("")
 
-            # If no tickers are selected, reset the view to its default state and return
+            # If no tickers are selected, reset the view and return
             if not tickers:
-                columns = ['Metric', 'Value']
-                self.fundamental_data_tree['columns'] = columns
-                self.fundamental_data_tree.heading('Metric', text='Metric')
-                self.fundamental_data_tree.heading('Value', text='Value')
-                self.fundamental_data_tree.column('Metric', width=200)
-                self.fundamental_data_tree.column('Value', width=400)
+                self._populate_fundamental_treeview() # This will show an empty table
                 self.status_var.set("Select a ticker to view fundamental data.")
                 return
 
@@ -1874,10 +1879,8 @@ class StockDataGUI:
             self.fundamental_data_tree['columns'] = columns
             for col in columns:
                 self.fundamental_data_tree.heading(col, text=col)
-                # Adjust column width for better visibility with multiple tickers
                 self.fundamental_data_tree.column(col, width=150 if len(tickers) > 1 else 400)
             self.fundamental_data_tree.column('Metric', width=200)
-
 
             # Fetch fundamental data for all tickers
             self.status_var.set(f"Fetching fundamental data for {', '.join(tickers)}...")
@@ -1891,20 +1894,20 @@ class StockDataGUI:
                 if all_data[ticker]:
                     all_keys.update(all_data[ticker].keys())
 
-            # Populate the treeview with data
+            # Populate the cache
             for key in sorted(list(all_keys)):
                 values = [key]
                 for ticker in tickers:
-                    # Get the value for the key, default to 'N/A' if not found
                     if all_data[ticker]:
                         values.append(all_data[ticker].get(key, 'N/A'))
                     else:
                         values.append('N/A')
 
-                # Apply 'bold' tag for important metrics
                 tags = ("bold",) if key in self.important_metrics else ()
-                self.fundamental_data_tree.insert('', tk.END, values=values, tags=tags)
+                self.fundamental_data_cache.append((values, tags))
 
+            # Populate the treeview from the cache
+            self._populate_fundamental_treeview()
             self.status_var.set(f"Displayed fundamental data for {', '.join(tickers)}")
 
         except Exception as e:
@@ -1912,6 +1915,35 @@ class StockDataGUI:
             self.status_var.set(error_msg)
             logging.error(error_msg)
             messagebox.showerror("Error", error_msg)
+
+    def _populate_fundamental_treeview(self, event=None):
+        """Populate the fundamental data treeview from the cache, applying the current filter."""
+        try:
+            # Clear previous data from the treeview
+            for item in self.fundamental_data_tree.get_children():
+                self.fundamental_data_tree.delete(item)
+
+            filter_text = self.fundamental_filter_var.get().lower()
+
+            # If the cache is empty, ensure the view is empty and columns are reset
+            if not self.fundamental_data_cache:
+                columns = ['Metric', 'Value']
+                self.fundamental_data_tree['columns'] = columns
+                self.fundamental_data_tree.heading('Metric', text='Metric')
+                self.fundamental_data_tree.heading('Value', text='Value')
+                self.fundamental_data_tree.column('Metric', width=200)
+                self.fundamental_data_tree.column('Value', width=400)
+                return
+
+            # Populate the treeview with cached data that matches the filter
+            for values, tags in self.fundamental_data_cache:
+                # The metric name is the first item in the values list
+                metric_name = str(values[0]).lower()
+                if filter_text in metric_name:
+                    self.fundamental_data_tree.insert('', tk.END, values=values, tags=tags)
+        except Exception as e:
+            logging.error(f"Error populating fundamental treeview: {e}")
+            messagebox.showerror("Error", f"Could not update fundamental data view: {e}")
 
     def _download_data_in_background(self, tickers):
         """Download data for multiple tickers in a background thread
