@@ -2,7 +2,7 @@
 Emergency fix for the persistent dtype comparison error in Plotly chart creation.
 This module provides a direct monkey patch for the specific error location.
 """
-
+import os
 import logging
 import types
 import pandas as pd
@@ -134,5 +134,3 @@ def apply_emergency_fix(app):
     app._display_chart = types.MethodType(emergency_display_chart, app)
     logging.info("Applied emergency fix for dtype comparison error")
 
-# Add missing import
-import os
