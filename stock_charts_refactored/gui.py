@@ -1363,60 +1363,36 @@ class StockDataGUI:
             logging.error(f"Error applying date range: {e}")
 
     def _on_ticker_selected(self, event):
-        """Handle ticker selection event from main ticker listbox
-
-        Args:
-            event: The selection event
-        """
+        """Handle ticker selection event from main ticker listbox, including deselection."""
         try:
-            # Get selected ticker indices
+            # Get selected ticker indices and build the list of selected tickers
             selected_indices = self.ticker_listbox.curselection()
-            if not selected_indices:
-                return
-
-            # Get selected tickers
             selected_tickers = []
             for i in selected_indices:
                 ticker_text = self.ticker_listbox.get(i)
-                # Extract ticker symbol (it might have a comment after it)
                 ticker = ticker_text.split(' ')[0].strip()
                 selected_tickers.append(ticker)
 
             logging.info(f"Selected tickers from main list: {selected_tickers}")
 
-            # Update chart based on active tab
-            if hasattr(self, 'active_tab'):
+            # Update view based on active tab
+            if self.active_tab == "fundamental":
+                self._display_fundamental_data(selected_tickers)
+            elif selected_tickers:  # Only update other tabs if there's a selection
                 if self.active_tab == "comparison":
-                    # If comparison tab is active and multiple tickers selected, update comparison chart
                     self._compare_percentage_performance()
-                elif self.active_tab == "seasonality" and selected_tickers:
-                    # If seasonality tab is active and a ticker is selected, update seasonality chart
+                elif self.active_tab == "seasonality":
                     self._generate_seasonality_chart(selected_tickers[0])
-                elif self.active_tab == "fundamental":
-                    self._display_fundamental_data(selected_tickers)
-                elif self.active_tab == "individual" and selected_tickers:
-                    # If individual tab is active and a ticker is selected, update individual chart
-                    self._display_chart(selected_tickers[0])
-            else:
-                # Default to individual chart if active_tab is not set
-                if selected_tickers:
+                elif self.active_tab == "individual":
                     self._display_chart(selected_tickers[0])
         except Exception as e:
             logging.error(f"Error handling ticker selection: {e}")
 
     def _on_watch_ticker_selected(self, event):
-        """Handle ticker selection event from watch list
-
-        Args:
-            event: The selection event
-        """
+        """Handle ticker selection event from watch list, including deselection."""
         try:
-            # Get selected ticker indices
+            # Get selected ticker indices and build the list of selected tickers
             selected_indices = self.watch_listbox.curselection()
-            if not selected_indices:
-                return
-
-            # Get selected tickers
             selected_tickers = []
             for i in selected_indices:
                 ticker = self.watch_listbox.get(i).strip()
@@ -1424,22 +1400,15 @@ class StockDataGUI:
 
             logging.info(f"Selected tickers from watch list: {selected_tickers}")
 
-            # Update chart based on active tab
-            if hasattr(self, 'active_tab'):
+            # Update view based on active tab
+            if self.active_tab == "fundamental":
+                self._display_fundamental_data(selected_tickers)
+            elif selected_tickers:  # Only update other tabs if there's a selection
                 if self.active_tab == "comparison":
-                    # If comparison tab is active and multiple tickers selected, update comparison chart
                     self._compare_percentage_performance()
-                elif self.active_tab == "seasonality" and selected_tickers:
-                    # If seasonality tab is active and a ticker is selected, update seasonality chart
+                elif self.active_tab == "seasonality":
                     self._generate_seasonality_chart(selected_tickers[0])
-                elif self.active_tab == "fundamental":
-                    self._display_fundamental_data(selected_tickers)
-                elif self.active_tab == "individual" and selected_tickers:
-                    # If individual tab is active and a ticker is selected, update individual chart
-                    self._display_chart(selected_tickers[0])
-            else:
-                # Otherwise update individual chart for the first selected ticker
-                if selected_tickers:
+                elif self.active_tab == "individual":
                     self._display_chart(selected_tickers[0])
         except Exception as e:
             logging.error(f"Error handling watch ticker selection: {e}")
@@ -1868,26 +1837,37 @@ class StockDataGUI:
             messagebox.showerror("Error", error_msg)
 
     def _display_fundamental_data(self, tickers):
-        """Fetch and display fundamental data for the selected tickers"""
+        """Fetch and display fundamental data for the selected tickers. Clears the view if tickers list is empty."""
         try:
-            if not tickers:
-                return
-
             # Check if the treeview widget exists
             if not hasattr(self, 'fundamental_data_tree') or not self.fundamental_data_tree.winfo_exists():
                 logging.warning("Fundamental analysis treeview no longer exists, cannot display data.")
                 return
 
-            # Clear previous data
+            # Always clear previous data from the treeview
             for item in self.fundamental_data_tree.get_children():
                 self.fundamental_data_tree.delete(item)
 
-            # Dynamically configure columns
+            # If no tickers are selected, reset the view to its default state and return
+            if not tickers:
+                columns = ['Metric', 'Value']
+                self.fundamental_data_tree['columns'] = columns
+                self.fundamental_data_tree.heading('Metric', text='Metric')
+                self.fundamental_data_tree.heading('Value', text='Value')
+                self.fundamental_data_tree.column('Metric', width=200)
+                self.fundamental_data_tree.column('Value', width=400)
+                self.status_var.set("Select a ticker to view fundamental data.")
+                return
+
+            # Dynamically configure columns for side-by-side comparison
             columns = ['Metric'] + tickers
             self.fundamental_data_tree['columns'] = columns
             for col in columns:
                 self.fundamental_data_tree.heading(col, text=col)
-                self.fundamental_data_tree.column(col, width=150)
+                # Adjust column width for better visibility with multiple tickers
+                self.fundamental_data_tree.column(col, width=150 if len(tickers) > 1 else 400)
+            self.fundamental_data_tree.column('Metric', width=200)
+
 
             # Fetch fundamental data for all tickers
             self.status_var.set(f"Fetching fundamental data for {', '.join(tickers)}...")
@@ -1895,21 +1875,23 @@ class StockDataGUI:
 
             all_data = {ticker: self.manager.get_fundamental_data(ticker) for ticker in tickers}
 
-            # Get a union of all keys
+            # Get a union of all keys from all tickers' data
             all_keys = set()
             for ticker in tickers:
                 if all_data[ticker]:
                     all_keys.update(all_data[ticker].keys())
 
-            # Populate the treeview
+            # Populate the treeview with data
             for key in sorted(list(all_keys)):
                 values = [key]
                 for ticker in tickers:
+                    # Get the value for the key, default to 'N/A' if not found
                     if all_data[ticker]:
                         values.append(all_data[ticker].get(key, 'N/A'))
                     else:
                         values.append('N/A')
 
+                # Apply 'bold' tag for important metrics
                 tags = ("bold",) if key in self.important_metrics else ()
                 self.fundamental_data_tree.insert('', tk.END, values=values, tags=tags)
 
