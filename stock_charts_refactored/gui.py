@@ -1048,6 +1048,8 @@ class StockDataGUI:
 
                 # Display the chart in the GUI
                 if os.path.exists(chart_path):
+                    # Switch to the individual chart tab before displaying
+                    self.chart_notebook.select(self.individual_chart_frame)
                     self._display_chart(chart_path)
                 else:
                     messagebox.showerror("Error", f"Chart file not found for {ticker}")
