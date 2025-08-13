@@ -39,6 +39,7 @@ import webbrowser
 import tempfile
 
 from data_manager import StockDataManager
+import gemini_analyzer
 
 class StockDataGUI:
     """GUI for Stock Data Manager"""
@@ -516,6 +517,10 @@ class StockDataGUI:
         self.fundamental_analysis_frame = ttk.Frame(self.chart_notebook)
         self.chart_notebook.add(self.fundamental_analysis_frame, text="Fundamental Analysis")
 
+        # Create business analysis tab
+        self.business_analysis_frame = ttk.Frame(self.chart_notebook)
+        self.chart_notebook.add(self.business_analysis_frame, text="Business Analysis")
+
         # --- Fundamental Analysis Tab Widgets ---
         # Configure a custom style for the Treeview for a larger font
         style = ttk.Style()
@@ -558,6 +563,25 @@ class StockDataGUI:
 
         # Configure a tag for bold text in the fundamental data view
         self.fundamental_data_tree.tag_configure("bold", font=("Helvetica", 10, "bold"))
+
+        # --- Business Analysis Tab Widgets ---
+        ba_frame = ttk.Frame(self.business_analysis_frame, padding="10")
+        ba_frame.pack(fill=tk.BOTH, expand=True)
+
+        ba_button_frame = ttk.Frame(ba_frame)
+        ba_button_frame.pack(fill=tk.X, pady=5)
+
+        ttk.Button(ba_button_frame, text="Run Business Analysis", command=self._run_business_analysis).pack(side=tk.LEFT)
+
+        ba_text_frame = ttk.Frame(ba_frame)
+        ba_text_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+
+        self.business_analysis_text = tk.Text(ba_text_frame, wrap=tk.WORD, height=20, width=80)
+        self.business_analysis_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        ba_scrollbar = ttk.Scrollbar(ba_text_frame, command=self.business_analysis_text.yview)
+        ba_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.business_analysis_text.config(yscrollcommand=ba_scrollbar.set)
         
         # Create a frame for year selection in seasonality tab
         self.seasonality_controls_frame = ttk.Frame(self.seasonality_chart_frame)
@@ -1012,11 +1036,12 @@ class StockDataGUI:
             messagebox.showerror("Error", f"Error saving watch list: {str(e)}")
             logging.error(f"Error saving watch list: {e}")
 
-    def _get_selected_tickers(self):
+    def _get_selected_tickers(self, show_warning=True):
         """Get selected tickers from listbox"""
         selected_indices = self.ticker_listbox.curselection()
         if not selected_indices:
-            messagebox.showwarning("No Selection", "Please select at least one ticker.")
+            if show_warning:
+                messagebox.showwarning("No Selection", "Please select at least one ticker.")
             return []
 
         selected_tickers = []
@@ -1484,6 +1509,10 @@ class StockDataGUI:
                         selected_tab == str(self.fundamental_analysis_frame):
                     self.active_tab = "fundamental"
                     logging.info("Switched to fundamental analysis tab")
+                elif hasattr(self, 'business_analysis_frame') and self.business_analysis_frame.winfo_exists() and \
+                        selected_tab == str(self.business_analysis_frame):
+                    self.active_tab = "business_analysis"
+                    logging.info("Switched to business analysis tab")
             except tk.TclError as e:
                 logging.error(f"TclError in tab change handler: {str(e)}")
                 return
@@ -1508,7 +1537,7 @@ class StockDataGUI:
             if self.active_tab == "fundamental":
                 # Always update fundamental tab, even if selection is empty (to clear it)
                 self._display_fundamental_data(selected_tickers)
-            elif selected_tickers: # For other tabs, only update if there is a selection
+            elif self.active_tab != "business_analysis" and selected_tickers: # For other tabs, only update if there is a selection
                 if self.active_tab == "comparison":
                     self._compare_percentage_performance(tickers=selected_tickers)
                 elif self.active_tab == "seasonality":
@@ -2468,21 +2497,35 @@ class StockDataGUI:
             messagebox.showerror("Error", f"Error generating HTML report: {str(e)}")
             self.status_var.set("Error generating HTML report")
 
-    def _get_selected_tickers(self):
-        """Get selected tickers from listbox"""
-        selected_indices = self.ticker_listbox.curselection()
-        if not selected_indices:
-            messagebox.showwarning("No Selection", "Please select at least one ticker.")
-            return []
+    def _run_business_analysis(self):
+        """Runs the business analysis for the selected ticker."""
+        selected_tickers = self._get_selected_tickers(show_warning=True)
+        if not selected_tickers:
+            # Check watch list if no ticker is selected in the main list
+            selected_indices = self.watch_listbox.curselection()
+            if not selected_indices:
+                messagebox.showwarning("No Selection", "Please select a ticker from the 'Available Tickers' or 'Watch List'.")
+                return
+            selected_tickers = [self.watch_listbox.get(i).strip() for i in selected_indices]
 
-        selected_tickers = []
-        for i in selected_indices:
-            # Extract ticker symbol (it might include a comment after a dash)
-            ticker_text = self.ticker_listbox.get(i)
-            ticker = ticker_text.split(' - ')[0].strip()
-            selected_tickers.append(ticker)
+        ticker = selected_tickers[0]
+        self.business_analysis_text.delete("1.0", tk.END)
+        self.business_analysis_text.insert(tk.END, f"Running business analysis for {ticker}...")
+        self.root.update_idletasks()
 
-        return selected_tickers
+        def analysis_thread():
+            company_info = self.manager.get_fundamental_data(ticker)
+            if not company_info:
+                self.business_analysis_text.delete("1.0", tk.END)
+                self.business_analysis_text.insert(tk.END, f"Could not retrieve fundamental data for {ticker}.")
+                return
+
+            analysis_result = gemini_analyzer.analyze_ticker(ticker, company_info)
+            self.business_analysis_text.delete("1.0", tk.END)
+            self.business_analysis_text.insert(tk.END, analysis_result)
+
+        # Run the analysis in a separate thread to avoid freezing the GUI
+        threading.Thread(target=analysis_thread, daemon=True).start()
 
     def _download_data(self):
         """Download or update data for selected tickers"""
