@@ -509,6 +509,14 @@ class StockDataGUI:
         # Create seasonality chart tab
         self.seasonality_chart_frame = ttk.Frame(self.chart_notebook)
         self.chart_notebook.add(self.seasonality_chart_frame, text="Seasonality Chart")
+
+        # Create fundamental analysis tab
+        self.fundamental_analysis_frame = ttk.Frame(self.chart_notebook)
+        self.chart_notebook.add(self.fundamental_analysis_frame, text="Fundamental Analysis")
+
+        # Create a text widget to display fundamental data
+        self.fundamental_data_text = tk.Text(self.fundamental_analysis_frame, wrap=tk.WORD, height=20, width=80)
+        self.fundamental_data_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # Create a frame for year selection in seasonality tab
         self.seasonality_controls_frame = ttk.Frame(self.seasonality_chart_frame)
@@ -1353,6 +1361,8 @@ class StockDataGUI:
                 elif self.active_tab == "seasonality" and selected_tickers:
                     # If seasonality tab is active and a ticker is selected, update seasonality chart
                     self._generate_seasonality_chart(selected_tickers[0])
+                elif self.active_tab == "fundamental":
+                    self._display_fundamental_data(selected_tickers[0])
                 elif self.active_tab == "individual" and selected_tickers:
                     # If individual tab is active and a ticker is selected, update individual chart
                     self._display_chart(selected_tickers[0])
@@ -1391,6 +1401,8 @@ class StockDataGUI:
                 elif self.active_tab == "seasonality" and selected_tickers:
                     # If seasonality tab is active and a ticker is selected, update seasonality chart
                     self._generate_seasonality_chart(selected_tickers[0])
+                elif self.active_tab == "fundamental":
+                    self._display_fundamental_data(selected_tickers[0])
                 elif self.active_tab == "individual" and selected_tickers:
                     # If individual tab is active and a ticker is selected, update individual chart
                     self._display_chart(selected_tickers[0])
@@ -1430,6 +1442,10 @@ class StockDataGUI:
                      selected_tab == str(self.seasonality_chart_frame):
                     self.active_tab = "seasonality"
                     logging.info("Switched to seasonality chart tab")
+                elif hasattr(self, 'fundamental_analysis_frame') and self.fundamental_analysis_frame.winfo_exists() and \
+                        selected_tab == str(self.fundamental_analysis_frame):
+                    self.active_tab = "fundamental"
+                    logging.info("Switched to fundamental analysis tab")
             except tk.TclError as e:
                 logging.error(f"TclError in tab change handler: {str(e)}")
                 return
@@ -1448,10 +1464,12 @@ class StockDataGUI:
                     ticker_to_use = self.current_chart_ticker
                 elif selected_tickers:
                     ticker_to_use = selected_tickers[0]
-                    
+
                 if ticker_to_use:
                     # Update seasonality chart with the appropriate ticker
                     self._generate_seasonality_chart(ticker_to_use)
+            elif self.active_tab == "fundamental" and selected_tickers:
+                self._display_fundamental_data(selected_tickers[0])
             elif self.active_tab == "individual" and selected_tickers:
                 # If individual tab is active and a ticker is selected, update individual chart
                 self._display_chart(selected_tickers[0])
@@ -1814,6 +1832,41 @@ class StockDataGUI:
         except Exception as e:
             chart_name = ticker_or_path
             error_msg = f"Error displaying chart for {chart_name}: {str(e)}"
+            self.status_var.set(error_msg)
+            logging.error(error_msg)
+            messagebox.showerror("Error", error_msg)
+
+    def _display_fundamental_data(self, ticker):
+        """Fetch and display fundamental data for the selected ticker"""
+        try:
+            # Check if the fundamental analysis frame and text widgets exist
+            if not hasattr(self, 'fundamental_analysis_frame') or \
+               not self.fundamental_analysis_frame.winfo_exists() or \
+               not hasattr(self, 'fundamental_data_text') or \
+               not self.fundamental_data_text.winfo_exists():
+                logging.warning("Fundamental analysis widgets no longer exist, cannot display data.")
+                return
+
+            # Clear previous data
+            self.fundamental_data_text.delete('1.0', tk.END)
+
+            # Fetch fundamental data
+            self.status_var.set(f"Fetching fundamental data for {ticker}...")
+            self.root.update_idletasks()
+
+            fundamental_data = self.manager.get_fundamental_data(ticker)
+
+            if fundamental_data:
+                # Format and display the data
+                for key, value in fundamental_data.items():
+                    self.fundamental_data_text.insert(tk.END, f"{key}: {value}\n")
+                self.status_var.set(f"Displayed fundamental data for {ticker}")
+            else:
+                self.fundamental_data_text.insert(tk.END, f"No fundamental data available for {ticker}")
+                self.status_var.set(f"No fundamental data available for {ticker}")
+
+        except Exception as e:
+            error_msg = f"Error displaying fundamental data for {ticker}: {str(e)}"
             self.status_var.set(error_msg)
             logging.error(error_msg)
             messagebox.showerror("Error", error_msg)
