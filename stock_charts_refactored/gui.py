@@ -1376,7 +1376,7 @@ class StockDataGUI:
                     # If seasonality tab is active and a ticker is selected, update seasonality chart
                     self._generate_seasonality_chart(selected_tickers[0])
                 elif self.active_tab == "fundamental":
-                    self._display_fundamental_data(selected_tickers[0])
+                    self._display_fundamental_data(selected_tickers)
                 elif self.active_tab == "individual" and selected_tickers:
                     # If individual tab is active and a ticker is selected, update individual chart
                     self._display_chart(selected_tickers[0])
@@ -1416,7 +1416,7 @@ class StockDataGUI:
                     # If seasonality tab is active and a ticker is selected, update seasonality chart
                     self._generate_seasonality_chart(selected_tickers[0])
                 elif self.active_tab == "fundamental":
-                    self._display_fundamental_data(selected_tickers[0])
+                    self._display_fundamental_data(selected_tickers)
                 elif self.active_tab == "individual" and selected_tickers:
                     # If individual tab is active and a ticker is selected, update individual chart
                     self._display_chart(selected_tickers[0])
@@ -1483,7 +1483,7 @@ class StockDataGUI:
                     # Update seasonality chart with the appropriate ticker
                     self._generate_seasonality_chart(ticker_to_use)
             elif self.active_tab == "fundamental" and selected_tickers:
-                self._display_fundamental_data(selected_tickers[0])
+                self._display_fundamental_data(selected_tickers)
             elif self.active_tab == "individual" and selected_tickers:
                 # If individual tab is active and a ticker is selected, update individual chart
                 self._display_chart(selected_tickers[0])
@@ -1850,9 +1850,12 @@ class StockDataGUI:
             logging.error(error_msg)
             messagebox.showerror("Error", error_msg)
 
-    def _display_fundamental_data(self, ticker):
-        """Fetch and display fundamental data for the selected ticker"""
+    def _display_fundamental_data(self, tickers):
+        """Fetch and display fundamental data for the selected tickers"""
         try:
+            if not tickers:
+                return
+
             # Check if the treeview widget exists
             if not hasattr(self, 'fundamental_data_tree') or not self.fundamental_data_tree.winfo_exists():
                 logging.warning("Fundamental analysis treeview no longer exists, cannot display data.")
@@ -1862,24 +1865,41 @@ class StockDataGUI:
             for item in self.fundamental_data_tree.get_children():
                 self.fundamental_data_tree.delete(item)
 
-            # Fetch fundamental data
-            self.status_var.set(f"Fetching fundamental data for {ticker}...")
+            # Dynamically configure columns
+            columns = ['Metric'] + tickers
+            self.fundamental_data_tree['columns'] = columns
+            for col in columns:
+                self.fundamental_data_tree.heading(col, text=col)
+                self.fundamental_data_tree.column(col, width=150)
+
+            # Fetch fundamental data for all tickers
+            self.status_var.set(f"Fetching fundamental data for {', '.join(tickers)}...")
             self.root.update_idletasks()
 
-            fundamental_data = self.manager.get_fundamental_data(ticker)
+            all_data = {ticker: self.manager.get_fundamental_data(ticker) for ticker in tickers}
 
-            if fundamental_data:
-                # Populate the treeview with the new data
-                for key, value in fundamental_data.items():
-                    tags = ("bold",) if key in self.important_metrics else ()
-                    self.fundamental_data_tree.insert('', tk.END, values=(key, value), tags=tags)
-                self.status_var.set(f"Displayed fundamental data for {ticker}")
-            else:
-                self.fundamental_data_tree.insert('', tk.END, values=("Error", f"No fundamental data available for {ticker}"))
-                self.status_var.set(f"No fundamental data available for {ticker}")
+            # Get a union of all keys
+            all_keys = set()
+            for ticker in tickers:
+                if all_data[ticker]:
+                    all_keys.update(all_data[ticker].keys())
+
+            # Populate the treeview
+            for key in sorted(list(all_keys)):
+                values = [key]
+                for ticker in tickers:
+                    if all_data[ticker]:
+                        values.append(all_data[ticker].get(key, 'N/A'))
+                    else:
+                        values.append('N/A')
+
+                tags = ("bold",) if key in self.important_metrics else ()
+                self.fundamental_data_tree.insert('', tk.END, values=values, tags=tags)
+
+            self.status_var.set(f"Displayed fundamental data for {', '.join(tickers)}")
 
         except Exception as e:
-            error_msg = f"Error displaying fundamental data for {ticker}: {str(e)}"
+            error_msg = f"Error displaying fundamental data: {str(e)}"
             self.status_var.set(error_msg)
             logging.error(error_msg)
             messagebox.showerror("Error", error_msg)
