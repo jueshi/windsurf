@@ -620,8 +620,8 @@ class StockDataGUI:
         self.watch_listbox.bind("<Button-3>", self._show_watch_context_menu)
 
         # Bind selection events to display charts
-        self.ticker_listbox.bind("<<ListboxSelect>>", self._on_ticker_selected)
-        self.watch_listbox.bind("<<ListboxSelect>>", self._on_watch_ticker_selected)
+        self.ticker_listbox.bind("<ButtonRelease-1>", self._on_ticker_selected)
+        self.watch_listbox.bind("<ButtonRelease-1>", self._on_watch_ticker_selected)
 
         # Create bottom frame for actions
         bottom_frame = ttk.Frame(main_frame, padding="10")
@@ -1313,23 +1313,18 @@ class StockDataGUI:
     def _on_ticker_selected(self, event):
         """Handle ticker selection event from main ticker listbox, including deselection."""
         try:
-            # Get selected ticker indices and build the list of selected tickers
             selected_indices = self.ticker_listbox.curselection()
-            selected_tickers = []
-            for i in selected_indices:
-                ticker_text = self.ticker_listbox.get(i)
-                ticker = ticker_text.split(' ')[0].strip()
-                selected_tickers.append(ticker)
+            if not selected_indices:
+                return
 
+            selected_tickers = [self.ticker_listbox.get(i).split(' ')[0].strip() for i in selected_indices]
             logging.info(f"Selected tickers from main list: {selected_tickers}")
 
-            # Get the numerical index of the current tab
             current_tab_index = self.chart_notebook.index("current")
 
-            # Tab indices are: 0: Individual, 1: Comparison, 2: Seasonality, 3: Fundamental
             if current_tab_index == 3:
                 self._display_fundamental_data(selected_tickers)
-            elif selected_tickers:  # Only update other tabs if there's a selection
+            elif selected_tickers:
                 if current_tab_index == 1:
                     self._compare_percentage_performance(tickers=selected_tickers)
                 elif current_tab_index == 2:
@@ -1342,22 +1337,18 @@ class StockDataGUI:
     def _on_watch_ticker_selected(self, event):
         """Handle ticker selection event from watch list, including deselection."""
         try:
-            # Get selected ticker indices and build the list of selected tickers
             selected_indices = self.watch_listbox.curselection()
-            selected_tickers = []
-            for i in selected_indices:
-                ticker = self.watch_listbox.get(i).strip()
-                selected_tickers.append(ticker)
+            if not selected_indices:
+                return
 
+            selected_tickers = [self.watch_listbox.get(i).strip() for i in selected_indices]
             logging.info(f"Selected tickers from watch list: {selected_tickers}")
 
-            # Get the numerical index of the current tab
             current_tab_index = self.chart_notebook.index("current")
 
-            # Tab indices are: 0: Individual, 1: Comparison, 2: Seasonality, 3: Fundamental
             if current_tab_index == 3:
                 self._display_fundamental_data(selected_tickers)
-            elif selected_tickers:  # Only update other tabs if there's a selection
+            elif selected_tickers:
                 if current_tab_index == 1:
                     self._compare_percentage_performance(tickers=selected_tickers)
                 elif current_tab_index == 2:
