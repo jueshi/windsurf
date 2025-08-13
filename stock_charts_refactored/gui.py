@@ -514,13 +514,30 @@ class StockDataGUI:
         self.fundamental_analysis_frame = ttk.Frame(self.chart_notebook)
         self.chart_notebook.add(self.fundamental_analysis_frame, text="Fundamental Analysis")
 
+        # --- Fundamental Analysis Tab Widgets ---
+        # Configure a custom style for the Treeview for a larger font
+        style = ttk.Style()
+        style.configure("Custom.Treeview", font=('Helvetica', 12))  # Set font size to 12
+        style.configure("Custom.Treeview.Heading", font=('Helvetica', 14, 'bold')) # Set heading font size
+
+        # Create a frame to hold the treeview and scrollbar
+        fa_frame = ttk.Frame(self.fundamental_analysis_frame)
+        fa_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
         # Create a treeview to display fundamental data in a table
-        self.fundamental_data_tree = ttk.Treeview(self.fundamental_analysis_frame, columns=('Metric', 'Value'), show='headings')
+        self.fundamental_data_tree = ttk.Treeview(fa_frame, columns=('Metric', 'Value'), show='headings', style="Custom.Treeview")
         self.fundamental_data_tree.heading('Metric', text='Metric')
         self.fundamental_data_tree.heading('Value', text='Value')
         self.fundamental_data_tree.column('Metric', width=200)
         self.fundamental_data_tree.column('Value', width=400)
-        self.fundamental_data_tree.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        # Add a vertical scrollbar
+        vsb = ttk.Scrollbar(fa_frame, orient="vertical", command=self.fundamental_data_tree.yview)
+        self.fundamental_data_tree.configure(yscrollcommand=vsb.set)
+
+        # Pack the scrollbar and the treeview
+        vsb.pack(side='right', fill='y')
+        self.fundamental_data_tree.pack(side='left', fill='both', expand=True)
 
         # Define important fundamental metrics to highlight
         self.important_metrics = [
