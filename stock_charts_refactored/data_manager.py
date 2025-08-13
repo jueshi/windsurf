@@ -985,22 +985,22 @@ class StockDataManager:
 
             # Apply date range filtering if specified
             if self.start_date:
-                # Convert to pandas Timestamp without timezone for consistent comparison
-                start_date = pd.Timestamp(self.start_date).tz_localize(None)
+                # Convert start_date to a timezone-aware timestamp (UTC)
+                start_date = pd.to_datetime(self.start_date, utc=True)
                 # Log the date range before filtering
-                logging.info(f"Applying start date filter: {self.start_date}, data range: {daily_data.index.min()} to {daily_data.index.max()}")
-                # Convert index to same timezone format for comparison
-                daily_data = daily_data[daily_data.index.tz_localize(None) >= start_date]
+                logging.info(f"Applying start date filter: {start_date}, data range: {daily_data.index.min()} to {daily_data.index.max()}")
+                # Filter data (index is already UTC-aware)
+                daily_data = daily_data[daily_data.index >= start_date]
                 # Log the data range after filtering
                 logging.info(f"After start date filter: data range: {daily_data.index.min()} to {daily_data.index.max()}, rows: {len(daily_data)}")
 
             if self.end_date:
-                # Convert to pandas Timestamp without timezone for consistent comparison
-                end_date = pd.Timestamp(self.end_date).tz_localize(None)
+                # Convert end_date to a timezone-aware timestamp (UTC)
+                end_date = pd.to_datetime(self.end_date, utc=True)
                 # Log the date range before filtering
-                logging.info(f"Applying end date filter: {self.end_date}, data range: {daily_data.index.min()} to {daily_data.index.max()}")
-                # Convert index to same timezone format for comparison
-                daily_data = daily_data[daily_data.index.tz_localize(None) <= end_date]
+                logging.info(f"Applying end date filter: {end_date}, data range: {daily_data.index.min()} to {daily_data.index.max()}")
+                # Filter data (index is already UTC-aware)
+                daily_data = daily_data[daily_data.index <= end_date]
                 # Log the data range after filtering
                 logging.info(f"After end date filter: data range: {daily_data.index.min()} to {daily_data.index.max()}, rows: {len(daily_data)}")
 
