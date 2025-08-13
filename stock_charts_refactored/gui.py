@@ -1380,7 +1380,7 @@ class StockDataGUI:
                 self._display_fundamental_data(selected_tickers)
             elif selected_tickers:  # Only update other tabs if there's a selection
                 if self.active_tab == "comparison":
-                    self._compare_percentage_performance()
+                    self._compare_percentage_performance(tickers=selected_tickers)
                 elif self.active_tab == "seasonality":
                     self._generate_seasonality_chart(selected_tickers[0])
                 elif self.active_tab == "individual":
@@ -1405,7 +1405,7 @@ class StockDataGUI:
                 self._display_fundamental_data(selected_tickers)
             elif selected_tickers:  # Only update other tabs if there's a selection
                 if self.active_tab == "comparison":
-                    self._compare_percentage_performance()
+                    self._compare_percentage_performance(tickers=selected_tickers)
                 elif self.active_tab == "seasonality":
                     self._generate_seasonality_chart(selected_tickers[0])
                 elif self.active_tab == "individual":
@@ -1472,7 +1472,7 @@ class StockDataGUI:
                 self._display_fundamental_data(selected_tickers)
             elif selected_tickers: # For other tabs, only update if there is a selection
                 if self.active_tab == "comparison":
-                    self._compare_percentage_performance()
+                    self._compare_percentage_performance(tickers=selected_tickers)
                 elif self.active_tab == "seasonality":
                     self._generate_seasonality_chart(selected_tickers[0])
                 elif self.active_tab == "individual":
@@ -1480,11 +1480,11 @@ class StockDataGUI:
         except Exception as e:
             logging.error(f"Error handling tab change: {e}")
             
-    def _compare_percentage_performance(self):
+    def _compare_percentage_performance(self, tickers=None):
         """Generate and display an interactive comparison chart showing percentage performance of multiple stocks"""
         try:
-            # Get selected tickers
-            selected_tickers = self._get_selected_tickers()
+            # If tickers aren't passed directly, get them from the listbox selection
+            selected_tickers = tickers if tickers is not None else self._get_selected_tickers()
             
             if not selected_tickers or len(selected_tickers) < 2:
                 self.status_var.set("Please select at least two tickers for comparison")
