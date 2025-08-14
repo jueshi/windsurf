@@ -118,6 +118,7 @@ class SParamBrowser(tk.Tk):
         
         # Port mapping (default 1-to-1)
         self.port_mapping = [1, 2, 3, 4]  # Maps logical ports to physical ports
+        self.mixed_mode_var = tk.BooleanVar(value=False)
         
         # Initialize plot variables
         self.figure = None
@@ -1315,6 +1316,8 @@ class SParamBrowser(tk.Tk):
         ttk.Button(self.toolbar, text="Smith Chart", command=self.show_smith_chart).pack(side=tk.LEFT, padx=2)
         ttk.Button(self.toolbar, text="Port Mapping", command=self.show_port_mapping_dialog).pack(side=tk.LEFT, padx=2)
 
+        self.mixed_mode_checkbutton = ttk.Checkbutton(self.toolbar, text="Mixed-Mode", variable=self.mixed_mode_var, command=self.update_plot)
+        self.mixed_mode_checkbutton.pack(side="left", padx=2)
         
         # Add 2x to 1x conversion menu button
         self.conversion_button = ttk.Menubutton(self.toolbar, text="Convert 2x → 1x")
@@ -2516,8 +2519,12 @@ class SParamBrowser(tk.Tk):
 
                 # Plot each network
                 for i, net in enumerate(networks):
-                    # Convert to differential parameters
-                    sdd = self.s2sdd(net.s)
+                    if not self.mixed_mode_var.get():
+                        # If unchecked, load single-ended and convert to differential
+                        sdd = self.calculate_sdd_params(net.s)
+                    else:
+                        # If checked, assume file is already mixed-mode
+                        sdd = net.s
 
                     label = f'Net{i+1}' if len(net.name) == 0 else net.name
 
