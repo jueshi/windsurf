@@ -339,11 +339,11 @@ class SParamBrowser(tk.Tk):
                             if term.startswith('!'):  # Exclusion term
                                 exclude_term = term[1:].strip()
                                 if exclude_term:
-                                    term_mask = ~self.df['Name'].str.contains(exclude_term, case=False, na=False)
-                                    print(f"Excluding rows with name containing: '{exclude_term}'")  # Debug print
+                                    term_mask = ~self.df['File_Path'].str.contains(exclude_term, case=False, na=False)
+                                    print(f"Excluding rows with file path containing: '{exclude_term}'")  # Debug print
                             else:  # Inclusion term
-                                term_mask = self.df['Name'].str.contains(term, case=False, na=False)
-                                print(f"Including rows with name containing: '{term}'")  # Debug print
+                                term_mask = self.df['File_Path'].str.contains(term, case=False, na=False)
+                                print(f"Including rows with file path containing: '{term}'")  # Debug print
                             
                             # Only apply the mask if term_mask was properly set
                             if term_mask is not None:
