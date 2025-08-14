@@ -55,7 +55,7 @@ import mpl_toolkits.axisartist.floating_axes as floating_axes
 import mpl_toolkits.axisartist.grid_finder as grid_finder
 from scipy import signal
 # Import ICZT function from local module
-# from iczt_function import calculate_tdr_iczt
+from iczt_function import calculate_tdr_iczt
 import scipy.linalg
 
 class SmithAxes(PolarAxes):
@@ -1016,7 +1016,17 @@ class SParamBrowser(tk.Tk):
                 try:
                     # The port_mapping is 1-based, scikit-rf uses 0-based indices
                     new_order = [p - 1 for p in self.port_mapping]
-                    network.reorder(new_order)
+
+                    # Reorder s-parameters by slicing the numpy array
+                    network.s = network.s[:, new_order][:, :, new_order]
+
+                    # Reorder z0 if it is a per-port array
+                    if isinstance(network.z0, np.ndarray):
+                        if network.z0.ndim == 1 and len(network.z0) == network.nports:
+                            network.z0 = network.z0[new_order]
+                        elif network.z0.ndim == 2 and network.z0.shape[1] == network.nports:
+                            network.z0 = network.z0[:, new_order]
+
                     print(f"Reordered ports for {network.name} to {self.port_mapping}")
                 except Exception as e:
                     print(f"Could not reorder ports: {e}")
