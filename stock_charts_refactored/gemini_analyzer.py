@@ -90,9 +90,25 @@ def analyze_10k_report(file_path):
     except Exception as e:
         return f"Error reading 10-K file: {e}"
 
+    # Extract CIK and accession number to build the URL
+    accession_number_match = re.search(r"ACCESSION NUMBER:\s*([\d-]+)", report_text)
+    cik_match = re.search(r"CENTRAL INDEX KEY:\s*(\d+)", report_text)
+
+    filing_url = "链接未找到"
+    if accession_number_match and cik_match:
+        accession_number_no_dashes = accession_number_match.group(1).replace('-', '')
+        cik = cik_match.group(1)
+        filing_url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number_no_dashes}/{accession_number_match.group(1)}-index.htm"
+    else:
+        try:
+            # Fallback to constructing a search link
+            ticker = file_path.split(os.path.sep)[1]
+            filing_url = f"链接到SEC网站手动搜索: https://www.sec.gov/edgar/search/#/q={ticker}"
+        except IndexError:
+            filing_url = "链接到SEC网站手动搜索: https://www.sec.gov/edgar/search-and-access"
+
     # Extract relevant sections using regex
     def extract_section(text, start_pattern, end_pattern):
-        import re
         start_match = re.search(start_pattern, text, re.IGNORECASE | re.DOTALL)
         if not start_match:
             return None
@@ -140,6 +156,7 @@ def analyze_10k_report(file_path):
     {summaries.get("管理层的讨论与分析 (MD&A)", 'N/A')}
 
     请综合以上信息，提供一份深入的、结构化的分析报告，重点突出公司的核心业务、主要风险和管理层对公司未来发展的看法。
+    报告最后，请提供在线报告的直接链接: {filing_url}
     """
 
     try:
@@ -186,7 +203,13 @@ def analyze_10q_report(file_path):
         accession_number_no_dashes = accession_number_match.group(1).replace('-', '')
         cik = cik_match.group(1)
         filing_url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number_no_dashes}/{accession_number_match.group(1)}-index.htm"
-
+    else:
+        try:
+            # Fallback to constructing a search link
+            ticker = file_path.split(os.path.sep)[1]
+            filing_url = f"链接到SEC网站手动搜索: https://www.sec.gov/edgar/search/#/q={ticker}"
+        except IndexError:
+            filing_url = "链接到SEC网站手动搜索: https://www.sec.gov/edgar/search-and-access"
 
     # Extract relevant sections using regex
     def extract_section(text, start_pattern, end_pattern):
