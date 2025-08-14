@@ -2235,45 +2235,210 @@ class SParamBrowser(tk.Tk):
         return freq_data * window
 
     def plot_network_params(self, *networks, show_mag=True, show_phase=True):
-        """Plot S-parameters for multiple networks"""
+        """Plot S-parameters for multiple networks with various plot types."""
         if not networks:
             return
-            
+
         try:
-            # Clear the current figure and marker text
             self.figure.clear()
             if self.marker_text:
                 self.marker_text.delete(1.0, tk.END)
 
-            # Check if time domain plots are enabled
-            show_tdr = self.show_tdr_var.get()
-            # ... (rest of the function is too large to show, but it includes the marker logic)
-            # The logic below is a simplified representation of the changes.
-            
-            is_mixed_mode = self.mixed_mode_var.get() and networks[0].nports == 4
+            # Determine which plots to show and create axes
+            active_plots = []
+            if self.plot_mag_var.get(): active_plots.append('mag')
+            if self.plot_phase_var.get(): active_plots.append('phase')
+            if self.show_tdr_var.get(): active_plots.append('tdr')
+            if self.show_pulse_var.get(): active_plots.append('pulse')
+            if self.show_impedance_var.get(): active_plots.append('impedance')
+            if self.show_impedance_time_var.get(): active_plots.append('impedance_time')
 
-            if is_mixed_mode:
-                # ... (plotting logic for mixed mode)
-                for net in networks:
-                    # ... (plot lines)
-                    for marker_freq in self.markers:
-                        # ... (draw marker logic for mixed mode)
-                        pass # Placeholder for marker logic
-            else:
-                # ... (plotting logic for single-ended mode)
-                for net in networks:
-                    # ... (plot lines)
-                    for marker_freq in self.markers:
-                        # ... (draw marker logic for single-ended mode)
-                        pass # Placeholder for marker logic
+            num_plots = len(active_plots)
+            if num_plots == 0:
+                ax = self.figure.add_subplot(111)
+                ax.text(0.5, 0.5, 'No plot type selected.', horizontalalignment='center', verticalalignment='center')
+                self.canvas.draw()
+                return
+
+            # Create subplots in a single column, making x-axes independent
+            axes = self.figure.subplots(num_plots, 1, sharex=False)
+            if num_plots == 1:
+                axes = [axes]  # Ensure axes is always a list
+
+            ax_map = {plot_type: ax for plot_type, ax in zip(active_plots, axes)}
+
+            is_mixed_mode = self.mixed_mode_var.get() and any(n.nports == 4 for n in networks)
+
+            all_marker_info = []
+
+            for i, net in enumerate(networks):
+                freq_ghz = net.f / 1e9
+
+                if is_mixed_mode and net.nports == 4:
+                    s_params = self.s2sdd(net.s)
+                    p11, p21 = 'SDD11', 'SDD21'
+                else:
+                    s_params = net.s
+                    p11, p21 = f'S{net.ports[0]}{net.ports[0]}', f'S{net.ports[1]}{net.ports[0]}'
+
+
+                s11 = s_params[:, 0, 0]
+                s21 = s_params[:, 1, 0]
+
+                label_11 = f'{net.name} {p11}'
+                label_21 = f'{net.name} {p21}'
+
+                if 'mag' in ax_map:
+                    ax = ax_map['mag']
+                    if self.plot_sdd11_var.get():
+                        ax.plot(freq_ghz, 20 * np.log10(np.abs(s11)), label=label_11)
+                    if self.plot_sdd21_var.get():
+                        ax.plot(freq_ghz, 20 * np.log10(np.abs(s21)), label=label_21)
+
+                if 'phase' in ax_map:
+                    ax = ax_map['phase']
+                    if self.plot_sdd11_var.get():
+                        ax.plot(freq_ghz, np.angle(s11, deg=True), label=label_11)
+                    if self.plot_sdd21_var.get():
+                        ax.plot(freq_ghz, np.angle(s21, deg=True), label=label_21)
+
+                if 'tdr' in ax_map:
+                    ax = ax_map['tdr']
+                    try:
+                        freq_limit = float(self.freq_limit.get()) * 1e9 if self.freq_limit.get() else None
+                        t, dist, tdr = self.calculate_tdr(net, freq_limit=freq_limit)
+                        self.plot_tdr_and_impedance(ax, t, tdr, f'{net.name} TDR')
+                    except Exception as e:
+                        ax.text(0.5, 0.5, f'TDR Error: {e}', ha='center', va='center', color='red')
+
+                if 'impedance' in ax_map:
+                    ax = ax_map['impedance']
+                    try:
+                        freq_limit = float(self.freq_limit.get()) * 1e9 if self.freq_limit.get() else None
+                        t, dist, tdr = self.calculate_tdr(net, freq_limit=freq_limit)
+                        impedance = self.calculate_impedance_profile(tdr)
+                        ax.plot(dist, impedance, label=f'{net.name} Z-profile')
+                    except Exception as e:
+                        ax.text(0.5, 0.5, f'Impedance Error: {e}', ha='center', va='center', color='red')
+
+                if 'pulse' in ax_map:
+                    ax = ax_map['pulse']
+                    try:
+                        if self.plot_sdd11_var.get():
+                            t, pulse = self.calculate_pulse_response(net)
+                            ax.plot(t, np.real(pulse), label=f'{net.name} {p11} Pulse')
+                        if self.plot_sdd21_var.get():
+                            t, pulse = self.calculate_s21_pulse_response(net)
+                            ax.plot(t, np.real(pulse), label=f'{net.name} {p21} Pulse')
+                    except Exception as e:
+                        ax.text(0.5, 0.5, f'Pulse Error: {e}', ha='center', va='center', color='red')
+
+                if 'impedance_time' in ax_map:
+                    ax = ax_map['impedance_time']
+                    try:
+                        freq_limit = float(self.freq_limit.get()) * 1e9 if self.freq_limit.get() else None
+                        t, dist, tdr = self.calculate_tdr(net, freq_limit=freq_limit)
+                        impedance = self.calculate_impedance_profile(tdr)
+                        ax.plot(t, impedance, label=f'{net.name} Z-profile(t)')
+                    except Exception as e:
+                        ax.text(0.5, 0.5, f'Impedance Error: {e}', ha='center', va='center', color='red')
+
+                network_marker_info = [f"--- {net.name} ---"]
+                for marker_freq_ghz in self.markers:
+                    marker_freq_hz = marker_freq_ghz * 1e9
+                    idx = np.abs(net.f - marker_freq_hz).argmin()
+
+                    info_line = f"\n@{marker_freq_ghz:.3f} GHz:"
+
+                    if 'mag' in ax_map:
+                        ax = ax_map['mag']
+                        if self.plot_sdd11_var.get():
+                            val = 20 * np.log10(np.abs(s11[idx]))
+                            ax.plot(marker_freq_ghz, val, 'o', color='red')
+                            ax.annotate(f'{val:.2f}dB', (marker_freq_ghz, val), textcoords="offset points", xytext=(0,10), ha='center')
+                            info_line += f" {p11}: {val:.2f} dB"
+                        if self.plot_sdd21_var.get():
+                            val = 20 * np.log10(np.abs(s21[idx]))
+                            ax.plot(marker_freq_ghz, val, 'o', color='blue')
+                            ax.annotate(f'{val:.2f}dB', (marker_freq_ghz, val), textcoords="offset points", xytext=(0,-15), ha='center')
+                            info_line += f" {p21}: {val:.2f} dB"
+
+                    if 'phase' in ax_map:
+                        ax = ax_map['phase']
+                        if self.plot_sdd11_var.get():
+                            val = np.angle(s11[idx], deg=True)
+                            ax.plot(marker_freq_ghz, val, 'o', color='red')
+                            ax.annotate(f'{val:.1f}°', (marker_freq_ghz, val), textcoords="offset points", xytext=(0,10), ha='center')
+                        if self.plot_sdd21_var.get():
+                            val = np.angle(s21[idx], deg=True)
+                            ax.plot(marker_freq_ghz, val, 'o', color='blue')
+                            ax.annotate(f'{val:.1f}°', (marker_freq_ghz, val), textcoords="offset points", xytext=(0,-15), ha='center')
+
+                    network_marker_info.append(info_line)
+                all_marker_info.extend(network_marker_info)
+
+            if 'mag' in ax_map:
+                ax = ax_map['mag']
+                ax.set_title('Magnitude')
+                ax.set_xlabel('Frequency (GHz)')
+                ax.set_ylabel('Magnitude (dB)')
+                ax.grid(True)
+                ax.legend()
+                if self.show_spec_var.get() and self.spec_data:
+                    if self.plot_sdd11_var.get() and 'sdd11' in self.spec_data:
+                        ax.plot(self.spec_data['freq'], self.spec_data['sdd11'], 'r--', label='Spec SDD11')
+                    if self.plot_sdd21_var.get() and 'sdd21' in self.spec_data:
+                        ax.plot(self.spec_data['freq'], self.spec_data['sdd21'], 'k--', label='Spec SDD21')
+                    ax.legend()
+
+            if 'phase' in ax_map:
+                ax = ax_map['phase']
+                ax.set_title('Phase')
+                ax.set_xlabel('Frequency (GHz)')
+                ax.set_ylabel('Phase (degrees)')
+                ax.grid(True)
+                ax.legend()
+
+            if 'impedance' in ax_map:
+                ax = ax_map['impedance']
+                ax.set_title('Impedance Profile')
+                ax.set_xlabel('Distance (inch)')
+                ax.set_ylabel('Impedance (Ω)')
+                ax.grid(True)
+                ax.legend()
+
+            if 'pulse' in ax_map:
+                ax = ax_map['pulse']
+                ax.set_title('Pulse Response')
+                ax.set_xlabel('Time (ns)')
+                ax.set_ylabel('Amplitude')
+                ax.grid(True)
+                ax.legend()
+
+            if 'impedance_time' in ax_map:
+                ax = ax_map['impedance_time']
+                ax.set_title('Impedance Profile vs Time')
+                ax.set_xlabel('Time (ns)')
+                ax.set_ylabel('Impedance (Ω)')
+                ax.grid(True)
+                ax.legend()
+
+            if self.marker_text and all_marker_info:
+                self.marker_text.insert(tk.END, "\n".join(all_marker_info))
 
             self.figure.tight_layout()
             self.canvas.draw()
             self.apply_zoom()
-            
+
         except Exception as e:
             print(f"Error plotting networks: {str(e)}")
             traceback.print_exc()
+            try:
+                ax = self.figure.add_subplot(111)
+                ax.text(0.5, 0.5, f"Plotting Error:\n{e}", ha='center', va='center', color='red', wrap=True)
+                self.canvas.draw()
+            except:
+                pass
 
     def s2sdd(self, s):
         """
