@@ -1360,7 +1360,11 @@ class StockDataGUI:
 
             current_tab_index = self.chart_notebook.index("current")
 
-            if current_tab_index == 3:
+            # Tab indices are: 0: Individual, 1: Comparison, 2: Seasonality, 3: Fundamental, 4: Business Analysis
+            if current_tab_index == 4:
+                if selected_tickers:
+                    self._load_cached_analysis(selected_tickers[0])
+            elif current_tab_index == 3:
                 self._display_fundamental_data(selected_tickers)
             elif selected_tickers:
                 if current_tab_index == 1:
@@ -1384,7 +1388,11 @@ class StockDataGUI:
 
             current_tab_index = self.chart_notebook.index("current")
 
-            if current_tab_index == 3:
+            # Tab indices are: 0: Individual, 1: Comparison, 2: Seasonality, 3: Fundamental, 4: Business Analysis
+            if current_tab_index == 4:
+                if selected_tickers:
+                    self._load_cached_analysis(selected_tickers[0])
+            elif current_tab_index == 3:
                 self._display_fundamental_data(selected_tickers)
             elif selected_tickers:
                 if current_tab_index == 1:
@@ -1548,9 +1556,14 @@ class StockDataGUI:
             logging.info(f"Tab changed to {self.active_tab}. Current selection: {selected_tickers}")
 
             if self.active_tab == "fundamental":
-                # Always update fundamental tab, even if selection is empty (to clear it)
                 self._display_fundamental_data(selected_tickers)
-            elif self.active_tab != "business_analysis" and selected_tickers: # For other tabs, only update if there is a selection
+            elif self.active_tab == "business_analysis":
+                if selected_tickers:
+                    self._load_cached_analysis(selected_tickers[0])
+                else:
+                    self.business_analysis_text.delete("1.0", tk.END)
+                    self.business_analysis_text.insert(tk.END, "Select a ticker to view analysis.")
+            elif selected_tickers: # For other tabs, only update if there is a selection
                 if self.active_tab == "comparison":
                     self._compare_percentage_performance(tickers=selected_tickers)
                 elif self.active_tab == "seasonality":
@@ -2537,8 +2550,38 @@ class StockDataGUI:
             self.business_analysis_text.delete("1.0", tk.END)
             self.business_analysis_text.insert(tk.END, analysis_result)
 
+            # Save the analysis to a file
+            try:
+                analysis_dir = os.path.join("stock_data", "business_analysis")
+                os.makedirs(analysis_dir, exist_ok=True)
+                analysis_file = os.path.join(analysis_dir, f"{ticker}_analysis.txt")
+                with open(analysis_file, "w", encoding="utf-8") as f:
+                    f.write(analysis_result)
+                self.status_var.set(f"Saved analysis for {ticker}")
+            except Exception as e:
+                messagebox.showerror("Error", f"Could not save analysis: {e}")
+
         # Run the analysis in a separate thread to avoid freezing the GUI
         threading.Thread(target=analysis_thread, daemon=True).start()
+
+    def _load_cached_analysis(self, ticker):
+        """Loads a cached business analysis if it exists."""
+        try:
+            analysis_dir = os.path.join("stock_data", "business_analysis")
+            os.makedirs(analysis_dir, exist_ok=True)
+            analysis_file = os.path.join(analysis_dir, f"{ticker}_analysis.txt")
+
+            if os.path.exists(analysis_file):
+                with open(analysis_file, "r", encoding="utf-8") as f:
+                    analysis_result = f.read()
+                self.business_analysis_text.delete("1.0", tk.END)
+                self.business_analysis_text.insert(tk.END, analysis_result)
+                self.status_var.set(f"Loaded cached analysis for {ticker}")
+            else:
+                self.business_analysis_text.delete("1.0", tk.END)
+                self.business_analysis_text.insert(tk.END, "No analysis found. Click 'Run Business Analysis' to generate one.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not load cached analysis: {e}")
 
     def _run_general_search(self):
         """Runs the general AI search for the selected ticker."""
