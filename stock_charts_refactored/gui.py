@@ -41,6 +41,7 @@ import tempfile
 
 from data_manager import StockDataManager
 import gemini_analyzer
+import edgar_downloader
 
 class StockDataGUI:
     """GUI for Stock Data Manager"""
@@ -577,7 +578,8 @@ class StockDataGUI:
         self.general_search_var = tk.StringVar()
         general_search_entry = ttk.Entry(ba_button_frame, textvariable=self.general_search_var, width=50)
         general_search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-        ttk.Button(ba_button_frame, text="General AI Search", command=self._run_general_search).pack(side=tk.LEFT)
+        ttk.Button(ba_button_frame, text="General AI Search", command=self._run_general_search).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(ba_button_frame, text="Conduct 10K Study", command=self._run_10k_study).pack(side=tk.LEFT)
 
         ba_text_frame = ttk.Frame(ba_frame)
         ba_text_frame.pack(fill=tk.BOTH, expand=True, pady=5)
@@ -2617,6 +2619,40 @@ class StockDataGUI:
 
         # Run the search in a separate thread to avoid freezing the GUI
         threading.Thread(target=search_thread, daemon=True).start()
+
+    def _run_10k_study(self):
+        """Runs the 10-K study for the selected ticker."""
+        selected_tickers = self._get_selected_tickers(show_warning=True)
+        if not selected_tickers:
+            return
+
+        ticker = selected_tickers[0]
+        self.business_analysis_text.delete("1.0", tk.END)
+        self.business_analysis_text.insert(tk.END, f"Running 10-K study for {ticker}...")
+        self.root.update_idletasks()
+
+        def study_thread():
+            # NOTE: In a real application, this email should be configurable.
+            email_address = "test@example.com"
+
+            self.business_analysis_text.insert(tk.END, f"\nDownloading latest 10-K report for {ticker}...")
+            self.root.update_idletasks()
+
+            file_path = edgar_downloader.download_latest_10k(ticker, email_address)
+
+            if not file_path:
+                self.business_analysis_text.insert(tk.END, f"\nCould not download 10-K report for {ticker}.")
+                return
+
+            self.business_analysis_text.insert(tk.END, f"\n10-K report downloaded. Analyzing...")
+            self.root.update_idletasks()
+
+            analysis_result = gemini_analyzer.analyze_10k_report(file_path)
+            self.business_analysis_text.delete("1.0", tk.END)
+            self.business_analysis_text.insert(tk.END, analysis_result)
+
+        # Run the study in a separate thread to avoid freezing the GUI
+        threading.Thread(target=study_thread, daemon=True).start()
 
     def _download_data(self):
         """Download or update data for selected tickers"""
