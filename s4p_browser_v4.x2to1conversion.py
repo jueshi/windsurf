@@ -975,32 +975,15 @@ class SParamBrowser(tk.Tk):
                     continue
                     
                 file_path = displayed_df.iloc[row].get('File_Path', os.path.join(self.current_directory, displayed_df.iloc[row]['Name']))
-                # Fix potential path separator inconsistencies
-                file_path = os.path.normpath(file_path.replace('\\', '/'))
                 
                 # Update current_file when a single file is selected
                 if len(selected_rows) == 1:
                     self.current_file = file_path
                 
-                try:
-                    # First try loading with scikit-rf's native loader
-                    try:
-                        network = rf.Network(os.path.normpath(file_path))
-                    except Exception as rf_error:
-                        print(f"Native loader failed, trying custom parser: {str(rf_error)}")
-                        # If native loader fails, use our custom parser
-                        freq, s_params = self.parse_sparam_file(file_path)
-                        network = rf.Network()
-                        network.frequency = rf.Frequency.from_f(freq, unit='hz')
-                        network.s = s_params
-                        network.z0 = 50  # Standard impedance
-                        network.name = os.path.splitext(os.path.basename(file_path))[0]  # Set name from filename
+                network = self._load_network(file_path)
+                if network:
                     networks.append(network)
-                except Exception as e:
-                    print(f"Error loading network {file_path}: {str(e)}")
-                    traceback.print_exc()
-                    continue
-            
+
             if networks:
                 self.last_networks = networks
                 self.plot_network_params(*networks, show_mag=self.plot_mag_var.get(), show_phase=self.plot_phase_var.get())
@@ -1012,6 +995,49 @@ class SParamBrowser(tk.Tk):
         except Exception as e:
             print(f"Error in table selection: {str(e)}")
             traceback.print_exc()
+
+    def _load_network(self, file_path):
+        """Loads a skrf network from a file and applies port mapping."""
+        try:
+            # First try loading with scikit-rf's native loader
+            try:
+                network = rf.Network(os.path.normpath(file_path))
+            except Exception as rf_error:
+                print(f"Native loader failed, trying custom parser: {str(rf_error)}")
+                # If native loader fails, use our custom parser
+                freq, s_params = self.parse_sparam_file(file_path)
+                network = rf.Network()
+                network.frequency = rf.Frequency.from_f(freq, unit='hz')
+                network.s = s_params
+                network.z0 = 50  # Standard impedance
+                network.name = os.path.splitext(os.path.basename(file_path))[0]
+
+            if network.nports == 4:
+                try:
+                    # The port_mapping is 1-based, scikit-rf uses 0-based indices
+                    new_order = [p - 1 for p in self.port_mapping]
+
+                    # Reorder s-parameters by slicing the numpy array
+                    network.s = network.s[:, new_order][:, :, new_order]
+
+                    # Reorder z0 if it is a per-port array
+                    if isinstance(network.z0, np.ndarray):
+                        if network.z0.ndim == 1 and len(network.z0) == network.nports:
+                            network.z0 = network.z0[new_order]
+                        elif network.z0.ndim == 2 and network.z0.shape[1] == network.nports:
+                            network.z0 = network.z0[:, new_order]
+
+                    print(f"Reordered ports for {network.name} to {self.port_mapping}")
+                except Exception as e:
+                    print(f"Could not reorder ports: {e}")
+                    messagebox.showerror("Port Mapping Error", f"Could not apply port mapping: {e}")
+
+            return network
+
+        except Exception as e:
+            print(f"Error loading network {file_path}: {str(e)}")
+            traceback.print_exc()
+            return None
 
     def parse_sparam_file(self, file_path):
         """Parse an S-parameter file and return frequency and S-parameters."""
@@ -2955,9 +2981,13 @@ class SParamBrowser(tk.Tk):
             file1_path = self.df.iloc[selected_rows[0]].get('File_Path', os.path.join(self.current_directory, self.df.iloc[selected_rows[0]]['Name']))
             file2_path = self.df.iloc[selected_rows[1]].get('File_Path', os.path.join(self.current_directory, self.df.iloc[selected_rows[1]]['Name']))
 
-            # Load networks using scikit-rf
-            device = rf.Network(os.path.normpath(file1_path))
-            fixture = rf.Network(os.path.normpath(file2_path))
+            # Load networks using the helper function to apply port mapping
+            device = self._load_network(file1_path)
+            fixture = self._load_network(file2_path)
+
+            if not device or not fixture:
+                messagebox.showerror("Error", "Failed to load one or both S-parameter files.")
+                return
 
             # Find common frequency range
             min_freq = max(device.f[0], fixture.f[0])
@@ -3068,9 +3098,13 @@ class SParamBrowser(tk.Tk):
             file1_path = self.df.iloc[selected_rows[0]].get('File_Path', os.path.join(self.current_directory, self.df.iloc[selected_rows[0]]['Name']))
             file2_path = self.df.iloc[selected_rows[1]].get('File_Path', os.path.join(self.current_directory, self.df.iloc[selected_rows[1]]['Name']))
 
-            # Load networks using scikit-rf
-            device = rf.Network(os.path.normpath(file1_path))
-            fixture = rf.Network(os.path.normpath(file2_path))
+            # Load networks using the helper function to apply port mapping
+            device = self._load_network(file1_path)
+            fixture = self._load_network(file2_path)
+
+            if not device or not fixture:
+                messagebox.showerror("Error", "Failed to load one or both S-parameter files.")
+                return
 
             # Find common frequency range
             min_freq = max(device.f[0], fixture.f[0])
@@ -3790,9 +3824,13 @@ class SParamBrowser(tk.Tk):
             return
         
         try:
-            # Read the network using scikit-rf
-            network = rf.Network(self.current_file)
+            # Read the network using the helper function to apply port mapping
+            network = self._load_network(self.current_file)
             
+            if not network:
+                messagebox.showerror("Error", f"Failed to load S-parameter file: {self.current_file}")
+                return
+
             # Check port count
             if network.nports == 2:
                 # For 2-port networks (single-ended devices)
