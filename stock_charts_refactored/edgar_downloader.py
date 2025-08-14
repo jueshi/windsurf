@@ -38,3 +38,40 @@ def download_latest_10k(ticker, email_address):
     except Exception as e:
         print(f"An error occurred while downloading the 10-K filing: {e}")
         return None
+
+
+def download_latest_10q(ticker, email_address):
+    """
+    Downloads the latest 10-Q filing for a given ticker.
+
+    Args:
+        ticker (str): The stock ticker symbol.
+        email_address (str): Your email address to be used as the user agent.
+
+    Returns:
+        str: The path to the downloaded 10-Q filing, or None if it fails.
+    """
+    try:
+        # Initialize the downloader
+        dl = Downloader("MyCompanyName", email_address)
+
+        # Get the latest 10-Q filing
+        dl.get("10-Q", ticker, limit=1)
+
+        # Find the path to the downloaded file
+        filings_dir = os.path.join("sec-edgar-filings", ticker, "10-Q")
+        if not os.path.exists(filings_dir):
+            return None
+
+        # Get the latest filing by sorting the directories by name
+        latest_filing_dir = sorted(os.listdir(filings_dir))[-1]
+        filing_path = os.path.join(filings_dir, latest_filing_dir, "full-submission.txt")
+
+        if os.path.exists(filing_path):
+            return filing_path
+        else:
+            return None
+
+    except Exception as e:
+        print(f"An error occurred while downloading the 10-Q filing: {e}")
+        return None
