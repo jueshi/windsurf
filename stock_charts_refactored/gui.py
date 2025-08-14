@@ -42,6 +42,7 @@ import tempfile
 from data_manager import StockDataManager
 import gemini_analyzer
 import edgar_downloader
+import news_fetcher
 
 class StockDataGUI:
     """GUI for Stock Data Manager"""
@@ -518,11 +519,11 @@ class StockDataGUI:
 
         # Create fundamental analysis tab
         self.fundamental_analysis_frame = ttk.Frame(self.chart_notebook)
-        self.chart_notebook.add(self.fundamental_analysis_frame, text="FA")
+        self.chart_notebook.add(self.fundamental_analysis_frame, text="Fundamental Analysis")
 
         # Create business analysis tab
         self.business_analysis_frame = ttk.Frame(self.chart_notebook)
-        self.chart_notebook.add(self.business_analysis_frame, text="BA")
+        self.chart_notebook.add(self.business_analysis_frame, text="Business Analysis")
 
         # --- Fundamental Analysis Tab Widgets ---
         # Configure a custom style for the Treeview for a larger font
@@ -574,20 +575,17 @@ class StockDataGUI:
         ba_button_frame = ttk.Frame(ba_frame)
         ba_button_frame.pack(fill=tk.X, pady=5)
 
-        ttk.Button(ba_button_frame, text="Run BA", command=self._run_business_analysis).pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Button(ba_button_frame, text="10K Study", command=self._run_10k_study).pack(side=tk.LEFT)
-        
+        ttk.Button(ba_button_frame, text="Run Business Analysis", command=self._run_business_analysis).pack(side=tk.LEFT, padx=(0, 10))
+
         self.general_search_var = tk.StringVar()
         general_search_entry = ttk.Entry(ba_button_frame, textvariable=self.general_search_var, width=50)
         general_search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-
-        ttk.Button(ba_button_frame, text="AI Search", command=self._run_general_search).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(ba_button_frame, text="10K Study", command=self._run_10k_study).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(ba_button_frame, text="General AI Search", command=self._run_general_search).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(ba_button_frame, text="Conduct 10K Study", command=self._run_10k_study).pack(side=tk.LEFT, padx=(0, 5))
         self.open_10k_button = ttk.Button(ba_button_frame, text="Open 10-K Report", command=self._open_10k_report, state="disabled")
-        self.open_10k_button.pack(side=tk.LEFT)
+        self.open_10k_button.pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(ba_button_frame, text="Conduct News Search", command=self._run_news_search).pack(side=tk.LEFT, padx=(0, 5))
 
-        ttk.Button(ba_button_frame, text="AI Search", command=self._run_general_search).pack(side=tk.LEFT, padx=(0, 5))
-        
         ba_text_frame = ttk.Frame(ba_frame)
         ba_text_frame.pack(fill=tk.BOTH, expand=True, pady=5)
 
@@ -2595,7 +2593,7 @@ class StockDataGUI:
                 self.status_var.set(f"Loaded cached analysis for {ticker}")
             else:
                 self.business_analysis_text.delete("1.0", tk.END)
-                self.business_analysis_text.insert(tk.END, "No analysis found. Click 'Run BA' to generate one.")
+                self.business_analysis_text.insert(tk.END, "No analysis found. Click 'Run Business Analysis' to generate one.")
         except Exception as e:
             messagebox.showerror("Error", f"Could not load cached analysis: {e}")
 
@@ -2690,6 +2688,38 @@ class StockDataGUI:
 
         # Run the study in a separate thread to avoid freezing the GUI
         threading.Thread(target=study_thread, daemon=True).start()
+
+    def _run_news_search(self):
+        """Runs the news search for the selected ticker."""
+        selected_tickers = self._get_selected_tickers(show_warning=True)
+        if not selected_tickers:
+            return
+
+        ticker = selected_tickers[0]
+        self.business_analysis_text.delete("1.0", tk.END)
+        self.business_analysis_text.insert(tk.END, f"Running news search for {ticker}...")
+        self.root.update_idletasks()
+
+        def search_thread():
+            self.business_analysis_text.insert(tk.END, f"\nFetching news for {ticker}...")
+            self.root.update_idletasks()
+
+            news_articles = news_fetcher.fetch_news(ticker)
+
+            if not news_articles or "error" in news_articles[0]:
+                error_msg = news_articles[0]['error'] if news_articles else "Could not fetch news."
+                self.business_analysis_text.insert(tk.END, f"\n{error_msg}")
+                return
+
+            self.business_analysis_text.insert(tk.END, f"\nFound {len(news_articles)} news articles. Analyzing...")
+            self.root.update_idletasks()
+
+            analysis_result = gemini_analyzer.analyze_news(news_articles)
+            self.business_analysis_text.delete("1.0", tk.END)
+            self.business_analysis_text.insert(tk.END, analysis_result)
+
+        # Run the search in a separate thread to avoid freezing the GUI
+        threading.Thread(target=search_thread, daemon=True).start()
 
     def _open_10k_report(self):
         """Opens the downloaded 10-K report file."""
