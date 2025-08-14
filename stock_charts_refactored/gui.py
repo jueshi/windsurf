@@ -576,18 +576,14 @@ class StockDataGUI:
 
         ttk.Button(ba_button_frame, text="Run BA", command=self._run_business_analysis).pack(side=tk.LEFT, padx=(0, 10))
         ttk.Button(ba_button_frame, text="10K Study", command=self._run_10k_study).pack(side=tk.LEFT)
+        self.open_10k_button = ttk.Button(ba_button_frame, text="Open 10-K Report", command=self._open_10k_report, state="disabled")
+        self.open_10k_button.pack(side=tk.LEFT)
         
         self.general_search_var = tk.StringVar()
         general_search_entry = ttk.Entry(ba_button_frame, textvariable=self.general_search_var, width=50)
         general_search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-
         ttk.Button(ba_button_frame, text="AI Search", command=self._run_general_search).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(ba_button_frame, text="10K Study", command=self._run_10k_study).pack(side=tk.LEFT, padx=(0, 5))
-        self.open_10k_button = ttk.Button(ba_button_frame, text="Open 10-K Report", command=self._open_10k_report, state="disabled")
-        self.open_10k_button.pack(side=tk.LEFT)
 
-        ttk.Button(ba_button_frame, text="AI Search", command=self._run_general_search).pack(side=tk.LEFT, padx=(0, 5))
-        
         ba_text_frame = ttk.Frame(ba_frame)
         ba_text_frame.pack(fill=tk.BOTH, expand=True, pady=5)
 
