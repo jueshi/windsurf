@@ -2279,7 +2279,7 @@ class SParamBrowser(tk.Tk):
                     p11, p21 = 'SDD11', 'SDD21'
                 else:
                     s_params = net.s
-                    p11, p21 = f'S{net.ports[0]}{net.ports[0]}', f'S{net.ports[1]}{net.ports[0]}'
+                    p11, p21 = 'S11', 'S21'
 
 
                 s11 = s_params[:, 0, 0]
