@@ -269,6 +269,71 @@ def analyze_10q_report(file_path):
     except Exception as e:
         return f"生成最终分析时出错: {e}"
 
+def analyze_news(news_articles):
+    """
+    Analyzes a list of news articles using Google Gemini API.
+
+    Args:
+        news_articles (list): A list of news articles from Tavily.
+
+    Returns:
+        str: A structured summary of the news.
+    """
+    load_dotenv()
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return "Error: GEMINI_API_KEY not found in environment variables."
+
+    genai.configure(api_key=api_key)
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+    except Exception as e:
+        return f"Error: Could not initialize Gemini model: {e}"
+
+    good_news = []
+    bad_news = []
+
+    for article in news_articles:
+        prompt = f"""
+        请用中文总结以下新闻文章，并将其分类为“利好”、“利空”或“中性”。
+        请以JSON格式返回，包含“summary”和“sentiment”两个字段。
+
+        新闻标题: {article.get('title', 'N/A')}
+        新闻内容: {article.get('content', 'N/A')}
+        """
+        try:
+            response = model.generate_content(prompt)
+            # Clean the response to make it valid JSON
+            cleaned_response = response.text.strip().replace("```json", "").replace("```", "")
+            result = json.loads(cleaned_response)
+
+            summary = result.get('summary', '无法生成摘要。')
+            sentiment = result.get('sentiment', '中性').lower()
+
+            if "利好" in sentiment:
+                good_news.append(f"- {summary} (来源: {article.get('url', 'N/A')})")
+            elif "利空" in sentiment:
+                bad_news.append(f"- {summary} (来源: {article.get('url', 'N/A')})")
+        except Exception as e:
+            print(f"Error processing article: {e}")
+            continue
+
+    # Format the final output
+    output = "## 新闻分析\n\n"
+    output += "### 利好消息\n"
+    if good_news:
+        output += "\n".join(good_news)
+    else:
+        output += "近期无明显利好消息。\n"
+
+    output += "\n\n### 利空消息\n"
+    if bad_news:
+        output += "\n".join(bad_news)
+    else:
+        output += "近期无明显利空消息。\n"
+
+    return output
+
 def general_search(ticker, company_info, query):
     """
     Performs a general AI search about a company using Google Gemini API.
