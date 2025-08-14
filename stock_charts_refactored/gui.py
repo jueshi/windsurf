@@ -57,6 +57,7 @@ class StockDataGUI:
         self.seasonality_pil_img = None  # To store the high-res seasonality chart
         self.seasonality_chart_ticker = None # Tracks the ticker for the current seasonality chart
         self._debounce_job = None       # For debouncing resize events
+        self.current_10k_path = None
         self.year_selection_vars = {}  # For multi-select year checkbuttons
         self.seasonality_year_menubutton = None # The new menubutton for year selection
         self.year_menu = None # A direct reference to the year selection menu
@@ -579,7 +580,9 @@ class StockDataGUI:
         general_search_entry = ttk.Entry(ba_button_frame, textvariable=self.general_search_var, width=50)
         general_search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
         ttk.Button(ba_button_frame, text="General AI Search", command=self._run_general_search).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(ba_button_frame, text="Conduct 10K Study", command=self._run_10k_study).pack(side=tk.LEFT)
+        ttk.Button(ba_button_frame, text="Conduct 10K Study", command=self._run_10k_study).pack(side=tk.LEFT, padx=(0, 5))
+        self.open_10k_button = ttk.Button(ba_button_frame, text="Open 10-K Report", command=self._open_10k_report, state="disabled")
+        self.open_10k_button.pack(side=tk.LEFT)
 
         ba_text_frame = ttk.Frame(ba_frame)
         ba_text_frame.pack(fill=tk.BOTH, expand=True, pady=5)
@@ -1365,7 +1368,9 @@ class StockDataGUI:
             # Tab indices are: 0: Individual, 1: Comparison, 2: Seasonality, 3: Fundamental, 4: Business Analysis
             if current_tab_index == 4:
                 if selected_tickers:
-                    self._load_cached_analysis(selected_tickers[0])
+                    ticker = selected_tickers[0]
+                    self._load_cached_analysis(ticker)
+                    self._check_for_cached_10k(ticker)
             elif current_tab_index == 3:
                 self._display_fundamental_data(selected_tickers)
             elif selected_tickers:
@@ -1393,7 +1398,9 @@ class StockDataGUI:
             # Tab indices are: 0: Individual, 1: Comparison, 2: Seasonality, 3: Fundamental, 4: Business Analysis
             if current_tab_index == 4:
                 if selected_tickers:
-                    self._load_cached_analysis(selected_tickers[0])
+                    ticker = selected_tickers[0]
+                    self._load_cached_analysis(ticker)
+                    self._check_for_cached_10k(ticker)
             elif current_tab_index == 3:
                 self._display_fundamental_data(selected_tickers)
             elif selected_tickers:
@@ -1561,10 +1568,13 @@ class StockDataGUI:
                 self._display_fundamental_data(selected_tickers)
             elif self.active_tab == "business_analysis":
                 if selected_tickers:
-                    self._load_cached_analysis(selected_tickers[0])
+                    ticker = selected_tickers[0]
+                    self._load_cached_analysis(ticker)
+                    self._check_for_cached_10k(ticker)
                 else:
                     self.business_analysis_text.delete("1.0", tk.END)
                     self.business_analysis_text.insert(tk.END, "Select a ticker to view analysis.")
+                    self.open_10k_button.config(state="disabled")
             elif selected_tickers: # For other tabs, only update if there is a selection
                 if self.active_tab == "comparison":
                     self._compare_percentage_performance(tickers=selected_tickers)
@@ -2585,6 +2595,23 @@ class StockDataGUI:
         except Exception as e:
             messagebox.showerror("Error", f"Could not load cached analysis: {e}")
 
+    def _check_for_cached_10k(self, ticker):
+        """Check if a 10-K for the ticker exists and update the button state."""
+        try:
+            filings_dir = os.path.join("sec-edgar-filings", ticker, "10-K")
+            if os.path.exists(filings_dir) and os.listdir(filings_dir):
+                latest_filing_dir = sorted(os.listdir(filings_dir))[-1]
+                filing_path = os.path.join(filings_dir, latest_filing_dir, "full-submission.txt")
+                if os.path.exists(filing_path):
+                    self.current_10k_path = filing_path
+                    self.open_10k_button.config(state="normal")
+                    return
+        except Exception as e:
+            print(f"Error checking for cached 10-K: {e}")
+
+        self.current_10k_path = None
+        self.open_10k_button.config(state="disabled")
+
     def _run_general_search(self):
         """Runs the general AI search for the selected ticker."""
         query = self.general_search_var.get()
@@ -2640,11 +2667,17 @@ class StockDataGUI:
 
             file_path = edgar_downloader.download_latest_10k(ticker, email_address)
 
-            if not file_path:
+            if file_path:
+                self.current_10k_path = file_path
+                self.open_10k_button.config(state="normal")
+                self.business_analysis_text.insert(tk.END, f"\n10-K report downloaded. Analyzing...")
+            else:
                 self.business_analysis_text.insert(tk.END, f"\nCould not download 10-K report for {ticker}.")
+                self.current_10k_path = None
+                self.open_10k_button.config(state="disabled")
                 return
 
-            self.business_analysis_text.insert(tk.END, f"\n10-K report downloaded. Analyzing...")
+            self.root.update_idletasks()
             self.root.update_idletasks()
 
             analysis_result = gemini_analyzer.analyze_10k_report(file_path)
@@ -2653,6 +2686,16 @@ class StockDataGUI:
 
         # Run the study in a separate thread to avoid freezing the GUI
         threading.Thread(target=study_thread, daemon=True).start()
+
+    def _open_10k_report(self):
+        """Opens the downloaded 10-K report file."""
+        if self.current_10k_path and os.path.exists(self.current_10k_path):
+            try:
+                webbrowser.open(f"file:///{os.path.abspath(self.current_10k_path)}")
+            except Exception as e:
+                messagebox.showerror("Error", f"Could not open file: {e}")
+        else:
+            messagebox.showwarning("File Not Found", "The 10-K report file was not found. Please run the study first.")
 
     def _download_data(self):
         """Download or update data for selected tickers"""
