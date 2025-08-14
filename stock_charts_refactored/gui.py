@@ -575,17 +575,24 @@ class StockDataGUI:
         ba_button_frame = ttk.Frame(ba_frame)
         ba_button_frame.pack(fill=tk.X, pady=5)
 
-        ttk.Button(ba_button_frame, text="Run Business Analysis", command=self._run_business_analysis).pack(side=tk.LEFT, padx=(0, 10))
+
+
+
+        ttk.Button(ba_button_frame, text="Run BA", command=self._run_business_analysis).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(ba_button_frame, text="10-Q Study", command=self._run_10q_study).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(ba_button_frame, text="10K Study", command=self._run_10k_study).pack(side=tk.LEFT, padx=(0, 5))
+        self.open_10k_button = ttk.Button(ba_button_frame, text="Open 10-K Report", command=self._open_10k_report, state="disabled")
+        self.open_10k_button.pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Button(ba_button_frame, text="Conduct News Search", command=self._run_news_search).pack(side=tk.LEFT, padx=(0, 5))
+        self.open_10k_button.pack(side=tk.LEFT)
 
         self.general_search_var = tk.StringVar()
-        general_search_entry = ttk.Entry(ba_button_frame, textvariable=self.general_search_var, width=50)
+        general_search_entry = ttk.Entry(ba_button_frame, textvariable=self.general_search_var, width=40)
         general_search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-        ttk.Button(ba_button_frame, text="General AI Search", command=self._run_general_search).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(ba_button_frame, text="Conduct 10K Study", command=self._run_10k_study).pack(side=tk.LEFT, padx=(0, 5))
-        self.open_10k_button = ttk.Button(ba_button_frame, text="Open 10-K Report", command=self._open_10k_report, state="disabled")
-        self.open_10k_button.pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(ba_button_frame, text="Conduct News Search", command=self._run_news_search).pack(side=tk.LEFT, padx=(0, 5))
 
+        ttk.Button(ba_button_frame, text="AI Search", command=self._run_general_search).pack(side=tk.LEFT)
+        
+        
         ba_text_frame = ttk.Frame(ba_frame)
         ba_text_frame.pack(fill=tk.BOTH, expand=True, pady=5)
 
@@ -2689,6 +2696,7 @@ class StockDataGUI:
         # Run the study in a separate thread to avoid freezing the GUI
         threading.Thread(target=study_thread, daemon=True).start()
 
+
     def _run_news_search(self):
         """Runs the news search for the selected ticker."""
         selected_tickers = self._get_selected_tickers(show_warning=True)
@@ -2720,6 +2728,47 @@ class StockDataGUI:
 
         # Run the search in a separate thread to avoid freezing the GUI
         threading.Thread(target=search_thread, daemon=True).start()
+
+    def _run_10q_study(self):
+        """Runs the 10-Q study for the selected ticker."""
+        selected_tickers = self._get_selected_tickers(show_warning=True)
+        if not selected_tickers:
+            # Check watch list if no ticker is selected in the main list
+            selected_indices = self.watch_listbox.curselection()
+            if not selected_indices:
+                messagebox.showwarning("No Selection", "Please select a ticker from the 'Available Tickers' or 'Watch List'.")
+                return
+            selected_tickers = [self.watch_listbox.get(i).strip() for i in selected_indices]
+
+        ticker = selected_tickers[0]
+        self.business_analysis_text.delete("1.0", tk.END)
+        self.business_analysis_text.insert(tk.END, f"Running 10-Q study for {ticker}...")
+        self.root.update_idletasks()
+
+        def study_thread():
+            # NOTE: In a real application, this email should be configurable.
+            email_address = "test@example.com"
+
+            self.business_analysis_text.insert(tk.END, f"\nDownloading latest 10-Q report for {ticker}...")
+            self.root.update_idletasks()
+
+            file_path = edgar_downloader.download_latest_10q(ticker, email_address)
+
+            if file_path:
+                self.business_analysis_text.insert(tk.END, f"\n10-Q report downloaded. Analyzing...")
+            else:
+                self.business_analysis_text.insert(tk.END, f"\nCould not download 10-Q report for {ticker}.")
+                return
+
+            self.root.update_idletasks()
+
+            analysis_result = gemini_analyzer.analyze_10q_report(file_path)
+            self.business_analysis_text.delete("1.0", tk.END)
+            self.business_analysis_text.insert(tk.END, analysis_result)
+
+        # Run the study in a separate thread to avoid freezing the GUI
+        threading.Thread(target=study_thread, daemon=True).start()
+
 
     def _open_10k_report(self):
         """Opens the downloaded 10-K report file."""
