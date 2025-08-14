@@ -996,6 +996,12 @@ class SParamBrowser(tk.Tk):
                         network.s = s_params
                         network.z0 = 50  # Standard impedance
                         network.name = os.path.splitext(os.path.basename(file_path))[0]  # Set name from filename
+
+                    # Apply port mapping if the network has 4 ports
+                    if network.nports == 4:
+                        port_indices = [p - 1 for p in self.port_mapping]
+                        network.s = network.s[:, port_indices, :][:, :, port_indices]
+
                     networks.append(network)
                 except Exception as e:
                     print(f"Error loading network {file_path}: {str(e)}")
