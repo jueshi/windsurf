@@ -2,6 +2,10 @@ import os
 import re
 import google.generativeai as genai
 from dotenv import load_dotenv
+import requests
+from bs4 import BeautifulSoup
+from googlesearch import search
+import json
 
 def analyze_ticker(ticker, company_info):
     """
@@ -62,16 +66,68 @@ def analyze_ticker(ticker, company_info):
     except Exception as e:
         return f"An error occurred while communicating with the Gemini API: {e}"
 
-def analyze_10k_report(file_path):
+def _get_filing_url(ticker, filing_type):
     """
-    Analyzes a 10-K report using Google Gemini API.
-
-    Args:
-        file_path (str): The path to the 10-K report file.
-
-    Returns:
-        str: The comprehensive analysis of the 10-K report.
+    Searches for the latest SEC filing URL for a given ticker.
     """
+    query = f'"{ticker}" "{filing_type}" filing site:sec.gov'
+    print(f"Searching with query: {query}")
+    try:
+        for url in search(query, num=5, stop=5, pause=1.0):
+            if "ix?doc=" in url or ".htm" in url:
+                if re.search(r'\d{10}-\d{2}-\d{6}', url):
+                    print(f"Found potential filing URL: {url}")
+                    return url
+    except Exception as e:
+        print(f"An error occurred during web search: {e}")
+        return None
+    print("Could not find a suitable URL.")
+    return None
+
+def _get_text_from_url(url):
+    """
+    Fetches and extracts plain text from a URL.
+    """
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+        response = requests.get(url, headers=headers, timeout=20)
+        response.raise_for_status()
+
+        soup = BeautifulSoup(response.content, 'html.parser')
+
+        for script_or_style in soup(["script", "style"]):
+            script_or_style.decompose()
+
+        text = soup.get_text()
+        lines = (line.strip() for line in text.splitlines())
+        chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+        text = '\n'.join(chunk for chunk in chunks if chunk)
+
+        return text
+    except requests.RequestException as e:
+        print(f"Error fetching URL {url}: {e}")
+        return None
+    except Exception as e:
+        print(f"An error occurred during text extraction: {e}")
+        return None
+
+def analyze_10k_report(ticker):
+    """
+    Finds the latest 10-K report from the web, analyzes it using Google Gemini API.
+    """
+    print(f"Starting 10-K analysis for {ticker}...")
+    filing_url = _get_filing_url(ticker, "10-K")
+    if not filing_url:
+        return f"无法为 {ticker} 的10-K报告找到有效的SECファイリングURL。"
+
+    print(f"Found URL: {filing_url}. Fetching content...")
+    report_text = _get_text_from_url(filing_url)
+    if not report_text:
+        return f"无法从URL获取或解析内容: {filing_url}"
+
+    report_text = report_text[:200000]
+    print("Content fetched. Analyzing with Gemini...")
+
     load_dotenv()
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
@@ -81,101 +137,51 @@ def analyze_10k_report(file_path):
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
     except Exception as e:
-        print(f"Could not initialize model: {e}")
-        return "Error: Could not initialize Gemini model."
+        return f"Error: Could not initialize Gemini model: {e}"
 
-    try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            report_text = f.read()
-    except Exception as e:
-        return f"Error reading 10-K file: {e}"
+    prompt = f"""
+    请对以下10-K报告进行详细的中文分析。
 
-    # Extract CIK and accession number to build the URL
-    accession_number_match = re.search(r"ACCESSION NUMBER:\s*([\d-]+)", report_text)
-    cik_match = re.search(r"CENTRAL INDEX KEY:\s*(\d+)", report_text)
+    报告文本:
+    ---
+    {report_text}
+    ---
 
-    filing_url = "链接未找到"
-    if accession_number_match and cik_match:
-        accession_number_no_dashes = accession_number_match.group(1).replace('-', '')
-        cik = cik_match.group(1)
-        filing_url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number_no_dashes}/{accession_number_match.group(1)}-index.htm"
-    else:
-        try:
-            # Fallback to constructing a search link
-            ticker = file_path.split(os.path.sep)[1]
-            filing_url = f"链接到SEC网站手动搜索: https://www.sec.gov/edgar/search/#/q={ticker}"
-        except IndexError:
-            filing_url = "链接到SEC网站手动搜索: https://www.sec.gov/edgar/search-and-access"
+    请提供一份结构良好、深入的分析报告，涵盖以下方面：
+    1.  **整体摘要:** 对整个10-K报告进行高级别摘要。
+    2.  **亮点 (Highlights):** 识别并总结报告中的主要积极方面、成就或优势。
+    3.  **不足 (Lowlights):** 识别并总结报告中的主要风险、挑战或负面趋势。
+    4.  **核心业务分析:** 详细描述公司的核心业务、收入来源和市场定位。
+    5.  **财务状况评估:** 基于报告中的财务数据，评估公司的财务健康状况。
+    6.  **管理层讨论:** 总结管理层对公司业绩和未来前景的看法。
 
-    # Extract relevant sections using regex
-    def extract_section(text, start_pattern, end_pattern):
-        start_match = re.search(start_pattern, text, re.IGNORECASE | re.DOTALL)
-        if not start_match:
-            return None
-        start_index = start_match.end()
-        end_match = re.search(end_pattern, text[start_index:], re.IGNORECASE | re.DOTALL)
-        if not end_match:
-            return text[start_index:]
-        end_index = end_match.start()
-        return text[start_index:start_index + end_index]
-
-    item1_text = extract_section(report_text, r"Item\s+1\.\s+Business", r"Item\s+1A\.")
-    item1a_text = extract_section(report_text, r"Item\s+1A\.\s+Risk Factors", r"Item\s+1B\.")
-    item7_text = extract_section(report_text, r"Item\s+7\.\s+Management's Discussion and Analysis", r"Item\s+7A\.")
-
-    sections = {
-        "业务 (Business)": item1_text,
-        "风险因素 (Risk Factors)": item1a_text,
-        "管理层的讨论与分析 (MD&A)": item7_text,
-    }
-
-    summaries = {}
-    for title, text in sections.items():
-        if text:
-            # Truncate text to avoid being too long
-            text = text[:10000]
-            prompt = f"请用中文总结以下10-K报告的 '{title}' 部分:\n\n{text}"
-            try:
-                response = model.generate_content(prompt)
-                summaries[title] = response.text
-            except Exception as e:
-                summaries[title] = f"无法总结该部分: {e}"
-        else:
-            summaries[title] = "未找到该部分。"
-
-    final_prompt = f"""
-    请根据以下10-K报告各部分的摘要，生成一份全面的中文商业分析报告。
-
-    **业务 (Business) 摘要:**
-    {summaries.get('业务 (Business)', 'N/A')}
-
-    **风险因素 (Risk Factors) 摘要:**
-    {summaries.get('风险因素 (Risk Factors)', 'N/A')}
-
-    **管理层的讨论与分析 (MD&A) 摘要:**
-    {summaries.get("管理层的讨论与分析 (MD&A)", 'N/A')}
-
-    请综合以上信息，提供一份深入的、结构化的分析报告，重点突出公司的核心业务、主要风险和管理层对公司未来发展的看法。
+    请确保分析客观、信息丰富，并以清晰的格式呈现。
     报告最后，请提供在线报告的直接链接: {filing_url}
     """
 
     try:
-        response = model.generate_content(final_prompt)
+        response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"生成最终分析时出错: {e}"
+        return f"在最终分析过程中发生错误: {e}"
 
-
-def analyze_10q_report(file_path):
+def analyze_10q_report(ticker):
     """
-    Analyzes a 10-Q report using Google Gemini API.
-
-    Args:
-        file_path (str): The path to the 10-Q report file.
-
-    Returns:
-        str: The comprehensive analysis of the 10-Q report.
+    Finds the latest 10-Q report from the web, analyzes it using Google Gemini API.
     """
+    print(f"Starting 10-Q analysis for {ticker}...")
+    filing_url = _get_filing_url(ticker, "10-Q")
+    if not filing_url:
+        return f"无法为 {ticker} 的10-Q报告找到有效的SECファイリングURL。"
+
+    print(f"Found URL: {filing_url}. Fetching content...")
+    report_text = _get_text_from_url(filing_url)
+    if not report_text:
+        return f"无法从URL获取或解析内容: {filing_url}"
+
+    report_text = report_text[:200000]
+    print("Content fetched. Analyzing with Gemini...")
+
     load_dotenv()
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
@@ -185,89 +191,32 @@ def analyze_10q_report(file_path):
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
     except Exception as e:
-        print(f"Could not initialize model: {e}")
-        return "Error: Could not initialize Gemini model."
+        return f"Error: Could not initialize Gemini model: {e}"
 
-    try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            report_text = f.read()
-    except Exception as e:
-        return f"Error reading 10-Q file: {e}"
+    prompt = f"""
+    请对以下10-Q报告进行详细的中文分析。
 
-    # Extract CIK and accession number to build the URL
-    accession_number_match = re.search(r"ACCESSION NUMBER:\s*([\d-]+)", report_text)
-    cik_match = re.search(r"CENTRAL INDEX KEY:\s*(\d+)", report_text)
+    报告文本:
+    ---
+    {report_text}
+    ---
 
-    filing_url = "链接未找到"
-    if accession_number_match and cik_match:
-        accession_number_no_dashes = accession_number_match.group(1).replace('-', '')
-        cik = cik_match.group(1)
-        filing_url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number_no_dashes}/{accession_number_match.group(1)}-index.htm"
-    else:
-        try:
-            # Fallback to constructing a search link
-            ticker = file_path.split(os.path.sep)[1]
-            filing_url = f"链接到SEC网站手动搜索: https://www.sec.gov/edgar/search/#/q={ticker}"
-        except IndexError:
-            filing_url = "链接到SEC网站手动搜索: https://www.sec.gov/edgar/search-and-access"
+    请提供一份结构良好、深入的季度分析报告，涵盖以下方面：
+    1.  **整体摘要:** 对整个10-Q报告进行高级别摘要，重点关注本季度的变化。
+    2.  **亮点 (Highlights):** 识别并总结报告中的主要积极方面或超出预期的表现。
+    3.  **不足 (Lowlights):** 识别并总结报告中的主要风险、挑战或未达预期的表现。
+    4.  **财务表现:** 分析本季度的财务报表，总结关键财务指标的变化。
+    5.  **管理层讨论:** 总结管理层对本季度业绩和短期前景的看法。
 
-    # Extract relevant sections using regex
-    def extract_section(text, start_pattern, end_pattern):
-        start_match = re.search(start_pattern, text, re.IGNORECASE | re.DOTALL)
-        if not start_match:
-            return None
-        start_index = start_match.end()
-        end_match = re.search(end_pattern, text[start_index:], re.IGNORECASE | re.DOTALL)
-        if not end_match:
-            return text[start_index:]
-        end_index = end_match.start()
-        return text[start_index:start_index + end_index]
-
-    item1_text = extract_section(report_text, r"Item\s+1\.\s+Financial Statements", r"Item\s+2\.")
-    item2_text = extract_section(report_text, r"Item\s+2\.\s+Management's Discussion and Analysis", r"Item\s+3\.")
-    item4_text = extract_section(report_text, r"Item\s+4\.\s+Controls and Procedures", r"PART\s+II")
-
-    sections = {
-        "财务报表 (Financial Statements)": item1_text,
-        "管理层的讨论与分析 (MD&A)": item2_text,
-        "控制与程序 (Controls and Procedures)": item4_text,
-    }
-
-    summaries = {}
-    for title, text in sections.items():
-        if text:
-            # Truncate text to avoid being too long
-            text = text[:10000]
-            prompt = f"请用中文总结以下10-Q报告的 '{title}' 部分:\n\n{text}"
-            try:
-                response = model.generate_content(prompt)
-                summaries[title] = response.text
-            except Exception as e:
-                summaries[title] = f"无法总结该部分: {e}"
-        else:
-            summaries[title] = "未找到该部分。"
-
-    final_prompt = f"""
-    请根据以下10-Q报告各部分的摘要，生成一份全面的中文商业分析报告。
-
-    **财务报表 (Financial Statements) 摘要:**
-    {summaries.get('财务报表 (Financial Statements)', 'N/A')}
-
-    **管理层的讨论与分析 (MD&A) 摘要:**
-    {summaries.get("管理层的讨论与分析 (MD&A)", 'N/A')}
-
-    **控制与程序 (Controls and Procedures) 摘要:**
-    {summaries.get("控制与程序 (Controls and Procedures)", 'N/A')}
-
-    请综合以上信息，提供一份深入的、结构化的分析报告，重点突出公司的最新财务表现、管理层对业绩的看法以及内部控制的有效性。
+    请确保分析客观、信息丰富，并以清晰的格式呈现。
     报告最后，请提供在线报告的直接链接: {filing_url}
     """
 
     try:
-        response = model.generate_content(final_prompt)
+        response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"生成最终分析时出错: {e}"
+        return f"在最终分析过程中发生错误: {e}"
 
 def analyze_news(news_articles):
     """
