@@ -572,7 +572,12 @@ class StockDataGUI:
         ba_button_frame = ttk.Frame(ba_frame)
         ba_button_frame.pack(fill=tk.X, pady=5)
 
-        ttk.Button(ba_button_frame, text="Run Business Analysis", command=self._run_business_analysis).pack(side=tk.LEFT)
+        ttk.Button(ba_button_frame, text="Run Business Analysis", command=self._run_business_analysis).pack(side=tk.LEFT, padx=(0, 10))
+
+        self.general_search_var = tk.StringVar()
+        general_search_entry = ttk.Entry(ba_button_frame, textvariable=self.general_search_var, width=50)
+        general_search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        ttk.Button(ba_button_frame, text="General AI Search", command=self._run_general_search).pack(side=tk.LEFT)
 
         ba_text_frame = ttk.Frame(ba_frame)
         ba_text_frame.pack(fill=tk.BOTH, expand=True, pady=5)
@@ -2534,6 +2539,41 @@ class StockDataGUI:
 
         # Run the analysis in a separate thread to avoid freezing the GUI
         threading.Thread(target=analysis_thread, daemon=True).start()
+
+    def _run_general_search(self):
+        """Runs the general AI search for the selected ticker."""
+        query = self.general_search_var.get()
+        if not query:
+            messagebox.showwarning("No Query", "Please enter a search query.")
+            return
+
+        selected_tickers = self._get_selected_tickers(show_warning=True)
+        if not selected_tickers:
+            # Check watch list if no ticker is selected in the main list
+            selected_indices = self.watch_listbox.curselection()
+            if not selected_indices:
+                messagebox.showwarning("No Selection", "Please select a ticker from the 'Available Tickers' or 'Watch List'.")
+                return
+            selected_tickers = [self.watch_listbox.get(i).strip() for i in selected_indices]
+
+        ticker = selected_tickers[0]
+        self.business_analysis_text.delete("1.0", tk.END)
+        self.business_analysis_text.insert(tk.END, f"正在为 {ticker} 搜索 '{query}'...")
+        self.root.update_idletasks()
+
+        def search_thread():
+            company_info = self.manager.get_fundamental_data(ticker)
+            if not company_info:
+                self.business_analysis_text.delete("1.0", tk.END)
+                self.business_analysis_text.insert(tk.END, f"Could not retrieve fundamental data for {ticker}.")
+                return
+
+            search_result = gemini_analyzer.general_search(ticker, company_info, query)
+            self.business_analysis_text.delete("1.0", tk.END)
+            self.business_analysis_text.insert(tk.END, search_result)
+
+        # Run the search in a separate thread to avoid freezing the GUI
+        threading.Thread(target=search_thread, daemon=True).start()
 
     def _download_data(self):
         """Download or update data for selected tickers"""
