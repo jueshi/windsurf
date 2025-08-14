@@ -1,6 +1,7 @@
 import os
 import sys
 import io
+import sys
 import re
 import json
 import time
@@ -576,7 +577,14 @@ class StockDataGUI:
         ba_text_frame = ttk.Frame(ba_frame)
         ba_text_frame.pack(fill=tk.BOTH, expand=True, pady=5)
 
-        self.business_analysis_text = tk.Text(ba_text_frame, wrap=tk.WORD, height=20, width=80)
+        if sys.platform == "win32":
+            font_name = "Microsoft YaHei"
+        elif sys.platform == "darwin":
+            font_name = "PingFang SC"
+        else: # linux
+            font_name = "Noto Sans CJK SC"
+
+        self.business_analysis_text = tk.Text(ba_text_frame, wrap=tk.WORD, height=20, width=80, font=(font_name, 12))
         self.business_analysis_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         ba_scrollbar = ttk.Scrollbar(ba_text_frame, command=self.business_analysis_text.yview)

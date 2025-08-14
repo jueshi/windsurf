@@ -31,28 +31,28 @@ def analyze_ticker(ticker, company_info):
 
 
     prompt = f"""
-    Conduct a detailed business analysis for the company with the stock ticker '{ticker}'.
-    Here is some fundamental data for the company:
-    - **Company Name:** {company_info.get('longName', 'N/A')}
-    - **Sector:** {company_info.get('sector', 'N/A')}
-    - **Industry:** {company_info.get('industry', 'N/A')}
-    - **Market Cap:** {company_info.get('marketCap', 'N/A')}
-    - **Trailing P/E:** {company_info.get('trailingPE', 'N/A')}
-    - **Forward P/E:** {company_info.get('forwardPE', 'N/A')}
-    - **Dividend Yield:** {company_info.get('dividendYield', 'N/A')}
-    - **Beta:** {company_info.get('beta', 'N/A')}
-    - **52 Week High:** {company_info.get('fiftyTwoWeekHigh', 'N/A')}
-    - **52 Week Low:** {company_info.get('fiftyTwoWeekLow', 'N/A')}
-    - **Business Summary:** {company_info.get('longBusinessSummary', 'N/A')}
+    对以下公司进行详细的商业分析，公司股票代码为 '{ticker}'。
+    这是该公司的一些基本数据：
+    - **公司名称:** {company_info.get('longName', 'N/A')}
+    - **行业板块:** {company_info.get('sector', 'N/A')}
+    - **具体行业:** {company_info.get('industry', 'N/A')}
+    - **市值:** {company_info.get('marketCap', 'N/A')}
+    - **市盈率（过去12个月）:** {company_info.get('trailingPE', 'N/A')}
+    - **远期市盈率:** {company_info.get('forwardPE', 'N/A')}
+    - **股息率:** {company_info.get('dividendYield', 'N/A')}
+    - **贝塔系数:** {company_info.get('beta', 'N/A')}
+    - **52周最高价:** {company_info.get('fiftyTwoWeekHigh', 'N/A')}
+    - **52周最低价:** {company_info.get('fiftyTwoWeekLow', 'N/A')}
+    - **业务摘要:** {company_info.get('longBusinessSummary', 'N/A')}
 
-    Please provide a comprehensive business analysis covering the following aspects:
-    1.  **Business Model:** Describe the company's primary business model and how it generates revenue.
-    2.  **Competitive Landscape:** Who are the main competitors, and what is this company's competitive advantage?
-    3.  **Financial Health:** Briefly assess the company's financial health based on the provided metrics.
-    4.  **Growth Prospects:** What are the potential growth drivers for this company?
-    5.  **Potential Risks:** What are the key risks associated with this company?
+    请提供一份结构良好、详细的中文商业分析，涵盖以下方面：
+    1.  **商业模式:** 描述公司的主要商业模式及其收入来源。
+    2.  **竞争格局:** 主要竞争对手是谁？这家公司的竞争优势是什么？
+    3.  **财务状况:** 根据所提供的指标，简要评估公司的财务状况。
+    4.  **增长前景:** 这家公司潜在的增长动力是什么？
+    5.  **潜在风险:** 与这家公司相关的主要风险是什么？
 
-    Provide a well-structured and detailed analysis.
+    请用中文提供结构良好且详细的分析。
     """
 
     try:
