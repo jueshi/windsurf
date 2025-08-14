@@ -55,7 +55,7 @@ import mpl_toolkits.axisartist.floating_axes as floating_axes
 import mpl_toolkits.axisartist.grid_finder as grid_finder
 from scipy import signal
 # Import ICZT function from local module
-from iczt_function import calculate_tdr_iczt
+# from iczt_function import calculate_tdr_iczt
 import scipy.linalg
 
 class SmithAxes(PolarAxes):
@@ -118,6 +118,7 @@ class SParamBrowser(tk.Tk):
         
         # Port mapping (default 1-to-1)
         self.port_mapping = [1, 2, 3, 4]  # Maps logical ports to physical ports
+        self.mixed_mode_var = tk.BooleanVar(value=True)
         
         # Initialize plot variables
         self.figure = None
@@ -1341,6 +1342,8 @@ class SParamBrowser(tk.Tk):
         ttk.Button(self.toolbar, text="Smith Chart", command=self.show_smith_chart).pack(side=tk.LEFT, padx=2)
         ttk.Button(self.toolbar, text="Port Mapping", command=self.show_port_mapping_dialog).pack(side=tk.LEFT, padx=2)
 
+        self.mixed_mode_checkbutton = ttk.Checkbutton(self.toolbar, text="Mixed-Mode", variable=self.mixed_mode_var, command=self.update_plot)
+        self.mixed_mode_checkbutton.pack(side="left", padx=2)
         
         # Add 2x to 1x conversion menu button
         self.conversion_button = ttk.Menubutton(self.toolbar, text="Convert 2x → 1x")
@@ -1980,13 +1983,11 @@ class SParamBrowser(tk.Tk):
         
         return t_causal, distance_causal, tdr_causal
 
-    def calculate_pulse_response(self, network=None, use_iczt=False):
+    def calculate_pulse_response(self, network=None):
         """Calculate pulse response with enhanced resolution
         
         Args:
             network: Network object with S-parameters (default: None, uses first network)
-            use_iczt: Whether to use Inverse Chirp Z-Transform instead of IFFT (default: True)
-                    ICZT provides higher resolution but is computationally more expensive
         """
         if network is None:
             network = self.data[0]  # Use first network if none specified
@@ -2014,111 +2015,74 @@ class SParamBrowser(tk.Tk):
         # Apply window function
         sdd11_complex_windowed = self.apply_window(sdd11_complex)
         
-        if use_iczt:
-            # Use ICZT method for higher resolution and control
-            print("Using ICZT method for pulse response calculation...")
-            
-            # Calculate appropriate time range based on frequency range
-            t_max = 1 / (f[1] - f[0])  # Maximum time from frequency spacing
-            
-            # Number of points based on padding factor
-            pad_factor = int(self.padding_factor.get())
-            num_points = len(f) * pad_factor
-            
-            # Calculate pulse response using ICZT
-            t, pulse = calculate_tdr_iczt(f, sdd11_complex_windowed, 0, t_max/2, num_points)
-            
-            # Print pulse response diagnostics
-            print(f"ICZT pulse response diagnostics:")
-            print(f"  Time range: {t[0]*1e9:.1f} to {t[-1]*1e9:.1f} ns")
-            print(f"  Time resolution: {(t[1]-t[0])*1e9:.3f} ns")
-            print(f"  Number of points: {len(t)}")
-            
-            # Normalize and enhance pulse response
-            pulse_mag = np.abs(pulse)
-            max_val = np.max(pulse_mag)
-            
-            if max_val > 0 and max_val != 1.0:
-                # Normalize to unity amplitude
-                pulse = pulse / max_val
-                print(f"  Normalized pulse to unity amplitude")
-                
-            # Convert time to picoseconds for easier reading
-            t_ns = t * 1e9
-            
-            return t_ns, pulse
-        else:        
-                    
-            # Zero padding
-            pad_factor = int(self.padding_factor.get())
-            n_orig = len(f)
-            n_padded = n_orig * pad_factor
-            
-            # Pad the frequency domain data
-            sdd11_complex_padded = np.pad(sdd11_complex_windowed, (0, n_padded - n_orig), mode='constant')
-            
-            # Create padded frequency array
-            f_step = f[1] - f[0]  # Original frequency step
-            f_padded = np.linspace(f[0], f[0] + f_step * (n_padded - 1), n_padded)
-            
-            # Create Gaussian pulse in frequency domain
-            sigma = 0.1 / (2 * np.pi * f_padded[-1])  # Adjust pulse width
-            gauss = np.exp(-0.5 * (f_padded * sigma)**2)
-            
-            # Multiply with S-parameters and transform to time domain
-            pulse = np.fft.ifft(sdd11_complex_padded * gauss)
-            
-            # Calculate time array
-            dt = 1 / (2 * f_padded[-1])  # Time step
-            t = np.arange(n_padded) * dt  # Initial time array, may be updated later
-            
-            # Normalize and enhance pulse response for better visualization
+        # Zero padding
+        pad_factor = int(self.padding_factor.get())
+        n_orig = len(f)
+        n_padded = n_orig * pad_factor
 
-            pulse_mag = np.abs(pulse)
+        # Pad the frequency domain data
+        sdd11_complex_padded = np.pad(sdd11_complex_windowed, (0, n_padded - n_orig), mode='constant')
 
-            max_val = np.max(pulse_mag)
+        # Create padded frequency array
+        f_step = f[1] - f[0]  # Original frequency step
+        f_padded = np.linspace(f[0], f[0] + f_step * (n_padded - 1), n_padded)
 
-            
+        # Create Gaussian pulse in frequency domain
+        sigma = 0.1 / (2 * np.pi * f_padded[-1])  # Adjust pulse width
+        gauss = np.exp(-0.5 * (f_padded * sigma)**2)
 
-            # Print pulse response diagnostics
+        # Multiply with S-parameters and transform to time domain
+        pulse = np.fft.ifft(sdd11_complex_padded * gauss)
 
-            print(f"Pulse response diagnostics:")
+        # Calculate time array
+        dt = 1 / (2 * f_padded[-1])  # Time step
+        t = np.arange(n_padded) * dt  # Initial time array, may be updated later
 
-            print(f"  Max amplitude: {max_val:.6f}")
+        # Normalize and enhance pulse response for better visualization
 
-            print(f"  Time range: {t[0]*1e9:.1f} to {t[-1]*1e9:.1f} ns")
+        pulse_mag = np.abs(pulse)
 
-            print(f"  Time step: {(t[1]-t[0])*1e9:.3f} ns")
+        max_val = np.max(pulse_mag)
 
-            
 
-            # Check if normalization is needed
 
-            if max_val > 0 and max_val != 1.0:
+        # Print pulse response diagnostics
 
-                # Normalize to unity amplitude
+        print(f"Pulse response diagnostics:")
 
-                pulse = pulse / max_val
+        print(f"  Max amplitude: {max_val:.6f}")
 
-                print(f"  Normalized pulse to unity amplitude")
+        print(f"  Time range: {t[0]*1e9:.1f} to {t[-1]*1e9:.1f} ns")
 
-            
+        print(f"  Time step: {(t[1]-t[0])*1e9:.3f} ns")
 
-            # Convert time to picoseconds for easier reading
 
-            t_ns = t * 1e9  # Convert to picoseconds
 
-            
+        # Check if normalization is needed
 
-            return t_ns, pulse
+        if max_val > 0 and max_val != 1.0:
+
+            # Normalize to unity amplitude
+
+            pulse = pulse / max_val
+
+            print(f"  Normalized pulse to unity amplitude")
+
+
+
+        # Convert time to picoseconds for easier reading
+
+        t_ns = t * 1e9  # Convert to picoseconds
+
+
+
+        return t_ns, pulse
     
-    def calculate_s21_pulse_response(self, network=None, use_iczt=False):
+    def calculate_s21_pulse_response(self, network=None):
         """Calculate pulse response with enhanced resolution
         
         Args:
             network: Network object with S-parameters (default: None, uses first network)
-            use_iczt: Whether to use Inverse Chirp Z-Transform instead of IFFT (default: False)
-                    ICZT provides higher resolution but is computationally more expensive
         """
         if network is None:
             network = self.data[0]  # Use first network if none specified
@@ -2130,103 +2094,68 @@ class SParamBrowser(tk.Tk):
         # Apply window function
         s21_windowed = self.apply_window(s21)
         
-        if use_iczt:
-            # Use ICZT method for higher resolution and control
-            print("Using ICZT method for pulse response calculation...")
-            
-            # Calculate appropriate time range based on frequency range
-            t_max = 1 / (f[1] - f[0])  # Maximum time from frequency spacing
-            
-            # Number of points based on padding factor
-            pad_factor = int(self.padding_factor.get())
-            num_points = len(f) * pad_factor
-            
-            # Calculate pulse response using ICZT
-            t, pulse = calculate_tdr_iczt(f, s21_windowed, 0, t_max/2, num_points)
-            
-            # Print pulse response diagnostics
-            print(f"ICZT pulse response diagnostics:")
-            print(f"  Time range: {t[0]*1e9:.1f} to {t[-1]*1e9:.1f} ns")
-            print(f"  Time resolution: {(t[1]-t[0])*1e9:.3f} ns")
-            print(f"  Number of points: {len(t)}")
-            
-            # Normalize and enhance pulse response
-            pulse_mag = np.abs(pulse)
-            max_val = np.max(pulse_mag)
-            
-            if max_val > 0 and max_val != 1.0:
-                # Normalize to unity amplitude
-                pulse = pulse / max_val
-                print(f"  Normalized pulse to unity amplitude")
-                
-            # Convert time to picoseconds for easier reading
-            t_ns = t * 1e9
-            
-            return t_ns, pulse
-        else:        
-                    
-            # Zero padding
-            pad_factor = int(self.padding_factor.get())
-            n_orig = len(f)
-            n_padded = n_orig * pad_factor
-            
-            # Pad the frequency domain data
-            s21_padded = np.pad(s21_windowed, (0, n_padded - n_orig), mode='constant')
-            
-            # Create padded frequency array
-            f_step = f[1] - f[0]  # Original frequency step
-            f_padded = np.linspace(f[0], f[0] + f_step * (n_padded - 1), n_padded)
-            
-            # Create Gaussian pulse in frequency domain
-            sigma = 0.1 / (2 * np.pi * f_padded[-1])  # Adjust pulse width
-            gauss = np.exp(-0.5 * (f_padded * sigma)**2)
-            
-            # Multiply with S-parameters and transform to time domain
-            pulse = np.fft.ifft(s21_padded * gauss)
-            
-            # Calculate time array
-            dt = 1 / (2 * f_padded[-1])  # Time step
-            t = np.arange(n_padded) * dt  # Initial time array, may be updated later
-            
-            # Normalize and enhance pulse response for better visualization
+        # Zero padding
+        pad_factor = int(self.padding_factor.get())
+        n_orig = len(f)
+        n_padded = n_orig * pad_factor
 
-            pulse_mag = np.abs(pulse)
+        # Pad the frequency domain data
+        s21_padded = np.pad(s21_windowed, (0, n_padded - n_orig), mode='constant')
 
-            max_val = np.max(pulse_mag)
+        # Create padded frequency array
+        f_step = f[1] - f[0]  # Original frequency step
+        f_padded = np.linspace(f[0], f[0] + f_step * (n_padded - 1), n_padded)
 
-            
+        # Create Gaussian pulse in frequency domain
+        sigma = 0.1 / (2 * np.pi * f_padded[-1])  # Adjust pulse width
+        gauss = np.exp(-0.5 * (f_padded * sigma)**2)
 
-            # Print pulse response diagnostics
+        # Multiply with S-parameters and transform to time domain
+        pulse = np.fft.ifft(s21_padded * gauss)
 
-            print(f"Pulse response diagnostics:")
+        # Calculate time array
+        dt = 1 / (2 * f_padded[-1])  # Time step
+        t = np.arange(n_padded) * dt  # Initial time array, may be updated later
 
-            print(f"  Max amplitude: {max_val:.6f}")
+        # Normalize and enhance pulse response for better visualization
 
-            print(f"  Time range: {t[0]*1e9:.1f} to {t[-1]*1e9:.1f} ns")
+        pulse_mag = np.abs(pulse)
 
-            print(f"  Time step: {(t[1]-t[0])*1e9:.3f} ns")
+        max_val = np.max(pulse_mag)
 
-            
 
-            # Check if normalization is needed
 
-            if max_val > 0 and max_val != 1.0:
+        # Print pulse response diagnostics
 
-                # Normalize to unity amplitude
+        print(f"Pulse response diagnostics:")
 
-                pulse = pulse / max_val
+        print(f"  Max amplitude: {max_val:.6f}")
 
-                print(f"  Normalized pulse to unity amplitude")
+        print(f"  Time range: {t[0]*1e9:.1f} to {t[-1]*1e9:.1f} ns")
 
-            
+        print(f"  Time step: {(t[1]-t[0])*1e9:.3f} ns")
 
-            # Convert time to picoseconds for easier reading
 
-            t_ns = t * 1e9  # Convert to picoseconds
 
-            
+        # Check if normalization is needed
 
-            return t_ns, pulse
+        if max_val > 0 and max_val != 1.0:
+
+            # Normalize to unity amplitude
+
+            pulse = pulse / max_val
+
+            print(f"  Normalized pulse to unity amplitude")
+
+
+
+        # Convert time to picoseconds for easier reading
+
+        t_ns = t * 1e9  # Convert to picoseconds
+
+
+
+        return t_ns, pulse
 
     def apply_window(self, freq_data):
         """Apply window function to frequency domain data with optional low pass filtering"""
@@ -2306,348 +2235,210 @@ class SParamBrowser(tk.Tk):
         return freq_data * window
 
     def plot_network_params(self, *networks, show_mag=True, show_phase=True):
-        """Plot S-parameters for multiple networks"""
+        """Plot S-parameters for multiple networks with various plot types."""
         if not networks:
             return
-            
+
         try:
-            # Clear the current figure
             self.figure.clear()
+            if self.marker_text:
+                self.marker_text.delete(1.0, tk.END)
 
-            # Check if time domain plots are enabled
-            show_tdr = self.show_tdr_var.get()
-            show_pulse = self.show_pulse_var.get()
-            show_impedance = self.show_impedance_var.get()
-            show_impedance_time = self.show_impedance_time_var.get()
-            
-            # Get frequency limit if specified
-            try:
-                freq_limit = float(self.freq_limit.get()) * 1e9 if self.freq_limit.get() else None
-            except ValueError:
-                freq_limit = None
-            
-            if show_tdr or show_pulse or show_impedance or show_impedance_time:
-                # Count active plots
-                active_plots = sum([show_tdr, show_pulse, show_impedance, show_impedance_time])
-                
-                if active_plots == 4:
-                    # Create four subplots
-                    ax_tdr = self.figure.add_subplot(221)
-                    ax_pulse = self.figure.add_subplot(222)
-                    ax_imp = self.figure.add_subplot(223)
-                    ax_imp_time = self.figure.add_subplot(224)
-                elif active_plots == 3:
-                    # Create three subplots
-                    if show_tdr and show_pulse and show_impedance:
-                        ax_tdr = self.figure.add_subplot(131)
-                        ax_pulse = self.figure.add_subplot(132)
-                        ax_imp = self.figure.add_subplot(133)
-                    elif show_tdr and show_pulse and show_impedance_time:
-                        ax_tdr = self.figure.add_subplot(131)
-                        ax_pulse = self.figure.add_subplot(132)
-                        ax_imp_time = self.figure.add_subplot(133)
-                    elif show_tdr and show_impedance and show_impedance_time:
-                        ax_tdr = self.figure.add_subplot(131)
-                        ax_imp = self.figure.add_subplot(132)
-                        ax_imp_time = self.figure.add_subplot(133)
-                    elif show_pulse and show_impedance and show_impedance_time:
-                        ax_pulse = self.figure.add_subplot(131)
-                        ax_imp = self.figure.add_subplot(132)
-                        ax_imp_time = self.figure.add_subplot(133)
-                elif active_plots == 2:
-                    # Create two subplots
-                    if show_tdr and show_pulse:
-                        ax_tdr = self.figure.add_subplot(121)
-                        ax_pulse = self.figure.add_subplot(122)
-                    elif show_tdr and show_impedance:
-                        ax_tdr = self.figure.add_subplot(121)
-                        ax_imp = self.figure.add_subplot(122)
-                    elif show_tdr and show_impedance_time:
-                        ax_tdr = self.figure.add_subplot(121)
-                        ax_imp_time = self.figure.add_subplot(122)
-                    elif show_pulse and show_impedance:
-                        ax_pulse = self.figure.add_subplot(121)
-                        ax_imp = self.figure.add_subplot(122)
-                    elif show_pulse and show_impedance_time:
-                        ax_pulse = self.figure.add_subplot(121)
-                        ax_imp_time = self.figure.add_subplot(122)
-                    elif show_impedance and show_impedance_time:
-                        ax_imp = self.figure.add_subplot(121)
-                        ax_imp_time = self.figure.add_subplot(122)
+            # Determine which plots to show and create axes
+            active_plots = []
+            if self.plot_mag_var.get(): active_plots.append('mag')
+            if self.plot_phase_var.get(): active_plots.append('phase')
+            if self.show_tdr_var.get(): active_plots.append('tdr')
+            if self.show_pulse_var.get(): active_plots.append('pulse')
+            if self.show_impedance_var.get(): active_plots.append('impedance')
+            if self.show_impedance_time_var.get(): active_plots.append('impedance_time')
+
+            num_plots = len(active_plots)
+            if num_plots == 0:
+                ax = self.figure.add_subplot(111)
+                ax.text(0.5, 0.5, 'No plot type selected.', horizontalalignment='center', verticalalignment='center')
+                self.canvas.draw()
+                return
+
+            # Create subplots in a single column, making x-axes independent
+            axes = self.figure.subplots(num_plots, 1, sharex=False)
+            if num_plots == 1:
+                axes = [axes]  # Ensure axes is always a list
+
+            ax_map = {plot_type: ax for plot_type, ax in zip(active_plots, axes)}
+
+            is_mixed_mode = self.mixed_mode_var.get() and any(n.nports == 4 for n in networks)
+
+            all_marker_info = []
+
+            for i, net in enumerate(networks):
+                freq_ghz = net.f / 1e9
+
+                if is_mixed_mode and net.nports == 4:
+                    s_params = self.s2sdd(net.s)
+                    p11, p21 = 'SDD11', 'SDD21'
                 else:
-                    # Create single plot
-                    ax = self.figure.add_subplot(111)
-                
-                for i, net in enumerate(networks):
-                    label = f'Net{i+1}' if len(net.name) == 0 else net.name
-                    
-                    if show_tdr:
-                        t_ns, distance, tdr = self.calculate_tdr(net, freq_limit=freq_limit)
-                        if active_plots > 1:
-                            ax_plot = ax_tdr
-                        else:
-                            ax_plot = ax
-                        # Use PLTS-style plotting
-                        self.plot_tdr_and_impedance(ax_plot, t_ns, tdr, label)
-                    
-                    if show_pulse:
-                        time, pulse = self.calculate_pulse_response(net)
-                        if active_plots > 1:
-                            ax_plot = ax_pulse
-                        else:
-                            ax_plot = ax
-                        # Plot magnitude of pulse response
-                        ax_plot.plot(time, np.abs(pulse), label=label)
-                        ax_plot.set_xlabel('Time (ns)')
-                        ax_plot.set_ylabel('Amplitude')
-                        ax_plot.set_title('Pulse Response')
-                        # Set appropriate y-axis formatting
-                        ax_plot.ticklabel_format(axis='y', style='plain', useOffset=False)
-                        ax_plot.grid(True)
-                        ax_plot.legend(loc='upper right')
-                    
-                    if show_impedance:
-                        t_ns, distance, tdr = self.calculate_tdr(net, freq_limit=freq_limit)
+                    s_params = net.s
+                    p11, p21 = 'S11', 'S21'
 
-                        impedance = self.calculate_impedance_profile(tdr)
-                        if active_plots > 1:
-                            ax_plot = ax_imp
-                        else:
-                            ax_plot = ax
-                        # Plot impedance vs. distance
-                        ax_plot.plot(distance, np.real(impedance), label=label)
-                        ax_plot.set_xlabel('Distance (inch)')
-                        ax_plot.set_ylabel('Impedance (Ω)')
-                        ax_plot.set_title('Impedance Profile')
-                        # Explicitly set y-axis limits to avoid scientific notation
-                        y_min = max(10, np.min(np.real(impedance)))
-                        y_max = min(200, np.max(np.real(impedance)))
-                        # Set reasonable limits with some margin
-                        margin = (y_max - y_min) * 0.1
-                        ax_plot.set_ylim([y_min - margin, y_max + margin])
-                        # Use simple, non-scientific notation for y-axis
-                        ax_plot.ticklabel_format(axis='y', style='plain', useOffset=False)
-                        ax_plot.grid(True)
-                        
-                        # Add reference line at Z0=100Ω
-                        ax_plot.axhline(y=100, color='r', linestyle='--', alpha=0.5, label='Z0=100Ω')
-                        ax_plot.legend(loc='upper right')
-                    
-                    if show_impedance_time:
-                        t_ns, distance, tdr = self.calculate_tdr(net, freq_limit=freq_limit)
 
+                s11 = s_params[:, 0, 0]
+                s21 = s_params[:, 1, 0]
+
+                label_11 = f'{net.name} {p11}'
+                label_21 = f'{net.name} {p21}'
+
+                if 'mag' in ax_map:
+                    ax = ax_map['mag']
+                    if self.plot_sdd11_var.get():
+                        ax.plot(freq_ghz, 20 * np.log10(np.abs(s11)), label=label_11)
+                    if self.plot_sdd21_var.get():
+                        ax.plot(freq_ghz, 20 * np.log10(np.abs(s21)), label=label_21)
+
+                if 'phase' in ax_map:
+                    ax = ax_map['phase']
+                    if self.plot_sdd11_var.get():
+                        ax.plot(freq_ghz, np.angle(s11, deg=True), label=label_11)
+                    if self.plot_sdd21_var.get():
+                        ax.plot(freq_ghz, np.angle(s21, deg=True), label=label_21)
+
+                if 'tdr' in ax_map:
+                    ax = ax_map['tdr']
+                    try:
+                        freq_limit = float(self.freq_limit.get()) * 1e9 if self.freq_limit.get() else None
+                        t, dist, tdr = self.calculate_tdr(net, freq_limit=freq_limit)
+                        self.plot_tdr_and_impedance(ax, t, tdr, f'{net.name} TDR')
+                    except Exception as e:
+                        ax.text(0.5, 0.5, f'TDR Error: {e}', ha='center', va='center', color='red')
+
+                if 'impedance' in ax_map:
+                    ax = ax_map['impedance']
+                    try:
+                        freq_limit = float(self.freq_limit.get()) * 1e9 if self.freq_limit.get() else None
+                        t, dist, tdr = self.calculate_tdr(net, freq_limit=freq_limit)
                         impedance = self.calculate_impedance_profile(tdr)
-                        if active_plots > 1:
-                            ax_plot = ax_imp_time
-                        else:
-                            ax_plot = ax
-                        # Plot impedance vs. time
-                        ax_plot.plot(t_ns, np.real(impedance), label=label)
-                        ax_plot.set_xlabel('Time (ns)')
-                        ax_plot.set_ylabel('Impedance (Ω)')
-                        ax_plot.set_title('Impedance Profile vs Time')
-                        # Explicitly set y-axis limits to avoid scientific notation
-                        y_min = max(10, np.min(np.real(impedance)))
-                        y_max = min(200, np.max(np.real(impedance)))
-                        # Set reasonable limits with some margin
-                        margin = (y_max - y_min) * 0.1
-                        ax_plot.set_ylim([y_min - margin, y_max + margin])
-                        # Use simple, non-scientific notation for y-axis
-                        ax_plot.ticklabel_format(axis='y', style='plain', useOffset=False)
-                        ax_plot.grid(True)
-                        
-                        # Add reference line at Z0=100Ω
-                        ax_plot.axhline(y=100, color='r', linestyle='--', alpha=0.5, label='Z0=100Ω')
-                        ax_plot.legend(loc='upper right')
-                
-            else:
-                # Original frequency domain plotting code continues here...
-                # Determine which parameters to show
-                show_sdd11 = self.plot_sdd11_var.get()
-                show_sdd21 = self.plot_sdd21_var.get()
-                show_spec = self.show_spec_var.get() and bool(self.spec_data)
-                
-                # Count how many subplots we need
-                n_plots = 0
-                if show_mag:
-                    n_plots += (show_sdd11 + show_sdd21)
-                if show_phase:
-                    n_plots += (show_sdd11 + show_sdd21)
-                    
-                if n_plots == 0:
-                    return  # Nothing to plot
-                
-                # Create subplots based on what's shown
-                if n_plots == 1:
-                    axes = [self.figure.add_subplot(111)]
-                elif n_plots == 2:
-                    axes = self.figure.subplots(1, 2)
-                elif n_plots == 3:
-                    gs = self.figure.add_gridspec(2, 2)
-                    axes = [
-                        self.figure.add_subplot(gs[0, 0]),
-                        self.figure.add_subplot(gs[0, 1]),
-                        self.figure.add_subplot(gs[1, 0:])
-                    ]
-                else:  # n_plots == 4
-                    axes = self.figure.subplots(2, 2)
-                    axes = [ax for row in axes for ax in row]  # Flatten 2D array
-                
-                # Clear marker text box
-                if self.marker_text:
-                    self.marker_text.delete(1.0, tk.END)
-                
-                # Keep track of which axis is for what
-                ax_map = {}
-                ax_idx = 0
-                
-                if show_mag and show_sdd11:
-                    ax_map['sdd11_mag'] = axes[ax_idx]
-                    ax_idx += 1
-                if show_mag and show_sdd21:
-                    ax_map['sdd21_mag'] = axes[ax_idx]
-                    ax_idx += 1
-                if show_phase and show_sdd11:
-                    ax_map['sdd11_phase'] = axes[ax_idx]
-                    ax_idx += 1
-                if show_phase and show_sdd21:
-                    ax_map['sdd21_phase'] = axes[ax_idx]
-                    ax_idx += 1
-                
-                # Plot specification lines if available
-                if show_spec and show_mag and self.spec_data:
-                    def plot_step_spec(ax, freq, spec):
-                        # Create step-like plot by duplicating points
-                        x = []
-                        y = []
-                        for i in range(len(freq)):
-                            if i > 0:
-                                # Add vertical line by duplicating x coordinate
-                                x.append(freq[i])
-                                y.append(spec[i-1])
-                            # Add horizontal line
-                            x.append(freq[i])
-                            y.append(spec[i])
-                        
-                        # Plot the step line
-                        ax.plot(x, y, 'r-', label='Specification', linewidth=2)
-                    
-                    if show_sdd11 and 'sdd11' in self.spec_data:
-                        ax = ax_map['sdd11_mag']
-                        plot_step_spec(ax, self.spec_data['freq'], self.spec_data['sdd11'])
-                    
-                    if show_sdd21 and 'sdd21' in self.spec_data:
-                        ax = ax_map['sdd21_mag']
-                        plot_step_spec(ax, self.spec_data['freq'], self.spec_data['sdd21'])
-                
-                # Plot each network
-                for i, net in enumerate(networks):
-                    # Convert to differential parameters
-                    sdd = self.s2sdd(net.s)
-                    
-                    label = f'Net{i+1}' if len(net.name) == 0 else net.name
-                    
-                    # Plot enabled parameters
-                    if show_mag:
-                        if show_sdd11:
-                            ax = ax_map['sdd11_mag']
-                            ax.plot(net.f/1e9, 20*np.log10(np.abs(sdd[:, 0, 0])), label=label)
-                            ax.set_xlabel('Frequency (GHz)')
-                            ax.set_ylabel('Magnitude (dB)')
-                            ax.set_title('SDD11 Magnitude')
-                            ax.grid(True)
-                            ax.legend()
-                        
-                        if show_sdd21:
-                            ax = ax_map['sdd21_mag']
-                            ax.plot(net.f/1e9, 20*np.log10(np.abs(sdd[:, 1, 0])), label=label)
-                            ax.set_xlabel('Frequency (GHz)')
-                            ax.set_ylabel('Magnitude (dB)')
-                            ax.set_title('SDD21 Magnitude')
-                            ax.grid(True)
-                            ax.legend()
-                    
-                    if show_phase:
-                        if show_sdd11:
-                            ax = ax_map['sdd11_phase']
-                            ax.plot(net.f/1e9, np.angle(sdd[:, 0, 0], deg=True), label=label)
-                            ax.set_xlabel('Frequency (GHz)')
-                            ax.set_ylabel('Phase (degrees)')
-                            ax.set_title('SDD11 Phase')
-                            ax.grid(True)
-                            ax.legend()
-                        
-                        if show_sdd21:
-                            ax = ax_map['sdd21_phase']
-                            ax.plot(net.f/1e9, np.angle(sdd[:, 1, 0], deg=True), label=label)
-                            ax.set_xlabel('Frequency (GHz)')
-                            ax.set_ylabel('Phase (degrees)')
-                            ax.set_title('SDD21 Phase')
-                            ax.grid(True)
-                            ax.legend()
-                    
-                    # Add markers if any
-                    for marker_freq in self.markers:
-                        # Find closest frequency point
-                        idx = np.abs(net.f/1e9 - marker_freq).argmin()
-                        f = net.f[idx]/1e9
-                        
-                        # Calculate values
-                        sdd11_mag = 20*np.log10(np.abs(sdd[idx, 0, 0]))
-                        sdd21_mag = 20*np.log10(np.abs(sdd[idx, 1, 0]))
-                        sdd11_phase = np.angle(sdd[idx, 0, 0], deg=True)
-                        sdd21_phase = np.angle(sdd[idx, 1, 0], deg=True)
-                        
-                        # Add markers to enabled plots
-                        if show_mag:
-                            if show_sdd11:
-                                ax = ax_map['sdd11_mag']
-                                ax.plot(f, sdd11_mag, 'ko')
-                                ax.annotate(f'{sdd11_mag:.2f} dB', (f, sdd11_mag),
-                                        xytext=(10, 10), textcoords='offset points')
-                            
-                            if show_sdd21:
-                                ax = ax_map['sdd21_mag']
-                                ax.plot(f, sdd21_mag, 'ko')
-                                ax.annotate(f'{sdd21_mag:.2f} dB', (f, sdd21_mag),
-                                        xytext=(10, 10), textcoords='offset points')
-                        
-                        if show_phase:
-                            if show_sdd11:
-                                ax = ax_map['sdd11_phase']
-                                ax.plot(f, sdd11_phase, 'ko')
-                                ax.annotate(f'{sdd11_phase:.2f}°', (f, sdd11_phase),
-                                        xytext=(10, 10), textcoords='offset points')
-                            
-                            if show_sdd21:
-                                ax = ax_map['sdd21_phase']
-                                ax.plot(f, sdd21_phase, 'ko')
-                                ax.annotate(f'{sdd21_phase:.2f}°', (f, sdd21_phase),
-                                        xytext=(10, 10), textcoords='offset points')
-                        
-                        # Add values to text box
-                        if self.marker_text:
-                            marker_text = [f"Network: {label}", f"Frequency: {f:.2f} GHz"]
-                            if show_mag:
-                                if show_sdd11:
-                                    marker_text.append(f"SDD11 Mag: {sdd11_mag:.2f} dB")
-                                if show_sdd21:
-                                    marker_text.append(f"SDD21 Mag: {sdd21_mag:.2f} dB")
-                            if show_phase:
-                                if show_sdd11:
-                                    marker_text.append(f"SDD11 Phase: {sdd11_phase:.2f}°")
-                                if show_sdd21:
-                                    marker_text.append(f"SDD21 Phase: {sdd21_phase:.2f}°")
-                            self.marker_text.insert(tk.END, "\n".join(marker_text) + "\n\n")
-            
-            # Adjust layout and redraw
+                        ax.plot(dist, impedance, label=f'{net.name} Z-profile')
+                    except Exception as e:
+                        ax.text(0.5, 0.5, f'Impedance Error: {e}', ha='center', va='center', color='red')
+
+                if 'pulse' in ax_map:
+                    ax = ax_map['pulse']
+                    try:
+                        if self.plot_sdd11_var.get():
+                            t, pulse = self.calculate_pulse_response(net)
+                            ax.plot(t, np.real(pulse), label=f'{net.name} {p11} Pulse')
+                        if self.plot_sdd21_var.get():
+                            t, pulse = self.calculate_s21_pulse_response(net)
+                            ax.plot(t, np.real(pulse), label=f'{net.name} {p21} Pulse')
+                    except Exception as e:
+                        ax.text(0.5, 0.5, f'Pulse Error: {e}', ha='center', va='center', color='red')
+
+                if 'impedance_time' in ax_map:
+                    ax = ax_map['impedance_time']
+                    try:
+                        freq_limit = float(self.freq_limit.get()) * 1e9 if self.freq_limit.get() else None
+                        t, dist, tdr = self.calculate_tdr(net, freq_limit=freq_limit)
+                        impedance = self.calculate_impedance_profile(tdr)
+                        ax.plot(t, impedance, label=f'{net.name} Z-profile(t)')
+                    except Exception as e:
+                        ax.text(0.5, 0.5, f'Impedance Error: {e}', ha='center', va='center', color='red')
+
+                network_marker_info = [f"--- {net.name} ---"]
+                for marker_freq_ghz in self.markers:
+                    marker_freq_hz = marker_freq_ghz * 1e9
+                    idx = np.abs(net.f - marker_freq_hz).argmin()
+
+                    info_line = f"\n@{marker_freq_ghz:.3f} GHz:"
+
+                    if 'mag' in ax_map:
+                        ax = ax_map['mag']
+                        if self.plot_sdd11_var.get():
+                            val = 20 * np.log10(np.abs(s11[idx]))
+                            ax.plot(marker_freq_ghz, val, 'o', color='red')
+                            ax.annotate(f'{val:.2f}dB', (marker_freq_ghz, val), textcoords="offset points", xytext=(0,10), ha='center')
+                            info_line += f" {p11}: {val:.2f} dB"
+                        if self.plot_sdd21_var.get():
+                            val = 20 * np.log10(np.abs(s21[idx]))
+                            ax.plot(marker_freq_ghz, val, 'o', color='blue')
+                            ax.annotate(f'{val:.2f}dB', (marker_freq_ghz, val), textcoords="offset points", xytext=(0,-15), ha='center')
+                            info_line += f" {p21}: {val:.2f} dB"
+
+                    if 'phase' in ax_map:
+                        ax = ax_map['phase']
+                        if self.plot_sdd11_var.get():
+                            val = np.angle(s11[idx], deg=True)
+                            ax.plot(marker_freq_ghz, val, 'o', color='red')
+                            ax.annotate(f'{val:.1f}°', (marker_freq_ghz, val), textcoords="offset points", xytext=(0,10), ha='center')
+                        if self.plot_sdd21_var.get():
+                            val = np.angle(s21[idx], deg=True)
+                            ax.plot(marker_freq_ghz, val, 'o', color='blue')
+                            ax.annotate(f'{val:.1f}°', (marker_freq_ghz, val), textcoords="offset points", xytext=(0,-15), ha='center')
+
+                    network_marker_info.append(info_line)
+                all_marker_info.extend(network_marker_info)
+
+            if 'mag' in ax_map:
+                ax = ax_map['mag']
+                ax.set_title('Magnitude')
+                ax.set_xlabel('Frequency (GHz)')
+                ax.set_ylabel('Magnitude (dB)')
+                ax.grid(True)
+                ax.legend()
+                if self.show_spec_var.get() and self.spec_data:
+                    if self.plot_sdd11_var.get() and 'sdd11' in self.spec_data:
+                        ax.plot(self.spec_data['freq'], self.spec_data['sdd11'], 'r--', label='Spec SDD11')
+                    if self.plot_sdd21_var.get() and 'sdd21' in self.spec_data:
+                        ax.plot(self.spec_data['freq'], self.spec_data['sdd21'], 'k--', label='Spec SDD21')
+                    ax.legend()
+
+            if 'phase' in ax_map:
+                ax = ax_map['phase']
+                ax.set_title('Phase')
+                ax.set_xlabel('Frequency (GHz)')
+                ax.set_ylabel('Phase (degrees)')
+                ax.grid(True)
+                ax.legend()
+
+            if 'impedance' in ax_map:
+                ax = ax_map['impedance']
+                ax.set_title('Impedance Profile')
+                ax.set_xlabel('Distance (inch)')
+                ax.set_ylabel('Impedance (Ω)')
+                ax.grid(True)
+                ax.legend()
+
+            if 'pulse' in ax_map:
+                ax = ax_map['pulse']
+                ax.set_title('Pulse Response')
+                ax.set_xlabel('Time (ns)')
+                ax.set_ylabel('Amplitude')
+                ax.grid(True)
+                ax.legend()
+
+            if 'impedance_time' in ax_map:
+                ax = ax_map['impedance_time']
+                ax.set_title('Impedance Profile vs Time')
+                ax.set_xlabel('Time (ns)')
+                ax.set_ylabel('Impedance (Ω)')
+                ax.grid(True)
+                ax.legend()
+
+            if self.marker_text and all_marker_info:
+                self.marker_text.insert(tk.END, "\n".join(all_marker_info))
+
             self.figure.tight_layout()
             self.canvas.draw()
-            self.apply_zoom()  #update based on the checkbox selection
-            
+            self.apply_zoom()
+
         except Exception as e:
             print(f"Error plotting networks: {str(e)}")
             traceback.print_exc()
+            try:
+                ax = self.figure.add_subplot(111)
+                ax.text(0.5, 0.5, f"Plotting Error:\n{e}", ha='center', va='center', color='red', wrap=True)
+                self.canvas.draw()
+            except:
+                pass
 
     def s2sdd(self, s):
         """
