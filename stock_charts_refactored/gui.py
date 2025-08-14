@@ -2668,8 +2668,13 @@ class StockDataGUI:
         self.root.update_idletasks()
 
         def study_thread():
-            # NOTE: In a real application, this email should be configurable.
-            email_address = "test@example.com"
+            # Get email address from environment variables
+            from dotenv import load_dotenv
+            load_dotenv()
+            email_address = os.getenv("SEC_EDGAR_EMAIL")
+            if not email_address:
+                self.business_analysis_text.insert(tk.END, "\nError: SEC_EDGAR_EMAIL not found in environment variables.")
+                return
 
             self.business_analysis_text.insert(tk.END, f"\nDownloading latest 10-K report for {ticker}...")
             self.root.update_idletasks()
@@ -2746,8 +2751,13 @@ class StockDataGUI:
         self.root.update_idletasks()
 
         def study_thread():
-            # NOTE: In a real application, this email should be configurable.
-            email_address = "test@example.com"
+            # Get email address from environment variables
+            from dotenv import load_dotenv
+            load_dotenv()
+            email_address = os.getenv("SEC_EDGAR_EMAIL")
+            if not email_address:
+                self.business_analysis_text.insert(tk.END, "\nError: SEC_EDGAR_EMAIL not found in environment variables.")
+                return
 
             self.business_analysis_text.insert(tk.END, f"\nDownloading latest 10-Q report for {ticker}...")
             self.root.update_idletasks()
