@@ -60,3 +60,46 @@ def analyze_ticker(ticker, company_info):
         return response.text
     except Exception as e:
         return f"An error occurred while communicating with the Gemini API: {e}"
+
+def general_search(ticker, company_info, query):
+    """
+    Performs a general AI search about a company using Google Gemini API.
+
+    Args:
+        ticker (str): The stock ticker symbol.
+        company_info (dict): A dictionary containing fundamental data about the company.
+        query (str): The user's search query.
+
+    Returns:
+        str: The search result from Gemini API.
+    """
+    load_dotenv()
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return "Error: GEMINI_API_KEY not found in environment variables."
+
+    genai.configure(api_key=api_key)
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+    except Exception as e:
+        print(f"Could not initialize model: {e}")
+        return "Error: Could not initialize Gemini model."
+
+    prompt = f"""
+    针对股票代码为 '{ticker}' 的公司 '{company_info.get('longName', 'N/A')}'，请回答以下问题。
+
+    用户问题: "{query}"
+
+    请使用中文进行详细回答。
+    ---
+    公司参考信息:
+    - **行业板块:** {company_info.get('sector', 'N/A')}
+    - **具体行业:** {company_info.get('industry', 'N/A')}
+    - **业务摘要:** {company_info.get('longBusinessSummary', 'N/A')}
+    """
+
+    try:
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"An error occurred while communicating with the Gemini API: {e}"
