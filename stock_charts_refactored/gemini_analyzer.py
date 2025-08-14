@@ -61,6 +61,92 @@ def analyze_ticker(ticker, company_info):
     except Exception as e:
         return f"An error occurred while communicating with the Gemini API: {e}"
 
+def analyze_10k_report(file_path):
+    """
+    Analyzes a 10-K report using Google Gemini API.
+
+    Args:
+        file_path (str): The path to the 10-K report file.
+
+    Returns:
+        str: The comprehensive analysis of the 10-K report.
+    """
+    load_dotenv()
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return "Error: GEMINI_API_KEY not found in environment variables."
+
+    genai.configure(api_key=api_key)
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+    except Exception as e:
+        print(f"Could not initialize model: {e}")
+        return "Error: Could not initialize Gemini model."
+
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            report_text = f.read()
+    except Exception as e:
+        return f"Error reading 10-K file: {e}"
+
+    # Extract relevant sections using regex
+    def extract_section(text, start_pattern, end_pattern):
+        import re
+        start_match = re.search(start_pattern, text, re.IGNORECASE | re.DOTALL)
+        if not start_match:
+            return None
+        start_index = start_match.end()
+        end_match = re.search(end_pattern, text[start_index:], re.IGNORECASE | re.DOTALL)
+        if not end_match:
+            return text[start_index:]
+        end_index = end_match.start()
+        return text[start_index:start_index + end_index]
+
+    item1_text = extract_section(report_text, r"Item\s+1\.\s+Business", r"Item\s+1A\.")
+    item1a_text = extract_section(report_text, r"Item\s+1A\.\s+Risk Factors", r"Item\s+1B\.")
+    item7_text = extract_section(report_text, r"Item\s+7\.\s+Management's Discussion and Analysis", r"Item\s+7A\.")
+
+    sections = {
+        "业务 (Business)": item1_text,
+        "风险因素 (Risk Factors)": item1a_text,
+        "管理层的讨论与分析 (MD&A)": item7_text,
+    }
+
+    summaries = {}
+    for title, text in sections.items():
+        if text:
+            # Truncate text to avoid being too long
+            text = text[:10000]
+            prompt = f"请用中文总结以下10-K报告的 '{title}' 部分:\n\n{text}"
+            try:
+                response = model.generate_content(prompt)
+                summaries[title] = response.text
+            except Exception as e:
+                summaries[title] = f"无法总结该部分: {e}"
+        else:
+            summaries[title] = "未找到该部分。"
+
+    final_prompt = f"""
+    请根据以下10-K报告各部分的摘要，生成一份全面的中文商业分析报告。
+
+    **业务 (Business) 摘要:**
+    {summaries.get('业务 (Business)', 'N/A')}
+
+    **风险因素 (Risk Factors) 摘要:**
+    {summaries.get('风险因素 (Risk Factors)', 'N/A')}
+
+    **管理层的讨论与分析 (MD&A) 摘要:**
+    {summaries.get("管理层的讨论与分析 (MD&A)", 'N/A')}
+
+    请综合以上信息，提供一份深入的、结构化的分析报告，重点突出公司的核心业务、主要风险和管理层对公司未来发展的看法。
+    """
+
+    try:
+        response = model.generate_content(final_prompt)
+        return response.text
+    except Exception as e:
+        return f"生成最终分析时出错: {e}"
+
 def general_search(ticker, company_info, query):
     """
     Performs a general AI search about a company using Google Gemini API.
