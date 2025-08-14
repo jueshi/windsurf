@@ -55,7 +55,7 @@ import mpl_toolkits.axisartist.floating_axes as floating_axes
 import mpl_toolkits.axisartist.grid_finder as grid_finder
 from scipy import signal
 # Import ICZT function from local module
-from iczt_function import calculate_tdr_iczt
+# from iczt_function import calculate_tdr_iczt
 import scipy.linalg
 
 class SmithAxes(PolarAxes):
