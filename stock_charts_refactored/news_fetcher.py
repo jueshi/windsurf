@@ -1,6 +1,15 @@
 import json
-from tavily import TavilyClient
 import os
+
+# Try different import approaches for tavily
+try:
+    from tavily_python import TavilyClient
+except ImportError:
+    try:
+        from tavily import TavilyClient
+    except ImportError:
+        print("Could not import TavilyClient. Please install with 'pip install tavily-python'")
+        TavilyClient = None
 
 def fetch_news(ticker):
     """
@@ -13,6 +22,10 @@ def fetch_news(ticker):
         list: A list of news articles, where each article is a dictionary.
     """
     try:
+        # Check if TavilyClient was successfully imported
+        if TavilyClient is None:
+            return [{"error": "TavilyClient could not be imported. Please install with 'pip install tavily-python'"}]
+            
         api_key = os.getenv("TAVILY_API_KEY")
         if not api_key:
             # As a fallback, try to get it from the .env file for local dev

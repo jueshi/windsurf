@@ -1,5 +1,6 @@
 import os
 import re
+import json
 import google.generativeai as genai
 from dotenv import load_dotenv
 
@@ -117,11 +118,161 @@ def analyze_10k_report(file_path):
         if not end_match:
             return text[start_index:]
         end_index = end_match.start()
-        return text[start_index:start_index + end_index]
+        
+        # Look for the end pattern, but limit the search to a reasonable chunk of text
+        search_limit = min(len(report_text) - start_index, max_search_chars)
+        search_text = report_text[start_index:start_index + search_limit]
+        
+        # Try each end pattern
+        for j, end_pattern in enumerate(end_patterns):
+            end_match = re.search(end_pattern, search_text, re.IGNORECASE | re.DOTALL)
+            if not end_match:
+                continue
+            
+            print(f"Found end pattern #{j+1} at relative position {end_match.start()}")
+            
+            end_index = end_match.start()
+            section_text = search_text[:end_index]
+            
+            # Clean up the extracted text
+            cleaned_text = clean_extracted_text(section_text)
+            print(f"Pattern-based extraction successful: {len(cleaned_text)} characters")
+            
+            return cleaned_text
+    
+    # Define improved extraction patterns based on HTML structure and our testing
+    # Business section patterns
+    business_start_patterns = [
+        # HTML formatted patterns
+        r"<span[^>]*>Item\s+1\.?\s*(?:&#160;)*\s*Business</span>",
+        r"<span[^>]*>ITEM\s+1\.?\s*(?:&#160;)*\s*BUSINESS</span>",
+        # Regular patterns
+        r"Item\s+1\.\s*Business",
+        r"ITEM\s+1\.\s*BUSINESS",
+        r"Item\s+1\s+Business",
+        r"ITEM\s+1\s+BUSINESS",
+        # Common variations
+        r"PART\s+I\s+Item\s+1\.\s+Business",
+        r"PART\s+I\s+ITEM\s+1\.\s+BUSINESS",
+        # Broader patterns
+        r"Business",
+        r"BUSINESS",
+        r"Company Overview",
+        r"COMPANY OVERVIEW"
+    ]
+    
+    business_end_patterns = [
+        # HTML formatted patterns
+        r"<span[^>]*>Item\s+1A\.?\s*(?:&#160;)*\s*Risk\s+Factors</span>",
+        r"<span[^>]*>ITEM\s+1A\.?\s*(?:&#160;)*\s*RISK\s+FACTORS</span>",
+        # Regular patterns
+        r"Item\s+1A\.\s*Risk\s+Factors",
+        r"ITEM\s+1A\.\s*RISK\s+FACTORS",
+        r"Item\s+1A\s+Risk\s+Factors",
+        r"ITEM\s+1A\s+RISK\s+FACTORS",
+        # Broader patterns
+        r"Risk Factors",
+        r"RISK\s+FACTORS"
+    ]
+    
+    # Risk Factors section patterns
+    risk_start_patterns = [
+        # HTML formatted patterns
+        r"<span[^>]*>Item\s+1A\.?\s*(?:&#160;)*\s*Risk\s+Factors</span>",
+        r"<span[^>]*>ITEM\s+1A\.?\s*(?:&#160;)*\s*RISK\s+FACTORS</span>",
+        # Regular patterns
+        r"Item\s+1A\.\s*Risk\s+Factors",
+        r"ITEM\s+1A\.\s*RISK\s+FACTORS",
+        r"Item\s+1A\s+Risk\s+Factors",
+        r"ITEM\s+1A\s+RISK\s+FACTORS",
+        # Broader patterns
+        r"Risk Factors",
+        r"RISK\s+FACTORS"
+    ]
+    
+    risk_end_patterns = [
+        # HTML formatted patterns
+        r"<span[^>]*>Item\s+1B\.?\s*(?:&#160;)*\s*</span>",
+        r"<span[^>]*>ITEM\s+1B\.?\s*(?:&#160;)*\s*</span>",
+        r"<span[^>]*>Item\s+2\.?\s*(?:&#160;)*\s*</span>",
+        r"<span[^>]*>ITEM\s+2\.?\s*(?:&#160;)*\s*</span>",
+        # Regular patterns
+        r"Item\s+1B\.",
+        r"ITEM\s+1B\.",
+        r"Item\s+2\.",
+        r"ITEM\s+2\.",
+        # Broader patterns
+        r"UNRESOLVED STAFF COMMENTS",
+        r"Unresolved Staff Comments"
+    ]
+    
+    # MD&A section patterns - based on our detailed analysis
+    mda_start_patterns = [
+        # Exact match from analysis
+        r"<span style=\"color:#000000;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:700;line-height:120%\">Item 7\.&#160;&#160;&#160;&#160;Management&#8217;s Discussion and Analysis",
+        # More generic patterns based on analysis
+        r"<span[^>]*>Item 7\.&#160;&#160;&#160;&#160;Management&#8217;s Discussion and Analysis",
+        r"<span[^>]*>Item\s+7\.?\s*(?:&#160;)*\s*Management(?:&#8217;|')?s\s+Discussion\s+and\s+Analysis",
+        r"<span[^>]*>ITEM\s+7\.?\s*(?:&#160;)*\s*MANAGEMENT(?:&#8217;|')?S\s+DISCUSSION\s+AND\s+ANALYSIS",
+        # Anchor to position from analysis
+        r"Item 7\.&#160;&#160;&#160;&#160;Management&#8217;s Discussion and Analysis",
+        # Regular patterns
+        r"Item\s+7\.\s*Management(?:&#8217;|')?s\s+Discussion\s+and\s+Analysis",
+        r"ITEM\s+7\.\s*MANAGEMENT(?:&#8217;|')?S\s+DISCUSSION\s+AND\s+ANALYSIS",
+        r"Item\s+7\s+Management(?:&#8217;|')?s\s+Discussion\s+and\s+Analysis",
+        r"ITEM\s+7\s+MANAGEMENT(?:&#8217;|')?S\s+DISCUSSION\s+AND\s+ANALYSIS",
+        # Common variations
+        r"Item\s+7\.\s*Management(?:&#8217;|')?s\s+Discussion",
+        r"ITEM\s+7\.\s*MANAGEMENT(?:&#8217;|')?S\s+DISCUSSION",
+        # Financial condition variations
+        r"Management(?:&#8217;|')?s\s+Discussion\s+and\s+Analysis\s+of\s+Financial\s+Condition",
+        r"MANAGEMENT(?:&#8217;|')?S\s+DISCUSSION\s+AND\s+ANALYSIS\s+OF\s+FINANCIAL\s+CONDITION"
+    ]
+    
+    mda_end_patterns = [
+        # Exact match from analysis
+        r"<span style=\"color:#000000;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:700;line-height:120%\">Item 7A\.&#160;&#160;&#160;&#160;Quantitative and Qualitative Disclosures About Market Risk</span>",
+        # More generic patterns based on analysis
+        r"<span[^>]*>Item 7A\.&#160;&#160;&#160;&#160;Quantitative and Qualitative Disclosures About Market Risk</span>",
+        r"<span[^>]*>Item\s+7A\.?\s*(?:&#160;)*\s*Quantitative\s+and\s+Qualitative\s+Disclosures\s+About\s+Market\s+Risk</span>",
+        r"<span[^>]*>ITEM\s+7A\.?\s*(?:&#160;)*\s*QUANTITATIVE\s+AND\s+QUALITATIVE\s+DISCLOSURES\s+ABOUT\s+MARKET\s+RISK</span>",
+        # If 7A doesn't exist, try Item 8
+        r"<span[^>]*>Item\s+8\.?\s*(?:&#160;)*\s*Financial\s+Statements\s+and\s+Supplementary\s+Data</span>",
+        r"<span[^>]*>ITEM\s+8\.?\s*(?:&#160;)*\s*FINANCIAL\s+STATEMENTS\s+AND\s+SUPPLEMENTARY\s+DATA</span>",
+        # Regular patterns
+        r"Item\s+7A\.\s*Quantitative",
+        r"ITEM\s+7A\.\s*QUANTITATIVE",
+        r"Item\s+8\.\s*Financial",
+        r"ITEM\s+8\.\s*FINANCIAL",
+        # Broader patterns
+        r"Quantitative\s+and\s+Qualitative\s+Disclosures",
+        r"QUANTITATIVE\s+AND\s+QUALITATIVE\s+DISCLOSURES",
+        r"Financial\s+Statements",
+        r"FINANCIAL\s+STATEMENTS"
+    ]
+    
+    # Extract each section using our improved robust extraction function
+    print(f"\n--- BUSINESS SECTION EXTRACTION ---")
+    item1_text = extract_section_robust(report_text, business_start_patterns, business_end_patterns)
+    print(f"Business section extracted: {item1_text is not None}")
+    if item1_text:
+        print(f"Business section length: {len(item1_text)}")
+        print(f"Preview: {item1_text[:100].replace(chr(10), ' ')}...")
+    
+    print(f"\n--- RISK FACTORS SECTION EXTRACTION ---")
+    item1a_text = extract_section_robust(report_text, risk_start_patterns, risk_end_patterns)
+    print(f"Risk Factors section extracted: {item1a_text is not None}")
+    if item1a_text:
+        print(f"Risk Factors section length: {len(item1a_text)}")
+        print(f"Preview: {item1a_text[:100].replace(chr(10), ' ')}...")
+    
+    print(f"\n--- MD&A SECTION EXTRACTION ---")
+    item7_text = extract_section_robust(report_text, mda_start_patterns, mda_end_patterns)
+    print(f"MD&A section extracted: {item7_text is not None}")
+    if item7_text:
+        print(f"MD&A section length: {len(item7_text)}")
+        print(f"Preview: {item7_text[:100].replace(chr(10), ' ')}...")
 
-    item1_text = extract_section(report_text, r"Item\s+1\.\s+Business", r"Item\s+1A\.")
-    item1a_text = extract_section(report_text, r"Item\s+1A\.\s+Risk Factors", r"Item\s+1B\.")
-    item7_text = extract_section(report_text, r"Item\s+7\.\s+Management's Discussion and Analysis", r"Item\s+7A\.")
 
     sections = {
         "业务 (Business)": item1_text,
