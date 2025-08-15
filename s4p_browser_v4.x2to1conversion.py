@@ -1101,6 +1101,9 @@ class SParamBrowser(tk.Tk):
         Differential port 1: P1-P3 (positive-negative)
         Differential port 2: P2-P4 (positive-negative)
         """
+        if s_params.shape[1] != 4 or s_params.shape[2] != 4:
+            return s_params
+
         # Transformation matrix for P1-P3, P2-P4 pairing
         M = np.array([[1, 0, -1, 0],
                      [0, 1, 0, -1]]) / np.sqrt(2)  # Changed from [1, 0, -1, 0] to [1, -1, 0, 0]
