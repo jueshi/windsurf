@@ -1,6 +1,0 @@
-2025-08-15 04:41:44,905 - INFO - Using SEC email: jueshi@gmail.com
-2025-08-15 04:41:44,906 - INFO - Testing with ticker: AAPL
-2025-08-15 04:41:44,906 - INFO - Step 1: Getting CIK number...
-2025-08-15 04:41:44,906 - INFO - Requesting: https://www.sec.gov/files/company_tickers.json
-2025-08-15 04:41:45,021 - INFO - Response status: 403
-2025-08-15 04:41:45,022 - ERROR - Failed to get CIK data. Status code: 403
