@@ -57,22 +57,51 @@ def suppress_tkinter_exit_errors():
 
     # Also patch Tcl async handlers
     try:
+        # Import threading for thread identification
+        import threading
+        import _thread
+        
         # Monkey patch the Tcl interpreter's async delete handler
         if hasattr(tk, '_tkinter') and hasattr(tk._tkinter, 'TclError'):
+            # Store the main thread ID for comparison
+            main_thread_id = threading.current_thread().ident
+            
+            # Patch the _tkinter.tkapp.call method to handle async thread issues
+            original_tkapp_call = tk.Tk.call
+            
+            def safe_tkapp_call(self, *args, **kwargs):
+                try:
+                    # Only proceed with the call if we're in the main thread
+                    if threading.current_thread().ident == main_thread_id:
+                        return original_tkapp_call(self, *args, **kwargs)
+                    else:
+                        # For non-main threads, use a safer approach or queue the call
+                        return None
+                except (RuntimeError, AttributeError, TypeError) as e:
+                    # Log the error but don't crash
+                    print(f"Tkinter thread error suppressed: {e}")
+                    return None
+            
+            # Apply the patch
+            tk.Tk.call = safe_tkapp_call
+            
+            # Also patch the async_hook if available
             original_tcl_async_hook = None
             if hasattr(tk.Tcl(), 'async_hook'):
                 original_tcl_async_hook = tk.Tcl().async_hook
 
                 def safe_async_hook(*args, **kwargs):
                     try:
-                        if original_tcl_async_hook:
+                        if original_tcl_async_hook and threading.current_thread().ident == main_thread_id:
                             return original_tcl_async_hook(*args, **kwargs)
-                    except Exception:
+                    except Exception as e:
+                        print(f"Async hook error suppressed: {e}")
                         pass
 
                 tk.Tcl().async_hook = safe_async_hook
-    except Exception:
+    except Exception as e:
         # If patching fails, continue without it
+        print(f"Failed to patch Tkinter thread handling: {e}")
         pass
 
 def main():
@@ -126,24 +155,68 @@ def main():
     def on_closing():
         try:
             print("Cleaning up resources...")
-            app.cleanup()
-
+            
+            # First, stop any running threads in the app
+            if hasattr(app, 'cleanup'):
+                app.cleanup()
+                
+            # Wait for any background threads to finish
+            import threading
+            main_thread = threading.current_thread()
+            for thread in threading.enumerate():
+                if thread is not main_thread and thread.is_alive():
+                    try:
+                        print(f"Waiting for thread {thread.name} to finish...")
+                        thread.join(timeout=1.0)  # Wait with timeout to avoid hanging
+                    except Exception as e:
+                        print(f"Error joining thread {thread.name}: {e}")
+            
             # Explicitly delete all tkinter variables to prevent cleanup exceptions
             for widget in root.winfo_children():
                 if hasattr(widget, 'destroy'):
-                    widget.destroy()
+                    try:
+                        widget.destroy()
+                    except Exception as e:
+                        print(f"Error destroying widget: {e}")
 
-            # Delete all images
-            for name in list(root.tk.call('image', 'names')):
-                root.tk.call('image', 'delete', name)
+            # Delete all images with error handling
+            try:
+                for name in list(root.tk.call('image', 'names')):
+                    try:
+                        root.tk.call('image', 'delete', name)
+                    except Exception as e:
+                        print(f"Error deleting image {name}: {e}")
+            except Exception as e:
+                print(f"Error listing images: {e}")
 
             # Force garbage collection
             import gc
             gc.collect()
-
-            root.destroy()
+            
+            # Use after() to schedule the destruction after all events are processed
+            root.after(100, lambda: safe_destroy(root))
+            
         except Exception as e:
             print(f"Error during application shutdown: {str(e)}")
+            # Try to destroy the root window anyway
+            try:
+                root.destroy()
+            except:
+                pass
+    
+    def safe_destroy(widget):
+        """Safely destroy a widget with error handling"""
+        try:
+            widget.destroy()
+        except Exception as e:
+            print(f"Error during final destruction: {e}")
+            # If normal destroy fails, try to force quit
+            import os, sys
+            try:
+                # Only in extreme cases
+                os._exit(0)
+            except:
+                sys.exit(0)
 
     # Set the protocol handler
     root.protocol("WM_DELETE_WINDOW", on_closing)

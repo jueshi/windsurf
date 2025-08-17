@@ -672,15 +672,21 @@ def analyze_10k_report(ticker):
     
     # If we didn't find enough relevant content, include some key sections by position
     if len(relevant_text) < 20:
+        # Split the full text into paragraphs
+        paragraphs = report_text.split('\n\n')
+        
         # Include beginning (often contains business overview)
-        relevant_text.extend(paragraphs[:5])
+        if len(paragraphs) > 5:
+            relevant_text.extend(paragraphs[:5])
         
         # Include some middle parts (often risk factors)
-        middle_start = len(paragraphs) // 3
-        relevant_text.extend(paragraphs[middle_start:middle_start+5])
+        if len(paragraphs) > 10:
+            middle_start = len(paragraphs) // 3
+            relevant_text.extend(paragraphs[middle_start:middle_start+5])
         
         # Include some end parts (often outlook)
-        relevant_text.extend(paragraphs[-5:])
+        if len(paragraphs) > 5:
+            relevant_text.extend(paragraphs[-5:])
     
     # Combine the relevant text
     text = '\n\n'.join(relevant_text)
@@ -817,15 +823,21 @@ def analyze_10q_report(ticker):
 
     # If we didn't find enough relevant content, include some key sections by position
     if len(relevant_text) < 20:
+        # Split the full text into paragraphs
+        paragraphs = report_text.split('\n\n')
+        
         # Include beginning (often contains summary)
-        relevant_text.extend(paragraphs[:5])
+        if len(paragraphs) > 5:
+            relevant_text.extend(paragraphs[:5])
         
         # Include some middle parts (often financial data)
-        middle_start = len(paragraphs) // 3
-        relevant_text.extend(paragraphs[middle_start:middle_start+5])
+        if len(paragraphs) > 10:
+            middle_start = len(paragraphs) // 3
+            relevant_text.extend(paragraphs[middle_start:middle_start+5])
         
         # Include some end parts (often outlook)
-        relevant_text.extend(paragraphs[-5:])
+        if len(paragraphs) > 5:
+            relevant_text.extend(paragraphs[-5:])
     
     # Combine the relevant text
     text = '\n\n'.join(relevant_text)
@@ -844,18 +856,62 @@ def analyze_10q_report(ticker):
     print(f"Total filtered text length: {len(text)} characters")
 
 
-    import pandas as pd
-    # 使用pandas直接提取所有HTML中的表格，返回DataFrame列表
-    tables = pd.read_html(report_text)
-
-    # 打印所有表格，或选择其中一个处理
-    for i, table in enumerate(tables):
-        print(f"Table {i}:")
-        print(table)
-        print()
-
-    # 如果只是想保存特定的第一个表格为CSV
-    tables[0].to_csv('extracted_table.csv', index=False)
+    # Try to extract tables from HTML content
+    try:
+        import pandas as pd
+        from io import StringIO
+        import lxml
+        
+        # Check if the content is HTML before processing
+        if '<html' in report_text.lower() or '<table' in report_text.lower():
+            # Use StringIO to handle the HTML content safely
+            html_io = StringIO(report_text)
+            
+            # Use more robust error handling with specific parser
+            try:
+                tables = pd.read_html(html_io, flavor='bs4')
+                print(f"Found {len(tables)} tables in the document using bs4 parser")
+            except Exception as bs4_error:
+                print(f"BS4 parser failed: {bs4_error}, trying lxml parser...")
+                try:
+                    # Reset StringIO position
+                    html_io = StringIO(report_text)
+                    tables = pd.read_html(html_io, flavor='lxml')
+                    print(f"Found {len(tables)} tables in the document using lxml parser")
+                except Exception as lxml_error:
+                    print(f"LXML parser failed: {lxml_error}")
+                    # Create an empty list to avoid errors later
+                    tables = []
+            
+            # Process tables if any were found
+            if tables and len(tables) > 0:
+                # Print sample of tables
+                for i, table in enumerate(tables[:3]):  # Limit to first 3 tables
+                    if not table.empty:
+                        print(f"Table {i}:")
+                        print(table.head())  # Only print the first few rows
+                        print()
+                
+                # Save the first non-empty table if available
+                for table in tables:
+                    if not table.empty and table.shape[0] > 1 and table.shape[1] > 1:
+                        try:
+                            table.to_csv(f"{ticker}_10Q_table.csv", index=False)
+                            print(f"Table saved to {ticker}_10Q_table.csv")
+                            break
+                        except Exception as save_error:
+                            print(f"Error saving table: {save_error}")
+            else:
+                print("No valid tables found in the document")
+        else:
+            print("Content does not appear to be HTML or contain tables")
+    except ImportError as e:
+        print(f"Required library not installed: {e}")
+        print("Continuing with text analysis...")
+    except Exception as e:
+        print(f"Error extracting tables: {e}")
+        print("Continuing with text analysis...")
+        # Tables extraction is optional, so continue with the analysis
 
     load_dotenv()
     api_key = os.getenv("GEMINI_API_KEY")
@@ -995,6 +1051,43 @@ def general_search(ticker, company_info, query):
     - **行业板块:** {company_info.get('sector', 'N/A')}
     - **具体行业:** {company_info.get('industry', 'N/A')}
     - **业务摘要:** {company_info.get('longBusinessSummary', 'N/A')}
+    """
+
+    try:
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"An error occurred while communicating with the Gemini API: {e}"
+
+
+def general_ai_search(query):
+    """
+    Performs a general AI search using Google Gemini API without requiring ticker information.
+
+    Args:
+        query (str): The user's search query.
+
+    Returns:
+        str: The search result from Gemini API.
+    """
+    load_dotenv()
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return "Error: GEMINI_API_KEY not found in environment variables."
+
+    genai.configure(api_key=api_key)
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+    except Exception as e:
+        print(f"Could not initialize model: {e}")
+        return "Error: Could not initialize Gemini model."
+
+    prompt = f"""
+    请回答以下问题，提供详细和准确的信息：
+
+    用户问题: "{query}"
+
+    请使用中文进行详细回答。
     """
 
     try:

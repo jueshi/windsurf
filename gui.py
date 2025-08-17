@@ -40,6 +40,13 @@ import sec_filing_extractor
 import sec_api_wrapper
 import webbrowser
 import tempfile
+from thread_safe_tkinter import (
+    setup_thread_safe_tkinter,
+    safe_update_text_widget,
+    safe_update_status,
+    safe_show_message,
+    thread_safe
+)
 
 class StockDataGUI:
     """GUI for Stock Data Manager"""
@@ -50,6 +57,9 @@ class StockDataGUI:
         self.manager = manager
         self.current_tickers = []
         self.watch_list = []
+        
+        # Set up thread-safe Tkinter updates
+        setup_thread_safe_tkinter(root)
         self.current_image = None  # Store reference to prevent garbage collection
         self.active_tab = "individual"  # Track which tab is active: "individual" or "comparison"
         self.seasonality_pil_img = None  # To store the high-res seasonality chart
@@ -2322,55 +2332,56 @@ class StockDataGUI:
             logging.error(f"Error checking download progress: {str(e)}")
 
     def _run_general_search(self):
-        """Run a general AI search using the query in the search field"""
-        # Get the selected ticker
-        selected_tickers = self._get_selected_tickers()
-        if not selected_tickers:
-            messagebox.showwarning("No Selection", "Please select a ticker to search about.")
-            return
-            
-        # Use only the first selected ticker
-        ticker = selected_tickers[0]
-        
-        # Get the search query
+        """Run a general AI search using the query in the search field without requiring ticker selection"""
+        # Get the query from the search field
         query = self.general_search_var.get().strip()
+        
+        # Validate query
         if not query:
-            messagebox.showwarning("Empty Query", "Please enter a search query.")
+            safe_show_message('warning', "Empty Query", "Please enter a search query.")
             return
             
         # Update status
-        self.status_var.set(f"Running AI search for {ticker}: '{query}'...")
+        safe_update_status(self.status_var, f"Running AI search for query: '{query}'...")
         self.root.update_idletasks()
         
-        try:
-            # Get company info
-            company_info = self.manager.get_company_info(ticker)
-            if not company_info:
-                messagebox.showerror("Error", f"Could not retrieve company information for {ticker}.")
-                self.status_var.set(f"Failed to run AI search for {ticker}")
-                return
+        # Clear previous results
+        safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
+        safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, f"Running AI search for query: '{query}'...\nPlease wait...")
+        
+        def search_thread():
+            try:
+                # Run the search using the gemini_analyzer module with the new general_ai_search function
+                logging.info(f"Running general AI search with query: {query}")
+                from gemini_analyzer import general_ai_search
+                result = general_ai_search(query)
                 
-            # Run the search using the gemini_analyzer module
-            from gemini_analyzer import general_search
-            result = general_search(ticker, company_info, query)
-            
-            if result.startswith("Error:"):
-                messagebox.showerror("API Error", result)
-                self.status_var.set(f"Failed to run AI search: {result}")
-                return
+                if result.startswith("Error:"):
+                    safe_show_message('error', "API Error", result)
+                    safe_update_status(self.status_var, f"Failed to run AI search: {result}")
+                    return
+                    
+                # Display the result in the text widget using thread-safe methods
+                safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
+                safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, 
+                                       f"# AI Search Results for: '{query}'\n{result}")
+                safe_update_text_widget(self.business_analysis_text, 'see', "1.0")
                 
-            # Display the result in the text widget
-            self.analysis_text.delete(1.0, tk.END)
-            self.analysis_text.insert(tk.END, f"# AI Search Results for {ticker}: '{query}'\n{result}")
-            
-            # Update status
-            self.status_var.set(f"Completed AI search for {ticker}: '{query}'")
-            
-        except Exception as e:
-            error_msg = f"Error running AI search: {str(e)}"
-            self.status_var.set(error_msg)
-            logging.error(error_msg)
-            messagebox.showerror("Error", error_msg)
+                # Update status using thread-safe method
+                safe_update_status(self.status_var, f"Completed AI search for query: '{query}'")
+                
+            except Exception as e:
+                error_msg = f"Error running AI search: {str(e)}"
+                safe_update_status(self.status_var, error_msg)
+                logging.error(error_msg)
+                safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
+                safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, f"Error: {error_msg}")
+                safe_show_message('error', "Error", error_msg)
+        
+        # Run the search in a separate thread to avoid freezing the GUI
+        search_thread_obj = threading.Thread(target=search_thread, daemon=True)
+        search_thread_obj.name = f"AISearch-General-{query[:10]}"
+        search_thread_obj.start()
     
     def cleanup(self):
         """Clean up resources before application exit"""
@@ -2783,80 +2794,53 @@ class StockDataGUI:
             # Check watch list if no ticker is selected in the main list
             selected_indices = self.watch_listbox.curselection()
             if not selected_indices:
-                messagebox.showwarning("No Selection", "Please select a ticker from the 'Available Tickers' or 'Watch List'.")
+                safe_show_message('warning', "No Selection", "Please select a ticker from the 'Available Tickers' or 'Watch List'.")
                 return
             selected_tickers = [self.watch_listbox.get(i).strip() for i in selected_indices]
 
         ticker = selected_tickers[0]
-        self.business_analysis_text.delete("1.0", tk.END)
-        self.business_analysis_text.insert(tk.END, f"Running business analysis for {ticker}...")
+        # Use thread-safe text widget updates
+        safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
+        safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, f"Running business analysis for {ticker}...")
         self.root.update_idletasks()
 
         def analysis_thread():
-            company_info = self.manager.get_fundamental_data(ticker)
-            if not company_info:
-                self.business_analysis_text.delete("1.0", tk.END)
-                self.business_analysis_text.insert(tk.END, f"Could not retrieve fundamental data for {ticker}.")
-                return
-
-            analysis_result = gemini_analyzer.analyze_ticker(ticker, company_info)
-            self.business_analysis_text.delete("1.0", tk.END)
-            self.business_analysis_text.insert(tk.END, analysis_result)
-
-            # Save the analysis to a file
             try:
-                analysis_dir = os.path.join("stock_data", "business_analysis")
-                os.makedirs(analysis_dir, exist_ok=True)
-                analysis_file = os.path.join(analysis_dir, f"{ticker}_analysis.txt")
-                with open(analysis_file, "w", encoding="utf-8") as f:
-                    f.write(analysis_result)
-                self.status_var.set(f"Saved analysis for {ticker}")
+                logging.info(f"Fetching fundamental data for {ticker}")
+                company_info = self.manager.get_fundamental_data(ticker)
+                if not company_info:
+                    safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
+                    safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, f"Could not retrieve fundamental data for {ticker}.")
+                    return
+
+                logging.info(f"Running analysis for {ticker}")
+                analysis_result = gemini_analyzer.analyze_ticker(ticker, company_info)
+                
+                # Update UI with results using thread-safe methods
+                safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
+                safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, analysis_result)
+                safe_update_text_widget(self.business_analysis_text, 'see', "1.0")
+
+                # Save the analysis to a file
+                try:
+                    analysis_dir = os.path.join("stock_data", "business_analysis")
+                    os.makedirs(analysis_dir, exist_ok=True)
+                    analysis_file = os.path.join(analysis_dir, f"{ticker}_analysis.txt")
+                    with open(analysis_file, "w", encoding="utf-8") as f:
+                        f.write(analysis_result)
+                    safe_update_status(self.status_var, f"Saved analysis for {ticker}")
+                except Exception as e:
+                    logging.error(f"Could not save analysis: {e}")
+                    safe_show_message('error', "Error", f"Could not save analysis: {e}")
             except Exception as e:
-                messagebox.showerror("Error", f"Could not save analysis: {e}")
+                logging.error(f"Error in business analysis thread: {e}")
+                safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
+                safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, f"Error during analysis: {e}")
 
         # Run the analysis in a separate thread to avoid freezing the GUI
-        threading.Thread(target=analysis_thread, daemon=True).start()
-        
-    def _run_business_analysis(self):
-        """Runs the business analysis for the selected ticker."""
-        selected_tickers = self._get_selected_tickers(show_warning=True)
-        if not selected_tickers:
-            # Check watch list if no ticker is selected in the main list
-            selected_indices = self.watch_listbox.curselection()
-            if not selected_indices:
-                messagebox.showwarning("No Selection", "Please select a ticker from the 'Available Tickers' or 'Watch List'.")
-                return
-            selected_tickers = [self.watch_listbox.get(i).strip() for i in selected_indices]
-
-        ticker = selected_tickers[0]
-        self.business_analysis_text.delete("1.0", tk.END)
-        self.business_analysis_text.insert(tk.END, f"Running business analysis for {ticker}...")
-        self.root.update_idletasks()
-
-        def analysis_thread():
-            company_info = self.manager.get_fundamental_data(ticker)
-            if not company_info:
-                self.business_analysis_text.delete("1.0", tk.END)
-                self.business_analysis_text.insert(tk.END, f"Could not retrieve fundamental data for {ticker}.")
-                return
-
-            analysis_result = gemini_analyzer.analyze_ticker(ticker, company_info)
-            self.business_analysis_text.delete("1.0", tk.END)
-            self.business_analysis_text.insert(tk.END, analysis_result)
-
-            # Save the analysis to a file
-            try:
-                analysis_dir = os.path.join("stock_data", "business_analysis")
-                os.makedirs(analysis_dir, exist_ok=True)
-                analysis_file = os.path.join(analysis_dir, f"{ticker}_analysis.txt")
-                with open(analysis_file, "w", encoding="utf-8") as f:
-                    f.write(analysis_result)
-                self.status_var.set(f"Saved analysis for {ticker}")
-            except Exception as e:
-                messagebox.showerror("Error", f"Could not save analysis: {e}")
-
-        # Run the analysis in a separate thread to avoid freezing the GUI
-        threading.Thread(target=analysis_thread, daemon=True).start()
+        analysis_thread_obj = threading.Thread(target=analysis_thread, daemon=True)
+        analysis_thread_obj.name = f"BusinessAnalysis-{ticker}"
+        analysis_thread_obj.start()
 
     def _load_cached_analysis(self, ticker):
         """Load cached business analysis for a ticker"""
@@ -2870,18 +2854,20 @@ class StockDataGUI:
                 with open(cache_file, "r", encoding="utf-8") as f:
                     analysis = f.read()
                 
-                self.business_analysis_text.delete("1.0", tk.END)
-                self.business_analysis_text.insert(tk.END, analysis)
-                self.status_var.set(f"Loaded cached business analysis for {ticker}")
+                # Use thread-safe text widget updates
+                safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
+                safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, analysis)
+                safe_update_status(self.status_var, f"Loaded cached business analysis for {ticker}")
                 return True
             else:
-                self.business_analysis_text.delete("1.0", tk.END)
-                self.business_analysis_text.insert(tk.END, f"No cached analysis found for {ticker}. Click 'Analyze' to generate.")
+                safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
+                safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, 
+                                       f"No cached analysis found for {ticker}. Click 'Analyze' to generate.")
                 return False
         except Exception as e:
             logging.error(f"Error loading cached analysis: {e}")
-            self.business_analysis_text.delete("1.0", tk.END)
-            self.business_analysis_text.insert(tk.END, f"Error loading cached analysis: {e}")
+            safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
+            safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, f"Error loading cached analysis: {e}")
             return False
             
     def _check_for_cached_10k(self, ticker):
@@ -2893,20 +2879,29 @@ class StockDataGUI:
             cache_file = os.path.join(cache_dir, f"{ticker}_10k.txt")
             
             if os.path.exists(cache_file) and os.path.getsize(cache_file) > 0:
-                # Enable the Open 10-K button
+                # Enable the Open 10-K button using thread-safe method
                 if hasattr(self, 'open_10k_button'):
-                    self.open_10k_button.config(state=tk.NORMAL)
+                    if threading.current_thread() is threading.main_thread():
+                        self.open_10k_button.config(state=tk.NORMAL)
+                    else:
+                        tk_update_queue.put((self.open_10k_button.config, (), {'state': tk.NORMAL}))
                 return True
             else:
-                # Disable the Open 10-K button
+                # Disable the Open 10-K button using thread-safe method
                 if hasattr(self, 'open_10k_button'):
-                    self.open_10k_button.config(state=tk.DISABLED)
+                    if threading.current_thread() is threading.main_thread():
+                        self.open_10k_button.config(state=tk.DISABLED)
+                    else:
+                        tk_update_queue.put((self.open_10k_button.config, (), {'state': tk.DISABLED}))
                 return False
         except Exception as e:
             logging.error(f"Error checking for cached 10-K: {e}")
-            # Disable the Open 10-K button on error
+            # Disable the Open 10-K button on error using thread-safe method
             if hasattr(self, 'open_10k_button'):
-                self.open_10k_button.config(state=tk.DISABLED)
+                if threading.current_thread() is threading.main_thread():
+                    self.open_10k_button.config(state=tk.DISABLED)
+                else:
+                    tk_update_queue.put((self.open_10k_button.config, (), {'state': tk.DISABLED}))
             return False
             
     def _run_10k_study(self):
@@ -2918,50 +2913,91 @@ class StockDataGUI:
             return
 
         ticker = selected_tickers[0]
-        self.business_analysis_text.delete("1.0", tk.END)
-        self.business_analysis_text.insert(tk.END, f"Running 10-K study for {ticker} by searching online...")
+        # Use thread-safe text widget updates
+        safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
+        safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, 
+                               f"Running 10-K study for {ticker} by searching online...")
         self.root.update_idletasks()
 
         def study_thread():
-            analysis_result = gemini_analyzer.analyze_10k_report(ticker)
-            self.business_analysis_text.delete("1.0", tk.END)
-            self.business_analysis_text.insert(tk.END, analysis_result)
+            try:
+                logging.info(f"Running 10-K study for {ticker}")
+                analysis_result = gemini_analyzer.analyze_10k_report(ticker)
+                
+                # Update UI with results using thread-safe methods
+                safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
+                safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, analysis_result)
+                safe_update_text_widget(self.business_analysis_text, 'see', "1.0")
+                
+                # Update status using thread-safe method
+                safe_update_status(self.status_var, f"Completed 10-K study for {ticker}")
+            except Exception as e:
+                logging.error(f"Error in 10-K study thread: {e}")
+                safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
+                safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, f"Error during 10-K study: {e}")
+                safe_update_status(self.status_var, f"Error in 10-K study: {str(e)}")
 
         # Run the study in a separate thread to avoid freezing the GUI
-        threading.Thread(target=study_thread, daemon=True).start()
+        study_thread_obj = threading.Thread(target=study_thread, daemon=True)
+        study_thread_obj.name = f"10KStudy-{ticker}"
+        study_thread_obj.start()
 
 
     def _run_news_search(self):
         """Runs the news search for the selected ticker."""
         selected_tickers = self._get_selected_tickers(show_warning=True)
         if not selected_tickers:
+            safe_show_message('warning', "No Selection", "Please select a ticker.")
             return
 
         ticker = selected_tickers[0]
-        self.business_analysis_text.delete("1.0", tk.END)
-        self.business_analysis_text.insert(tk.END, f"Running news search for {ticker}...")
+        # Use thread-safe text widget updates
+        safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
+        safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, f"Running news search for {ticker}...")
         self.root.update_idletasks()
 
         def search_thread():
-            self.business_analysis_text.insert(tk.END, f"\nFetching news for {ticker}...")
-            self.root.update_idletasks()
+            try:
+                # Use thread-safe text widget updates
+                safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, f"\nFetching news for {ticker}...")
+                
+                logging.info(f"Fetching news for {ticker}")
+                news_articles = news_fetcher.fetch_news(ticker)
 
-            news_articles = news_fetcher.fetch_news(ticker)
+                if not news_articles or "error" in news_articles[0]:
+                    error_msg = news_articles[0]['error'] if news_articles else "Could not fetch news."
+                    safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, f"\n{error_msg}")
+                    return
 
-            if not news_articles or "error" in news_articles[0]:
-                error_msg = news_articles[0]['error'] if news_articles else "Could not fetch news."
-                self.business_analysis_text.insert(tk.END, f"\n{error_msg}")
-                return
-
-            self.business_analysis_text.insert(tk.END, f"\nFound {len(news_articles)} news articles. Analyzing...")
-            self.root.update_idletasks()
-
-            analysis_result = gemini_analyzer.analyze_news(news_articles)
-            self.business_analysis_text.delete("1.0", tk.END)
-            self.business_analysis_text.insert(tk.END, analysis_result)
+                safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, 
+                                       f"\nFound {len(news_articles)} news articles. Analyzing...")
+                
+                logging.info(f"Analyzing {len(news_articles)} news articles for {ticker}")
+                analysis_result = gemini_analyzer.analyze_news(news_articles)
+                
+                # Update UI with results using thread-safe methods
+                safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
+                safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, analysis_result)
+                safe_update_text_widget(self.business_analysis_text, 'see', "1.0")
+                
+                # Save the analysis to a file
+                try:
+                    analysis_dir = os.path.join("stock_data", "business_analysis")
+                    os.makedirs(analysis_dir, exist_ok=True)
+                    analysis_file = os.path.join(analysis_dir, f"{ticker}_news_analysis.txt")
+                    with open(analysis_file, "w", encoding="utf-8") as f:
+                        f.write(analysis_result)
+                    safe_update_status(self.status_var, f"Saved news analysis for {ticker}")
+                except Exception as e:
+                    logging.error(f"Could not save news analysis: {e}")
+            except Exception as e:
+                logging.error(f"Error in news search thread: {e}")
+                safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, f"\nError: {e}")
 
         # Run the search in a separate thread to avoid freezing the GUI
-        threading.Thread(target=search_thread, daemon=True).start()
+        search_thread_obj = threading.Thread(target=search_thread, daemon=True)
+        search_thread_obj.name = f"NewsSearch-{ticker}"
+        search_thread_obj.start()
 
     def _run_10q_study(self):
         """
@@ -2972,22 +3008,47 @@ class StockDataGUI:
             # Check watch list if no ticker is selected in the main list
             selected_indices = self.watch_listbox.curselection()
             if not selected_indices:
-                messagebox.showwarning("No Selection", "Please select a ticker from the 'Available Tickers' or 'Watch List'.")
+                safe_show_message('warning', "No Selection", "Please select a ticker from the 'Available Tickers' or 'Watch List'.")
                 return
             selected_tickers = [self.watch_listbox.get(i).strip() for i in selected_indices]
 
         ticker = selected_tickers[0]
-        self.business_analysis_text.delete("1.0", tk.END)
-        self.business_analysis_text.insert(tk.END, f"Running 10-Q study for {ticker} by searching online...")
+        # Use thread-safe text widget updates
+        safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
+        safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, 
+                               f"Running 10-Q study for {ticker} by searching online...")
         self.root.update_idletasks()
 
         def study_thread():
-            analysis_result = gemini_analyzer.analyze_10q_report(ticker)
-            self.business_analysis_text.delete("1.0", tk.END)
-            self.business_analysis_text.insert(tk.END, analysis_result)
+            try:
+                logging.info(f"Running 10-Q analysis for {ticker}")
+                analysis_result = gemini_analyzer.analyze_10q_report(ticker)
+                
+                # Update UI with results using thread-safe methods
+                safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
+                safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, analysis_result)
+                safe_update_text_widget(self.business_analysis_text, 'see', "1.0")
+                
+                # Save the analysis to a file
+                try:
+                    analysis_dir = os.path.join("stock_data", "business_analysis")
+                    os.makedirs(analysis_dir, exist_ok=True)
+                    analysis_file = os.path.join(analysis_dir, f"{ticker}_10Q_analysis.txt")
+                    with open(analysis_file, "w", encoding="utf-8") as f:
+                        f.write(analysis_result)
+                    safe_update_status(self.status_var, f"Saved 10-Q analysis for {ticker}")
+                except Exception as e:
+                    logging.error(f"Could not save 10-Q analysis: {e}")
+            except Exception as e:
+                logging.error(f"Error in 10-Q analysis thread: {e}")
+                safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
+                safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, 
+                                       f"Error during 10-Q analysis: {e}")
 
         # Run the study in a separate thread to avoid freezing the GUI
-        threading.Thread(target=study_thread, daemon=True).start()
+        study_thread_obj = threading.Thread(target=study_thread, daemon=True)
+        study_thread_obj.name = f"10QAnalysis-{ticker}"
+        study_thread_obj.start()
     
     def _open_10k_report(self):
         """Opens the downloaded 10-K report file."""
