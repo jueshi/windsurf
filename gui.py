@@ -175,6 +175,26 @@ class StockDataGUI:
     #         logging.error(f"Error refreshing ticker lists: {str(e)}")
     #         messagebox.showerror("Error", f"Failed to refresh ticker lists: {str(e)}")
 
+    def _set_initial_sash_positions(self):
+        """Set the initial positions of the sashes to make list panes very narrow"""
+        try:
+            # Get the total width of the paned window
+            total_width = self.paned_window.winfo_width()
+            
+            if total_width > 0:
+                # Set first sash position (between left and middle panes)
+                self.paned_window.sashpos(0, 120)  # 120 pixels from left (doubled from 60)
+                
+                # Set second sash position (between middle and right panes)
+                self.paned_window.sashpos(1, 240)  # 240 pixels from left (doubled from 120)
+                
+                logging.info(f"Set initial sash positions: 120, 240 (total width: {total_width})")
+            else:
+                # If window width is not yet available, try again after a delay
+                self.root.after(100, self._set_initial_sash_positions)
+        except Exception as e:
+            logging.error(f"Error setting sash positions: {e}")
+    
     def _filter_ticker_lists(self, event=None):
         """Filter ticker lists dropdown based on filter text"""
         filter_text = self.list_filter_var.get().lower()
@@ -410,7 +430,10 @@ class StockDataGUI:
         ttk.Button(button_frame, text="Load List", command=self._load_ticker_list).pack(side=tk.LEFT, padx=(0, 5))
 
         # Refresh Lists button reloads ticker lists from ticker_lists.py
-        ttk.Button(button_frame, text="Refresh Lists", command=self._refresh_ticker_lists).pack(side=tk.LEFT)
+        ttk.Button(button_frame, text="Refresh Lists", command=self._refresh_ticker_lists).pack(side=tk.LEFT, padx=(0, 5))
+        
+        # Remove List button removes the currently selected list from ticker_lists.py
+        ttk.Button(button_frame, text="Remove List", command=self._remove_current_list).pack(side=tk.LEFT)
 
         # Create a frame for the second row with Add Ticker and New List Name
         second_row_frame = ttk.Frame(top_frame)
@@ -437,15 +460,16 @@ class StockDataGUI:
         self.list_name_var = tk.StringVar()
         list_name_entry = ttk.Entry(list_frame, textvariable=self.list_name_var, width=30)
         list_name_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-        ttk.Button(list_frame, text="Save List", command=self._save_ticker_list).pack(side=tk.LEFT)
+        ttk.Button(list_frame, text="Create List", command=self._save_ticker_list).pack(side=tk.LEFT)
 
         # Create a PanedWindow for resizable sections
-        paned_window = ttk.PanedWindow(main_frame, orient=tk.HORIZONTAL)
-        paned_window.pack(fill=tk.BOTH, expand=True, pady=5)
+        self.paned_window = ttk.PanedWindow(main_frame, orient=tk.HORIZONTAL)
+        self.paned_window.pack(fill=tk.BOTH, expand=True, pady=5)
 
         # --- Left Pane: Available Tickers ---
-        left_pane_frame = ttk.Frame(paned_window)
-        paned_window.add(left_pane_frame, weight=1) # Give less weight initially
+        left_pane_frame = ttk.Frame(self.paned_window, width=50)  # Set very narrow fixed width
+        left_pane_frame.pack_propagate(False)  # Prevent child widgets from changing frame size
+        self.paned_window.add(left_pane_frame, weight=1) # Very minimal weight for ticker list
 
         left_frame = ttk.LabelFrame(left_pane_frame, text="Available Tickers", padding="5")
         left_frame.pack(fill=tk.BOTH, expand=True)
@@ -469,15 +493,16 @@ class StockDataGUI:
         scrollbar = ttk.Scrollbar(ticker_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        self.ticker_listbox = tk.Listbox(ticker_frame, selectmode=tk.EXTENDED, height=20, width=10)
+        self.ticker_listbox = tk.Listbox(ticker_frame, selectmode=tk.EXTENDED, height=20, width=2)
         self.ticker_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         self.ticker_listbox.config(yscrollcommand=scrollbar.set)
         scrollbar.config(command=self.ticker_listbox.yview)
 
         # --- Middle Pane: Watch List ---
-        middle_pane_frame = ttk.Frame(paned_window)
-        paned_window.add(middle_pane_frame, weight=1) # Give less weight initially
+        middle_pane_frame = ttk.Frame(self.paned_window, width=50)  # Set very narrow fixed width
+        middle_pane_frame.pack_propagate(False)  # Prevent child widgets from changing frame size
+        self.paned_window.add(middle_pane_frame, weight=1) # Very minimal weight for watch list
 
         middle_list_frame = ttk.LabelFrame(middle_pane_frame, text="Watch List", padding="5")
         middle_list_frame.pack(fill=tk.BOTH, expand=True)
@@ -489,12 +514,17 @@ class StockDataGUI:
         watch_scrollbar = ttk.Scrollbar(watch_frame)
         watch_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        self.watch_listbox = tk.Listbox(watch_frame, selectmode=tk.EXTENDED, height=20, width=10)
+        self.watch_listbox = tk.Listbox(watch_frame, selectmode=tk.EXTENDED, height=20, width=2)
         self.watch_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # --- Right Pane: Chart Display ---
-        right_pane_frame = ttk.Frame(paned_window)
-        paned_window.add(right_pane_frame, weight=6) # Give more weight to the chart
+        right_pane_frame = ttk.Frame(self.paned_window)
+        self.paned_window.add(right_pane_frame, weight=20) # Greatly increased weight for chart display
+        
+        # Store references to pane frames for later use
+        self.left_pane_frame = left_pane_frame
+        self.middle_pane_frame = middle_pane_frame
+        self.right_pane_frame = right_pane_frame
 
         self.chart_frame = ttk.LabelFrame(right_pane_frame, text="Chart Display", padding="5")
         self.chart_frame.pack(fill=tk.BOTH, expand=True)
@@ -794,10 +824,14 @@ class StockDataGUI:
         # Create right-click context menu for ticker listbox
         self.ticker_context_menu = tk.Menu(self.ticker_listbox, tearoff=0)
         self.ticker_context_menu.add_command(label="Copy to Watch List", command=self._copy_to_watch_list)
+        self.ticker_context_menu.add_command(label="Remove Ticker", command=self._remove_ticker)
 
         # Create right-click context menu for watch list
         self.watch_context_menu = tk.Menu(self.watch_listbox, tearoff=0)
         self.watch_context_menu.add_command(label="Delete from Watch List", command=self._delete_from_watch_list)
+        
+        # Set initial sash positions after a short delay to ensure the window is fully created
+        self.root.after(100, self._set_initial_sash_positions)
 
         # Bind right-click events
         self.ticker_listbox.bind("<Button-3>", self._show_ticker_context_menu)
@@ -874,38 +908,6 @@ class StockDataGUI:
     #         # Update status
     #         self.status_var.set(f"Refreshed {len(self.ticker_lists)} ticker lists from ticker_lists.py")
 
-    #     except Exception as e:
-    #         logging.error(f"Error refreshing ticker lists: {str(e)}")
-    #         messagebox.showerror("Error", f"Failed to refresh ticker lists: {str(e)}")
-
-    # def _filter_ticker_lists(self, event=None):
-    #     """Filter the ticker lists dropdown based on input"""
-    #     filter_text = self.list_filter_var.get().lower()
-
-    #     if not filter_text:
-    #         # If filter is empty, show all lists
-    #         self.ticker_list_combo['values'] = list(self.ticker_lists.keys())
-    #         return
-
-    #     # Filter lists based on input
-    #     filtered_lists = [name for name in self.ticker_lists.keys()
-    #                      if filter_text in name.lower()]
-
-    #     # Update dropdown values
-    #     self.ticker_list_combo['values'] = filtered_lists
-
-    #     # If exactly one match, select it and load it automatically
-    #     if len(filtered_lists) == 1:
-    #         self.ticker_list_var.set(filtered_lists[0])
-    #         self._load_ticker_list()
-    #     else:
-    #         # Reset to show all lists
-    #         self.ticker_list_combo['values'] = list(self.ticker_lists.keys())
-
-    #     # Update status
-    #     if filter_text:
-    #         self.status_var.set(f"List filter: '{filter_text}' - {len(self.ticker_list_combo['values'])} matches")
-
     def _apply_ticker_filter(self, *args):
         """Filter the ticker list based on filter text"""
         filter_text = self.filter_var.get().strip().upper()
@@ -918,27 +920,20 @@ class StockDataGUI:
         selected_list = self.ticker_list_var.get()
         if not selected_list or selected_list not in self.ticker_lists:
             return
-
-        # Get the full list of tickers
-        tickers = self.current_tickers
-
+        
+        # Get the tickers for the selected list
+        tickers = self.ticker_lists[selected_list]
+        
         # Clear the listbox
         self.ticker_listbox.delete(0, tk.END)
-
-        # Apply filter and update listbox
+        
+        # Filter tickers based on input and update listbox
         filtered_count = 0
         for ticker in tickers:
-            # Apply filter
-            if filter_text and filter_text not in ticker.upper():
-                continue
-
-            # Add ticker to listbox
-            if 'tickers_comment_dict' in globals() and ticker in tickers_comment_dict:
-                self.ticker_listbox.insert(tk.END, f"{ticker} - {tickers_comment_dict[ticker]}")
-            else:
+            if not filter_text or filter_text in ticker.upper():
                 self.ticker_listbox.insert(tk.END, ticker)
-            filtered_count += 1
-
+                filtered_count += 1
+        
         # Update status
         if filter_text:
             self.status_var.set(f"Filter '{filter_text}': showing {filtered_count}/{len(tickers)} tickers from {selected_list}")
@@ -999,6 +994,43 @@ class StockDataGUI:
                 self.ticker_listbox.insert(tk.END, ticker)
                 added_count += 1
 
+        # Get the current selected list name
+        current_list_name = self.ticker_list_var.get()
+        
+        # Save the updated list back to the file if it's a named list (not 'all_tickers') and tickers were added
+        if current_list_name and current_list_name != 'all_tickers' and added_count > 0:
+            try:
+                # Read the current content of ticker_lists.py
+                ticker_lists_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ticker_lists.py")
+                with open(ticker_lists_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                
+                # Create the updated list code
+                tickers_str = ", ".join([f"\"{ticker}\"" for ticker in self.current_tickers])
+                updated_list_code = f"{current_list_name} = [{tickers_str}]\n"
+                
+                # Find the existing list definition
+                list_pattern = re.compile(f"\n{current_list_name}\s*=\s*\[.*?\]", re.DOTALL)
+                match = list_pattern.search(content)
+                
+                if match:
+                    # Replace the existing list
+                    new_content = content[:match.start()] + f"\n{updated_list_code}" + content[match.end():]
+                    
+                    # Write the modified content back to the file
+                    with open(ticker_lists_path, "w", encoding="utf-8") as f:
+                        f.write(new_content)
+                    
+                    # Update the ticker lists dictionary
+                    self.ticker_lists[current_list_name] = self.current_tickers
+                    
+                    logging.info(f"Updated {current_list_name} with {len(self.current_tickers)} tickers in ticker_lists.py")
+                else:
+                    logging.warning(f"Could not find {current_list_name} in ticker_lists.py to update")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error updating ticker list: {str(e)}")
+                logging.error(f"Error updating ticker list: {e}")
+
         if added_count == 1:
             self.status_var.set(f"Added ticker: {tickers[0]}")
         else:
@@ -1008,61 +1040,96 @@ class StockDataGUI:
         self.manual_ticker_var.set("")
 
     def _save_ticker_list(self):
-        """Save current tickers as a new list in ticker_lists.py"""
+        """Create a new ticker list in ticker_lists.py and load it immediately"""
         list_name = self.list_name_var.get().strip()
         if not list_name:
             messagebox.showwarning("No List Name", "Please enter a name for the ticker list.")
-            return
-
-        if not self.current_tickers:
-            messagebox.showwarning("No Tickers", "Please add tickers to the list before saving.")
             return
 
         # Format list name to be a valid Python variable name
         list_name = list_name.replace(" ", "_").replace("-", "_")
         if not list_name[0].isalpha() and list_name[0] != '_':
             list_name = "ticker_" + list_name
+            
+        # Add _stocks suffix if not already present
+        if not list_name.endswith("_stocks"):
+            list_name = f"{list_name}_stocks"
 
-        # Create Python code for the new list
-        tickers_str = ", ".join([f"\"{ticker}\"" for ticker in self.current_tickers])
-        new_list_code = f"\n{list_name}_stocks = [{tickers_str}]\n"
+        # Create Python code for the new empty list
+        new_list_code = f"\n{list_name} = []\n"
 
         try:
+            # Check if list already exists
+            if list_name in self.ticker_lists:
+                if not messagebox.askyesno("List Exists", f"The list '{list_name}' already exists. Do you want to overwrite it?"): 
+                    return
+            
             # Read the current content of ticker_lists.py
             ticker_lists_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ticker_lists.py")
             with open(ticker_lists_path, "r", encoding="utf-8") as f:
                 content = f.read()
 
-            # Find the position of the first function definition
-            function_pattern = re.compile(r'\n# Function to')
-            match = function_pattern.search(content)
-
-            if match:
-                # Insert the new list before the function definition
-                insert_position = match.start()
-                new_content = content[:insert_position] + new_list_code + content[insert_position:]
-
+            # Check if the list already exists in the file
+            list_pattern = re.compile(f"\n{list_name}\s*=\s*\[.*?\]", re.DOTALL)
+            match_existing = list_pattern.search(content)
+            
+            if match_existing:
+                # Replace the existing list
+                new_content = content[:match_existing.start()] + f"\n{list_name} = []" + content[match_existing.end():]
+                
                 # Write the modified content back to the file
                 with open(ticker_lists_path, "w", encoding="utf-8") as f:
                     f.write(new_content)
             else:
-                # If no function definition found, append to the end of the file
-                with open(ticker_lists_path, "a", encoding="utf-8") as f:
-                    f.write(new_list_code)
+                # Find the position of the first function definition
+                function_pattern = re.compile(r'\n# Function to')
+                match = function_pattern.search(content)
 
-            # Update the ticker lists dictionary
-            self.ticker_lists[list_name + "_stocks"] = self.current_tickers
-            self.ticker_list_var.set(list_name + "_stocks")
+                if match:
+                    # Insert the new list before the function definition
+                    insert_position = match.start()
+                    new_content = content[:insert_position] + new_list_code + content[insert_position:]
+
+                    # Write the modified content back to the file
+                    with open(ticker_lists_path, "w", encoding="utf-8") as f:
+                        f.write(new_content)
+                else:
+                    # If no function definition found, append to the end of the file
+                    with open(ticker_lists_path, "a", encoding="utf-8") as f:
+                        f.write(new_list_code)
+
+            # Update the ticker lists dictionary with an empty list
+            self.ticker_lists[list_name] = []
+            
+            # Clear the current tickers and update the listbox
+            self.current_tickers = []
+            self.ticker_listbox.delete(0, tk.END)
+            
+            # Set the newly created list as the current selection
+            self.ticker_list_var.set(list_name)
 
             # Update the dropdown menu
             self.ticker_list_combo['values'] = list(self.ticker_lists.keys())
 
-            self.status_var.set(f"Saved {len(self.current_tickers)} tickers as '{list_name}_stocks'")
-            messagebox.showinfo("List Saved", f"Ticker list saved as '{list_name}_stocks' in ticker_lists.py")
+            self.status_var.set(f"Created empty list '{list_name}' and loaded it")
+            messagebox.showinfo("List Created", f"Empty ticker list '{list_name}' created and loaded")
+            
+            # Clear the list name entry
+            self.list_name_var.set("")
         except Exception as e:
-            messagebox.showerror("Error", f"Error saving ticker list: {str(e)}")
-            logging.error(f"Error saving ticker list: {e}")
+            messagebox.showerror("Error", f"Error creating ticker list: {str(e)}")
+            logging.error(f"Error creating ticker list: {e}")
 
+    def _setup_ticker_context_menu(self):
+        """Set up the context menu for the ticker listbox"""
+        # Bind right-click event
+        self.ticker_listbox.bind("<Button-3>", self._show_ticker_context_menu)
+    
+    def _setup_watch_context_menu(self):
+        """Set up the context menu for the watch listbox"""
+        # Bind right-click event
+        self.watch_listbox.bind("<Button-3>", self._show_watch_context_menu)
+    
     def _show_ticker_context_menu(self, event):
         """Show context menu on right-click in ticker listbox"""
         # Only show context menu if there are selected items
@@ -1090,30 +1157,36 @@ class StockDataGUI:
 
         # Get selected tickers
         selected_tickers = [self.watch_listbox.get(i) for i in selected_indices]
-
-        # Confirm deletion
-        if len(selected_tickers) == 1:
-            confirm = messagebox.askyesno("Confirm Delete", f"Delete {selected_tickers[0]} from watch list?")
-        else:
-            confirm = messagebox.askyesno("Confirm Delete", f"Delete {len(selected_tickers)} tickers from watch list?")
-
-        if not confirm:
-            return
-
-        # Delete from watch list (in reverse order to maintain correct indices)
-        for i in sorted(selected_indices, reverse=True):
-            ticker = self.watch_listbox.get(i)
+        
+        # Convert to list and sort in reverse order to avoid index shifting during deletion
+        indices = sorted(list(selected_indices), reverse=True)
+        
+        # Remove from listbox and watch_list
+        for i in indices:
+            ticker = self.watch_listbox.get(i).strip()
             self.watch_listbox.delete(i)
             if ticker in self.watch_list:
                 self.watch_list.remove(ticker)
-
-        # Save the updated watch list
+                
+        # Save updated watch list
         self._save_watch_list()
 
-        if len(selected_tickers) == 1:
-            self.status_var.set(f"Deleted {selected_tickers[0]} from watch list")
-        else:
-            self.status_var.set(f"Deleted {len(selected_tickers)} tickers from watch list")
+    def _get_selected_tickers(self, show_warning=True):
+        """Get selected tickers from listbox"""
+        selected_indices = self.ticker_listbox.curselection()
+        if not selected_indices:
+            if show_warning:
+                messagebox.showwarning("No Selection", "Please select at least one ticker.")
+            return []
+
+        selected_tickers = []
+        for i in selected_indices:
+            # Extract ticker symbol (it might include a comment after a dash)
+            ticker_text = self.ticker_listbox.get(i)
+            ticker = ticker_text.split(' - ')[0].strip()
+            selected_tickers.append(ticker)
+
+        return selected_tickers
 
     def _copy_to_watch_list(self):
         """Copy selected tickers to watch list and save to ticker_lists.py"""
@@ -1139,7 +1212,138 @@ class StockDataGUI:
                 self.status_var.set(f"Added {added_count} tickers to watch list and saved")
         else:
             self.status_var.set("All selected tickers already in watch list")
+            
+    def _remove_ticker(self):
+        """Remove selected tickers from the available tickers list and save changes"""
+        selected_tickers = self._get_selected_tickers(show_warning=False)
+        if not selected_tickers:
+            return
+            
+        # Ask for confirmation
+        if len(selected_tickers) == 1:
+            message = f"Are you sure you want to remove {selected_tickers[0]} from the available tickers?"
+        else:
+            message = f"Are you sure you want to remove {len(selected_tickers)} tickers from the available tickers?"
+            
+        if not messagebox.askyesno("Confirm Removal", message):
+            return
+            
+        # Convert to list and sort in reverse order to avoid index shifting during deletion
+        selected_indices = sorted(list(self.ticker_listbox.curselection()), reverse=True)
+        
+        # Remove from listbox and current_tickers list
+        for i in selected_indices:
+            ticker_text = self.ticker_listbox.get(i)
+            ticker = ticker_text.split(' - ')[0].strip()
+            self.ticker_listbox.delete(i)
+            if ticker in self.current_tickers:
+                self.current_tickers.remove(ticker)
+        
+        # Get the current selected list name
+        current_list_name = self.ticker_list_var.get()
+        
+        # Save the updated list back to the file if it's a named list (not 'all_tickers')
+        if current_list_name and current_list_name != 'all_tickers':
+            try:
+                # Read the current content of ticker_lists.py
+                ticker_lists_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ticker_lists.py")
+                with open(ticker_lists_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                
+                # Create the updated list code
+                tickers_str = ", ".join([f"\"{ticker}\"" for ticker in self.current_tickers])
+                updated_list_code = f"{current_list_name} = [{tickers_str}]\n"
+                
+                # Find the existing list definition
+                list_pattern = re.compile(f"\n{current_list_name}\s*=\s*\[.*?\]", re.DOTALL)
+                match = list_pattern.search(content)
+                
+                if match:
+                    # Replace the existing list
+                    new_content = content[:match.start()] + f"\n{updated_list_code}" + content[match.end():]
+                    
+                    # Write the modified content back to the file
+                    with open(ticker_lists_path, "w", encoding="utf-8") as f:
+                        f.write(new_content)
+                    
+                    # Update the ticker lists dictionary
+                    self.ticker_lists[current_list_name] = self.current_tickers
+                    
+                    logging.info(f"Updated {current_list_name} with {len(self.current_tickers)} tickers in ticker_lists.py")
+                else:
+                    logging.warning(f"Could not find {current_list_name} in ticker_lists.py to update")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error updating ticker list: {str(e)}")
+                logging.error(f"Error updating ticker list: {e}")
+                
+        # Update status
+        if len(selected_tickers) == 1:
+            self.status_var.set(f"Removed {selected_tickers[0]} from available tickers")
+        else:
+            self.status_var.set(f"Removed {len(selected_tickers)} tickers from available tickers")
 
+    def _remove_current_list(self):
+        """Remove the currently selected ticker list from ticker_lists.py"""
+        # Get the current selected list name
+        current_list_name = self.ticker_list_var.get()
+        
+        # Check if a list is selected
+        if not current_list_name:
+            messagebox.showwarning("No List Selected", "Please select a ticker list to remove.")
+            return
+            
+        # Don't allow removing watch_list through this method (it has its own management)
+        if current_list_name == "watch_list":
+            messagebox.showwarning("Cannot Remove", "The watch list cannot be removed through this button.\n\nTo clear the watch list, remove all tickers from it.")
+            return
+            
+        # Ask for confirmation
+        if not messagebox.askyesno("Confirm Removal", f"Are you sure you want to remove the list '{current_list_name}'?\n\nThis action cannot be undone."):
+            return
+            
+        try:
+            # Read the current content of ticker_lists.py
+            ticker_lists_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ticker_lists.py")
+            with open(ticker_lists_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            
+            # Find the existing list definition
+            list_pattern = re.compile(f"\n{current_list_name}\s*=\s*\[.*?\]", re.DOTALL)
+            match = list_pattern.search(content)
+            
+            if match:
+                # Remove the existing list
+                new_content = content[:match.start()] + content[match.end():]
+                
+                # Write the modified content back to the file
+                with open(ticker_lists_path, "w", encoding="utf-8") as f:
+                    f.write(new_content)
+                
+                # Remove from the ticker lists dictionary
+                if current_list_name in self.ticker_lists:
+                    del self.ticker_lists[current_list_name]
+                
+                # Update the dropdown values
+                self.ticker_list_combo['values'] = list(self.ticker_lists.keys())
+                
+                # Clear the current selection if it was the removed list
+                if self.ticker_list_var.get() == current_list_name:
+                    self.ticker_list_var.set("")
+                    # Clear the ticker listbox
+                    self.ticker_listbox.delete(0, tk.END)
+                    self.current_tickers = []
+                
+                # Update status
+                self.status_var.set(f"Removed list '{current_list_name}' from ticker_lists.py")
+                logging.info(f"Removed list '{current_list_name}' from ticker_lists.py")
+            else:
+                messagebox.showwarning("List Not Found", f"Could not find list '{current_list_name}' in ticker_lists.py")
+                
+        except Exception as e:
+            error_msg = f"Error removing ticker list: {str(e)}"
+            messagebox.showerror("Error", error_msg)
+            logging.error(error_msg)
+    
     def _save_watch_list(self):
         """Save the watch list to ticker_lists.py"""
         if not self.watch_list:
