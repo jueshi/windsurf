@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import yfinance as yf
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, messagebox, filedialog, simpledialog
 import logging
 import json
 import threading
@@ -70,6 +70,8 @@ class StockDataGUI:
         self.year_menu = None # A direct reference to the year selection menu
         self.fundamental_data_cache = [] # Cache for fundamental data
         self.fundamental_filter_var = tk.StringVar() # Filter for fundamental data
+        self.business_analysis_filter_var = tk.StringVar() # Filter for business analysis data
+        self.business_analysis_original_text = "" # Store original text for filtering
 
         # Load ticker lists from ticker_lists.py
         self.ticker_lists = {}
@@ -702,8 +704,19 @@ class StockDataGUI:
         fa_filter_frame.pack(fill=tk.X, padx=5, pady=5)
         ttk.Label(fa_filter_frame, text="Filter Metric:").pack(side=tk.LEFT, padx=(0, 5))
         fa_filter_entry = ttk.Entry(fa_filter_frame, textvariable=self.fundamental_filter_var)
-        fa_filter_entry.pack(fill=tk.X, expand=True)
+        fa_filter_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
         fa_filter_entry.bind("<KeyRelease>", self._populate_fundamental_treeview)
+        
+        # Add a small help label
+        ttk.Label(fa_filter_frame, text="(Multiple terms use OR logic, ! for exclusion, * to show all)", 
+                 font=("Helvetica", 8)).pack(side=tk.LEFT, padx=5)
+        
+        # Add Save and Load filter buttons
+        save_filter_button = ttk.Button(fa_filter_frame, text="Save Filter", width=10, command=self._save_filter)
+        save_filter_button.pack(side=tk.LEFT, padx=5)
+        
+        load_filter_button = ttk.Button(fa_filter_frame, text="Load Filter", width=10, command=self._load_filter)
+        load_filter_button.pack(side=tk.LEFT, padx=5)
 
         # Create a frame to hold the treeview and scrollbar
         fa_tree_frame = ttk.Frame(self.fundamental_analysis_frame)
@@ -755,6 +768,18 @@ class StockDataGUI:
 
         ttk.Button(ba_button_frame, text="AI Search", command=self._run_general_search).pack(side=tk.LEFT)
         
+        # Add filter frame for business analysis
+        ba_filter_frame = ttk.Frame(ba_frame)
+        ba_filter_frame.pack(fill=tk.X, pady=5)
+        
+        ttk.Label(ba_filter_frame, text="Filter Metric:").pack(side=tk.LEFT, padx=(0, 5))
+        filter_entry = ttk.Entry(ba_filter_frame, textvariable=self.business_analysis_filter_var, width=40)
+        filter_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        filter_entry.bind("<KeyRelease>", self._apply_business_analysis_filter)
+        
+        # Add a small help label
+        ttk.Label(ba_filter_frame, text="(Multiple terms use AND logic, ! for exclusion)", 
+                 font=("Helvetica", 8)).pack(side=tk.LEFT, padx=5)
         
         ba_text_frame = ttk.Frame(ba_frame)
         ba_text_frame.pack(fill=tk.BOTH, expand=True, pady=5)
@@ -2338,32 +2363,29 @@ class StockDataGUI:
                     self._display_static_chart(chart_path)
                 else:
                     self.status_var.set(f"Error: No chart available for {ticker}")
-        
         except Exception as e:
-            chart_name = ticker_or_path
-            error_msg = f"Error displaying chart for {chart_name}: {str(e)}"
-            self.status_var.set(error_msg)
+            error_msg = f"Error displaying chart for {ticker_or_path}: {str(e)}"
             logging.error(error_msg)
-            messagebox.showerror("Error", error_msg)
+            if hasattr(self, 'status_var'):
+                self.status_var.set(error_msg)
 
     def _display_fundamental_data(self, tickers):
-        """Fetch and display fundamental data for the selected tickers. Clears the view if tickers list is empty."""
+        """Fetch and display fundamental data for the selected tickers. Clears the view if tickers list is empty.
+        Preserves the current filter when switching tickers.
+        """
         try:
-            # Check if the treeview widget exists
-            if not hasattr(self, 'fundamental_data_tree') or not self.fundamental_data_tree.winfo_exists():
-                logging.warning("Fundamental analysis treeview no longer exists, cannot display data.")
-                return
-
-            # Clear the cache and the filter
-            self.fundamental_data_cache.clear()
-            self.fundamental_filter_var.set("")
-
+            # Store the current filter before updating the data
+            current_filter = self.fundamental_filter_var.get() if hasattr(self, 'fundamental_filter_var') else ""
+            
+            # Clear the fundamental data cache
+            self.fundamental_data_cache = []
+            
             # If no tickers are selected, reset the view and return
             if not tickers:
                 self._populate_fundamental_treeview() # This will show an empty table
                 self.status_var.set("Select a ticker to view fundamental data.")
                 return
-
+            
             # Dynamically configure columns for side-by-side comparison
             columns = ['Metric'] + tickers
             self.fundamental_data_tree['columns'] = columns
@@ -2396,24 +2418,131 @@ class StockDataGUI:
                 tags = ("bold",) if key in self.important_metrics else ()
                 self.fundamental_data_cache.append((values, tags))
 
-            # Populate the treeview from the cache
+            # Restore the filter if it existed
+            if current_filter:
+                self.fundamental_filter_var.set(current_filter)
+                
+            # Populate the treeview from the cache (this will apply any filter)
             self._populate_fundamental_treeview()
             self.status_var.set(f"Displayed fundamental data for {', '.join(tickers)}")
-
+            
         except Exception as e:
             error_msg = f"Error displaying fundamental data: {str(e)}"
             self.status_var.set(error_msg)
             logging.error(error_msg)
             messagebox.showerror("Error", error_msg)
 
+    def _save_filter(self):
+        """Save the current filter to a file (ticker-agnostic)"""
+        try:
+            # Get the current filter text
+            filter_text = self.fundamental_filter_var.get().strip()
+            
+            # If the filter is empty, inform the user
+            if not filter_text:
+                messagebox.showinfo("Save Filter", "No filter to save.")
+                return
+            
+            # Create a filters directory if it doesn't exist
+            filters_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "filters")
+            os.makedirs(filters_dir, exist_ok=True)
+            
+            # Ask the user for a filter name
+            filter_name = simpledialog.askstring("Save Filter", "Enter a name for this filter:")
+            if not filter_name:
+                return  # User cancelled
+                
+            # Create a filename with just the filter name (ticker-agnostic)
+            filename = os.path.join(filters_dir, f"{filter_name}.filter")
+            
+            # Check if file already exists and confirm overwrite
+            if os.path.exists(filename):
+                if not messagebox.askyesno("Confirm Overwrite", f"Filter '{filter_name}' already exists. Overwrite?"): 
+                    return  # User cancelled overwrite
+            
+            # Save the filter to the file
+            with open(filename, "w") as f:
+                f.write(filter_text)
+                
+            messagebox.showinfo("Save Filter", f"Filter saved as '{filter_name}'")
+            logging.info(f"Filter saved to {filename}")
+            
+        except Exception as e:
+            error_msg = f"Error saving filter: {str(e)}"
+            logging.error(error_msg)
+            messagebox.showerror("Error", error_msg)
+    
+    def _load_filter(self):
+        """Load a saved filter from a file (ticker-agnostic)"""
+        try:
+            # Get the filters directory
+            filters_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "filters")
+            
+            # Check if the directory exists
+            if not os.path.exists(filters_dir):
+                messagebox.showinfo("Load Filter", "No saved filters found.")
+                return
+                
+            # Get a list of all filter files
+            filter_files = [f for f in os.listdir(filters_dir) if f.endswith(".filter")]
+                
+            # If no filters found, inform the user
+            if not filter_files:
+                messagebox.showinfo("Load Filter", "No saved filters found.")
+                return
+                
+            # Extract filter names from filenames
+            filter_names = [f.replace(".filter", "") for f in filter_files]
+            
+            # Sort filter names alphabetically
+            filter_names.sort()
+            
+            # Ask the user to select a filter
+            selected_filter = simpledialog.askstring(
+                "Load Filter", 
+                "Select a filter to load:", 
+                initialvalue=filter_names[0] if filter_names else "")
+                
+            if not selected_filter or selected_filter not in filter_names:
+                return  # User cancelled or invalid selection
+                
+            # Get the selected filter file
+            selected_file = os.path.join(filters_dir, f"{selected_filter}.filter")
+            
+            # Load the filter from the file
+            with open(selected_file, "r") as f:
+                filter_text = f.read().strip()
+                
+            # Set the filter text
+            self.fundamental_filter_var.set(filter_text)
+            
+            # Apply the filter
+            self._populate_fundamental_treeview()
+            
+            messagebox.showinfo("Load Filter", f"Filter '{selected_filter}' loaded successfully.")
+            logging.info(f"Filter loaded from {selected_file}")
+            
+        except Exception as e:
+            error_msg = f"Error loading filter: {str(e)}"
+            logging.error(error_msg)
+            messagebox.showerror("Error", error_msg)
+    
     def _populate_fundamental_treeview(self, event=None):
-        """Populate the fundamental data treeview from the cache, applying the current filter."""
+        """Populate the fundamental data treeview from the cache, applying the current filter.
+        
+        Supports:
+        - Multiple filter terms separated by spaces (OR logic)
+        - Exclusion with ! prefix
+        - Case-insensitive matching
+        - Filtering applied to the Metric column
+        - * wildcard to show all other rows below the matching ones
+        """
         try:
             # Clear previous data from the treeview
             for item in self.fundamental_data_tree.get_children():
                 self.fundamental_data_tree.delete(item)
 
-            filter_text = self.fundamental_filter_var.get().lower()
+            filter_text = self.fundamental_filter_var.get().strip().lower()
 
             # If the cache is empty, ensure the view is empty and columns are reset
             if not self.fundamental_data_cache:
@@ -2424,12 +2553,64 @@ class StockDataGUI:
                 self.fundamental_data_tree.column('Metric', width=200)
                 self.fundamental_data_tree.column('Value', width=400)
                 return
+                
+            # Check if wildcard is present
+            show_all_others = '*' in filter_text
+            
+            # Remove the wildcard from filter terms if present
+            filter_text = filter_text.replace('*', ' ').strip()
+                
+            # Split the filter text into terms
+            if filter_text:
+                filter_terms = filter_text.split()
+                
+                # Separate inclusion and exclusion terms
+                include_terms = [term for term in filter_terms if not term.startswith('!')]
+                exclude_terms = [term[1:] for term in filter_terms if term.startswith('!')]
+            else:
+                include_terms = []
+                exclude_terms = []
 
-            # Populate the treeview with cached data that matches the filter
+            # First pass: add matching items
+            matching_items = []
+            non_matching_items = []
+            
             for values, tags in self.fundamental_data_cache:
                 # The metric name is the first item in the values list
                 metric_name = str(values[0]).lower()
-                if filter_text in metric_name:
+                
+                # Check exclusion terms first (any match excludes the item)
+                excluded = any(term in metric_name for term in exclude_terms if term)
+                
+                if excluded:
+                    if show_all_others:
+                        non_matching_items.append((values, tags))
+                    continue
+                    
+                # Check inclusion terms (any match for OR logic)
+                included = any(term in metric_name for term in include_terms if term)
+                
+                # If no filter or any inclusion term matches, add the item to matching
+                if not filter_text or included or not include_terms:
+                    matching_items.append((values, tags))
+                elif show_all_others:
+                    non_matching_items.append((values, tags))
+            
+            # Add matching items first
+            for values, tags in matching_items:
+                self.fundamental_data_tree.insert('', tk.END, values=values, tags=tags)
+            
+            # If wildcard is present, add a separator and then non-matching items
+            if show_all_others and non_matching_items:
+                # Add a separator row
+                separator_values = ["--- Other Metrics ---", ""]
+                self.fundamental_data_tree.insert('', tk.END, values=separator_values, tags=("separator",))
+                
+                # Configure a tag for the separator
+                self.fundamental_data_tree.tag_configure("separator", background="#e0e0e0", font=("Helvetica", 10, "bold"))
+                
+                # Add non-matching items
+                for values, tags in non_matching_items:
                     self.fundamental_data_tree.insert('', tk.END, values=values, tags=tags)
         except Exception as e:
             logging.error(f"Error populating fundamental treeview: {e}")
@@ -3020,6 +3201,16 @@ class StockDataGUI:
                 logging.info(f"Running analysis for {ticker}")
                 analysis_result = gemini_analyzer.analyze_ticker(ticker, company_info)
                 
+                # Store the original text for filtering
+                self.business_analysis_original_text = analysis_result
+                
+                # Reset filter when loading new content
+                if threading.current_thread() is threading.main_thread():
+                    self.business_analysis_filter_var.set("")
+                else:
+                    # Use thread-safe method to update StringVar
+                    self.root.after(0, lambda: self.business_analysis_filter_var.set(""))
+                
                 # Update UI with results using thread-safe methods
                 safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
                 safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, analysis_result)
@@ -3046,6 +3237,63 @@ class StockDataGUI:
         analysis_thread_obj.name = f"BusinessAnalysis-{ticker}"
         analysis_thread_obj.start()
 
+    def _apply_business_analysis_filter(self, event=None):
+        """Apply filter to business analysis text content
+        
+        Supports:
+        - Multiple filter terms separated by spaces (AND logic)
+        - Exclusion with ! prefix
+        - Case-insensitive matching
+        - Filtering applied to the Metric column
+        """
+        # Get filter text
+        filter_text = self.business_analysis_filter_var.get().strip()
+        
+        # If no original text, do nothing
+        if not self.business_analysis_original_text:
+            return
+            
+        # If no filter, restore original text
+        if not filter_text:
+            self.business_analysis_text.delete("1.0", tk.END)
+            self.business_analysis_text.insert(tk.END, self.business_analysis_original_text)
+            return
+            
+        # Split the filter text into terms
+        filter_terms = filter_text.lower().split()
+        
+        # Separate inclusion and exclusion terms
+        include_terms = [term for term in filter_terms if not term.startswith('!')]
+        exclude_terms = [term[1:] for term in filter_terms if term.startswith('!')]
+        
+        # Process the original text line by line
+        lines = self.business_analysis_original_text.split('\n')
+        filtered_lines = []
+        
+        for line in lines:
+            line_lower = line.lower()
+            
+            # Check if this is a metric line (contains a colon)
+            if ':' in line:
+                # Check exclusion terms first (any match excludes the line)
+                excluded = any(term in line_lower for term in exclude_terms if term)
+                
+                if excluded:
+                    continue
+                    
+                # Check inclusion terms (all must match for AND logic)
+                included = all(term in line_lower for term in include_terms if term)
+                
+                if included or not include_terms:
+                    filtered_lines.append(line)
+            else:
+                # Non-metric lines are always included
+                filtered_lines.append(line)
+        
+        # Update the text widget with filtered content
+        self.business_analysis_text.delete("1.0", tk.END)
+        self.business_analysis_text.insert(tk.END, '\n'.join(filtered_lines))
+    
     def _load_cached_analysis(self, ticker):
         """Load cached business analysis for a ticker"""
         try:
@@ -3057,6 +3305,12 @@ class StockDataGUI:
             if os.path.exists(cache_file):
                 with open(cache_file, "r", encoding="utf-8") as f:
                     analysis = f.read()
+                
+                # Store the original text for filtering
+                self.business_analysis_original_text = analysis
+                
+                # Reset filter when loading new content
+                self.business_analysis_filter_var.set("")
                 
                 # Use thread-safe text widget updates
                 safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
@@ -3127,6 +3381,16 @@ class StockDataGUI:
             try:
                 logging.info(f"Running 10-K study for {ticker}")
                 analysis_result = gemini_analyzer.analyze_10k_report(ticker)
+                
+                # Store the original text for filtering
+                self.business_analysis_original_text = analysis_result
+                
+                # Reset filter when loading new content
+                if threading.current_thread() is threading.main_thread():
+                    self.business_analysis_filter_var.set("")
+                else:
+                    # Use thread-safe method to update StringVar
+                    self.root.after(0, lambda: self.business_analysis_filter_var.set(""))
                 
                 # Update UI with results using thread-safe methods
                 safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
@@ -3227,6 +3491,16 @@ class StockDataGUI:
             try:
                 logging.info(f"Running 10-Q analysis for {ticker}")
                 analysis_result = gemini_analyzer.analyze_10q_report(ticker)
+                
+                # Store the original text for filtering
+                self.business_analysis_original_text = analysis_result
+                
+                # Reset filter when loading new content
+                if threading.current_thread() is threading.main_thread():
+                    self.business_analysis_filter_var.set("")
+                else:
+                    # Use thread-safe method to update StringVar
+                    self.root.after(0, lambda: self.business_analysis_filter_var.set(""))
                 
                 # Update UI with results using thread-safe methods
                 safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
