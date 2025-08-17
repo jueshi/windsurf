@@ -934,7 +934,11 @@ class StockDataGUI:
     #         self.status_var.set(f"Refreshed {len(self.ticker_lists)} ticker lists from ticker_lists.py")
 
     def _apply_ticker_filter(self, *args):
-        """Filter the ticker list based on filter text"""
+        """Filter the ticker list based on filter text
+        
+        Spaces in filter text are treated as OR logic, allowing multiple search terms
+        Example: 'A TSL' will match tickers containing either 'A' or 'TSL'
+        """
         filter_text = self.filter_var.get().strip().upper()
 
         # If no current tickers or no filter, don't do anything
@@ -952,16 +956,22 @@ class StockDataGUI:
         # Clear the listbox
         self.ticker_listbox.delete(0, tk.END)
         
+        # Split filter text by spaces to implement OR logic
+        filter_terms = filter_text.split() if filter_text else []
+        
         # Filter tickers based on input and update listbox
         filtered_count = 0
         for ticker in tickers:
-            if not filter_text or filter_text in ticker.upper():
+            ticker_upper = ticker.upper()
+            # If no filter terms or any of the filter terms match the ticker
+            if not filter_terms or any(term in ticker_upper for term in filter_terms):
                 self.ticker_listbox.insert(tk.END, ticker)
                 filtered_count += 1
         
         # Update status
         if filter_text:
-            self.status_var.set(f"Filter '{filter_text}': showing {filtered_count}/{len(tickers)} tickers from {selected_list}")
+            terms_display = ' OR '.join(f"'{term}'" for term in filter_terms)
+            self.status_var.set(f"Filter {terms_display}: showing {filtered_count}/{len(tickers)} tickers from {selected_list}")
         else:
             self.status_var.set(f"Showing all {len(tickers)} tickers from {selected_list}")
 
