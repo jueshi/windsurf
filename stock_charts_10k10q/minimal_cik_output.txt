@@ -1,0 +1,47 @@
+=== Minimal CIK Test ===
+Time: 2025-08-15 19:36:09
+Email: jueshi@gmail.com
+
+Looking up CIK for AAPL...
+Requesting URL: https://www.sec.gov/files/company_tickers.json
+Headers: {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36', 'Accept': 'application/json, text/javascript, */*; q=0.01', 'Accept-Language': 'en-US,en;q=0.9', 'Connection': 'keep-alive', 'From': 'jueshi@gmail.com'}
+Sending request...
+Response status code: 403
+Response headers: {'Server': 'AkamaiGHost', 'Mime-Version': '1.0', 'Content-Length': '919', 'Cache-control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache', 'Expires': '0', 'Content-Type': 'text/html', 'Content-Encoding': 'gzip', 'Date': 'Sat, 16 Aug 2025 02:36:10 GMT', 'Connection': 'keep-alive', 'Vary': 'Accept-Encoding', 'Strict-Transport-Security': 'max-age=31536000 ; includeSubDomains ; preload'}
+Error response content: <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<title>SEC.gov | Request Rate Threshold Exceeded</title>
+<style>
+html {height: 100%}
+body {height: 100%; margin:0; padding:0;}
+#header {background-color:#003968; color:#fff; padding:15px 20px 10px 20px;font-family:Arial, Helvetica, sans-serif; font-size:20p...
+Retry 2/3. Waiting 2.33 seconds...
+Sending request...
+Response status code: 403
+Response headers: {'Server': 'AkamaiGHost', 'Mime-Version': '1.0', 'Content-Length': '920', 'Cache-control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache', 'Expires': '0', 'Content-Type': 'text/html', 'Content-Encoding': 'gzip', 'Date': 'Sat, 16 Aug 2025 02:36:12 GMT', 'Connection': 'keep-alive', 'Vary': 'Accept-Encoding', 'Strict-Transport-Security': 'max-age=31536000 ; includeSubDomains ; preload'}
+Error response content: <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<title>SEC.gov | Request Rate Threshold Exceeded</title>
+<style>
+html {height: 100%}
+body {height: 100%; margin:0; padding:0;}
+#header {background-color:#003968; color:#fff; padding:15px 20px 10px 20px;font-family:Arial, Helvetica, sans-serif; font-size:20p...
+Retry 3/3. Waiting 4.49 seconds...
+Sending request...
+Response status code: 403
+Response headers: {'Server': 'AkamaiGHost', 'Mime-Version': '1.0', 'Content-Length': '919', 'Cache-control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache', 'Expires': '0', 'Content-Type': 'text/html', 'Content-Encoding': 'gzip', 'Date': 'Sat, 16 Aug 2025 02:36:17 GMT', 'Connection': 'keep-alive', 'Vary': 'Accept-Encoding', 'Strict-Transport-Security': 'max-age=31536000 ; includeSubDomains ; preload'}
+Error response content: <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<title>SEC.gov | Request Rate Threshold Exceeded</title>
+<style>
+html {height: 100%}
+body {height: 100%; margin:0; padding:0;}
+#header {background-color:#003968; color:#fff; padding:15px 20px 10px 20px;font-family:Arial, Helvetica, sans-serif; font-size:20p...
+Failed after 3 attempts
+Test failed - could not retrieve company tickers
