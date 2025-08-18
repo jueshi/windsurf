@@ -277,7 +277,12 @@ index_etfs = [
 eps_growth_stocks_2025_8_3 = ["NVDA", "AVGO", "AMD", "APH", "UBS", "NET", "CCJ", "GFI", "CLS", "ESLT", "KGC", "CELH", "EVR", "SRAD", "FYBR", "BE", "W", "LIF", "EGO", "OLO", "CDTX", "CCEC", "ATAI", "TBPH", "ISSC", "XGN", "ELTX", "ASMB"]
 canslim_8_3_2025_stocks = ["APP", "AVGO", "CLS", "EVR", "GFI", "HIMS", "HWM", "NVDA"]
 
-watch_list = ["XMAR", "AMZN", "NEXT", "0700.HK", "TSM", "BRK-B", "tsm", "ALAB"]
+watch_list = ["XMAR", "AMZN", "NEXT", "0700.HK", "TSM", "BRK-B", "tsm", "ALAB", "nvda", "SPY", "IWM", "QQQ", "DIA"]
+
+
+
+
+
 
 
 Jues401k_stocks_stocks = ["ALAB", "QQQ", "IWM", "GLD", "AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "META", "NVDA", "BRK-B", "AVGO", "COST", "MCD", "BABA", "AMD", "NIO", "AFRM", "CQQQ", "SPYX", "SPYV", "SPYU", "CRM", "ADI", "TXN", "AAOI", "EWS", "NKE", "AMZA", "YINN", "JD", "BIDU", "TNA", "TECS", "TECL", "INTC", "TSM", "LRCX", "MRVL", "SPMO", "WDC", "GS", "PLTR"]
@@ -426,42 +431,8 @@ bear_2x_etfs = [
 
 all_2x_etfs = bull_2x_etfs + bear_2x_etfs
 
-country_etfs = [
-    # North America
-    "SPY",  # USA
-    "IVV",  # USA
-    "VTI",  # USA
-    "EWC",  # Canada
-    "EWW",  # Mexico
+country_etfs = ["SPY", "IVV", "VTI", "EWC", "EWW", "EWG", "EWU", "EWQ", "EWL", "EWI", "EWP", "EWD", "EWN", "EWJ", "MCHI", "FXI", "INDA", "EWA", "EWY", "EWT", "EWH", "VNM", "EWZ", "EZA", "ECH", "TUR", "EPOL", "EWS"]
 
-    # Europe
-    "EWG",  # Germany
-    "EWU",  # United Kingdom
-    "EWQ",  # France
-    "EWL",  # Switzerland
-    "EWI",  # Italy
-    "EWP",  # Spain
-    "EWD",  # Sweden
-    "EWN",  # Netherlands
-
-    # Asia-Pacific
-    "EWJ",  # Japan
-    "MCHI", # China
-    "FXI",  # China
-    "INDA", # India
-    "EWA",  # Australia
-    "EWY",  # South Korea
-    "EWT",  # Taiwan
-    "EWH",  # Hong Kong
-    "VNM",  # Vietnam
-
-    # Emerging Markets (other)
-    "EWZ",  # Brazil
-    "EZA",  # South Africa
-    "ECH",  # Chile
-    "TUR",  # Turkey
-    "EPOL", # Poland
-]
 futures_etfs = [
     # Broad Commodities
     "DBC",  # Invesco DB Commodity Index Tracking Fund

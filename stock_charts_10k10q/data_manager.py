@@ -58,6 +58,33 @@ class StockDataManager:
         self.end_date = None
         self.last_request_time = 0
         self.min_request_interval = 2.0  # Minimum time between requests in seconds
+        
+    def _save_data_with_consistent_format(self, data, file_path):
+        """
+        Save data to file with consistent formatting to avoid spacing issues.
+        
+        Args:
+            data (pd.DataFrame): Data to save
+            file_path (str): Path to save the data to
+        """
+        # Check if data is None or empty
+        if data is None or data.empty:
+            logging.warning(f"Cannot save empty or None data to {file_path}")
+            return
+            
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        
+        # Make a copy to avoid modifying the original data
+        data_to_save = data.copy()
+        
+        # Round numeric columns to 2 decimal places
+        numeric_cols = data_to_save.select_dtypes(include=['float64', 'float32', 'int64', 'int32']).columns
+        for col in numeric_cols:
+            data_to_save[col] = data_to_save[col].round(2)
+        
+        # Save with consistent float format
+        data_to_save.to_csv(file_path, sep='\t', index=False, float_format='%.2f')
 
     def _get_data_path(self, ticker: str) -> str:
         """
@@ -279,8 +306,8 @@ class StockDataManager:
             # Select columns that exist in the dataframe
             output_data = stock_data_reset[[col for col in columns_order if col in stock_data_reset.columns]]
 
-            # Save data to local file using tab separator
-            output_data.to_csv(data_path, sep='\t', index=False)
+            # Save data to local file with consistent formatting
+            self._save_data_with_consistent_format(output_data, data_path)
             logging.info(f"All available historical data for {ticker} saved to {data_path}")
 
             return stock_data
@@ -358,9 +385,8 @@ class StockDataManager:
                         data_span = latest_date - earliest_date
                         logging.info(f"{ticker} downloaded data spans {data_span.days / 365:.1f} years")
 
-                    # Save to file
-                    os.makedirs(os.path.dirname(data_path), exist_ok=True)
-                    stock_data.to_csv(data_path, sep='\t', index=False)
+                    # Save to file with consistent formatting
+                    self._save_data_with_consistent_format(stock_data, data_path)
                     logging.info(f"Saved full historical data for {ticker} to {data_path}")
                     return stock_data
                 else:
@@ -436,11 +462,6 @@ class StockDataManager:
                 logging.info(f"No new data available for {ticker}")
                 return existing_data
 
-            # If we have no new data at all
-            if not all_new_data_frames:
-                logging.info(f"No new data available for {ticker}")
-                return existing_data
-
             # Process and combine all new data frames
             all_new_data = pd.concat(all_new_data_frames, ignore_index=True) if all_new_data_frames else None
 
@@ -453,68 +474,241 @@ class StockDataManager:
 
             # Process column names
             new_data_processed = all_new_data.copy()
+            
+            # Handle tuple column names (multi-index columns) from yfinance
+            if isinstance(new_data_processed.columns[0], tuple):
+                logging.info("Detected multi-index columns in new data, flattening to standard format")
+                # Create a mapping from tuple columns to standard column names
+                column_mapping = {}
+                standard_columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
+                
+                for col in new_data_processed.columns:
+                    # For tuple columns like ('Open', 'NVDA'), map to 'Open'
+                    if col[0] in standard_columns:
+                        column_mapping[col] = col[0]
+                    # Special case for Date which might be formatted differently
+                    elif 'date' in col[0].lower():
+                        column_mapping[col] = 'Date'
+                    # Special case for Adj Close which might be formatted differently
+                    elif 'adj' in col[0].lower() and 'close' in col[0].lower():
+                        column_mapping[col] = 'Adj Close'
+                
+                # Rename the columns
+                new_data_processed.columns = [column_mapping.get(col, col) for col in new_data_processed.columns]
+                logging.info(f"Flattened columns: {new_data_processed.columns.tolist()}")
 
-            # Convert datetime to string format to match existing data
+            # Ensure Date is in datetime format for proper comparison later
             if 'Date' in new_data_processed.columns:
-                new_data_processed['Date'] = pd.to_datetime(new_data_processed['Date']).dt.strftime('%Y-%m-%d')
+                new_data_processed['Date'] = pd.to_datetime(new_data_processed['Date'])
 
             # Rename columns if needed
             if 'Adj Close' not in new_data_processed.columns and 'Adj_Close' in new_data_processed.columns:
                 new_data_processed.rename(columns={'Adj_Close': 'Adj Close'}, inplace=True)
 
             # Select and order columns
-            new_data_processed = new_data_processed[[col for col in columns_order if col in new_data_processed.columns]]
+            # First ensure all standard columns exist in new_data_processed
+            for col in columns_order:
+                if col not in new_data_processed.columns:
+                    logging.warning(f"Column {col} not found in new data, adding it with NaN values")
+                    new_data_processed[col] = np.nan
+            
+            # Now select and order the columns
+            new_data_processed = new_data_processed[columns_order]
+            
+            # Log the final column structure
+            logging.info(f"Final new_data_processed columns: {new_data_processed.columns.tolist()}")
+            logging.info(f"Sample of processed new data:\n{new_data_processed.head(3)}")
             logging.info(f"Debug - After processing, new_data shape: {new_data_processed.shape}")
 
-            # Combine existing and new data
-            combined_data = pd.concat([existing_data, new_data_processed], ignore_index=True)
-            logging.info(f"Debug - After concat, combined_data shape: {combined_data.shape}, existing_data shape: {existing_data.shape}")
-
-            # Remove duplicate dates, keeping the last entry
-            combined_data = combined_data.drop_duplicates(subset='Date', keep='last')
-            logging.info(f"Debug - After drop_duplicates, combined_data shape: {combined_data.shape}")
-
-            # Sort by date
-            combined_data = combined_data.sort_values('Date')
-
-            # Check if there are actually new data points
-            logging.info(f"Debug - Comparison: combined_data length: {len(combined_data)}, existing_data length: {len(existing_data)}")
-            if len(combined_data) > len(existing_data):
-                # Save data to local file using tab separator
-                combined_data.to_csv(data_path, sep='\t', index=False)
-                logging.info(f"Data for {ticker} updated successfully with {len(combined_data) - len(existing_data)} new data points")
-                return combined_data
-            else:
-                # Even if the number of rows is the same, check if the latest data has been updated
-                # (e.g., price corrections or updates during the day)
-                latest_existing = existing_data.iloc[-1]
-                latest_new = combined_data.iloc[-1]
-
+            # Ensure consistent numeric formatting in both datasets before concatenation
+            # Apply rounding to existing data
+            if not existing_data.empty:
+                numeric_cols = existing_data.select_dtypes(include=['float64', 'float32', 'int64', 'int32']).columns
+                for col in numeric_cols:
+                    existing_data[col] = existing_data[col].round(2)
+            
+            # Apply rounding to new data
+            if not new_data_processed.empty:
+                numeric_cols = new_data_processed.select_dtypes(include=['float64', 'float32', 'int64', 'int32']).columns
+                for col in numeric_cols:
+                    new_data_processed[col] = new_data_processed[col].round(2)
+            
+            # Ensure column consistency between existing_data and new_data_processed
+            logging.info(f"Existing data columns: {existing_data.columns.tolist() if not existing_data.empty else 'Empty'}") 
+            logging.info(f"New data columns: {new_data_processed.columns.tolist() if not new_data_processed.empty else 'Empty'}") 
+            
+            # Remove any ticker column from new_data_processed if it exists
+            if 'Ticker' in new_data_processed.columns:
+                new_data_processed = new_data_processed.drop(columns=['Ticker'])
+            
+            # Handle column alignment based on whether existing_data is empty or not
+            if existing_data.empty:
+                # If existing_data is empty, ensure new_data_processed has the standard columns
+                standard_columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
+                
+                # Add any missing standard columns
+                for col in standard_columns:
+                    if col not in new_data_processed.columns:
+                        new_data_processed[col] = float('nan')
+                
+                # Keep only the standard columns and in the right order
+                new_data_processed = new_data_processed[[col for col in standard_columns if col in new_data_processed.columns]]
+                
+            elif not new_data_processed.empty:
+                # If both dataframes have data, align new_data_processed to existing_data
+                for col in existing_data.columns:
+                    if col not in new_data_processed.columns:
+                        # Add missing column with NaN values
+                        new_data_processed[col] = float('nan')
+                
+                # Reorder columns to match existing_data
+                new_data_processed = new_data_processed[existing_data.columns]
+                
+                # Ensure both dataframes have Date in the same format before concatenation
+                if 'Date' in existing_data.columns:
+                    # First convert to datetime
+                    existing_data['Date'] = pd.to_datetime(existing_data['Date'])
+                    # Then format to yyyy-mm-dd string format if it's not already
+                    if not isinstance(existing_data['Date'].iloc[0], str) or len(existing_data['Date'].iloc[0]) > 10:
+                        existing_data['Date'] = existing_data['Date'].dt.strftime('%Y-%m-%d')
+                
+                if 'Date' in new_data_processed.columns:
+                    # First convert to datetime
+                    new_data_processed['Date'] = pd.to_datetime(new_data_processed['Date'])
+                    # Then format to yyyy-mm-dd string format
+                    new_data_processed['Date'] = new_data_processed['Date'].dt.strftime('%Y-%m-%d')
+                
+                # Debug the column names and data types before concatenation
+                logging.info(f"Existing data columns: {existing_data.columns.tolist()}")
+                logging.info(f"New data columns: {new_data_processed.columns.tolist()}")
+                
+                # Print sample data from both dataframes for debugging
+                logging.info(f"Existing data sample:\n{existing_data.head(2)}")
+                logging.info(f"New data sample:\n{new_data_processed.head(2)}")
+                
+                # Ensure both dataframes have the same column types
+                for col in existing_data.columns:
+                    if col in new_data_processed.columns:
+                        # Try to convert to the same dtype if possible
+                        try:
+                            if col != 'Date':  # Skip Date as we handle it separately
+                                # First convert any string numeric values to float
+                                if new_data_processed[col].dtype == 'object' and existing_data[col].dtype != 'object':
+                                    new_data_processed[col] = pd.to_numeric(new_data_processed[col], errors='coerce')
+                                # For numeric columns, ensure they're float64 for consistency
+                                if pd.api.types.is_numeric_dtype(existing_data[col]):
+                                    new_data_processed[col] = new_data_processed[col].astype('float64')
+                                    existing_data[col] = existing_data[col].astype('float64')
+                                else:
+                                    new_data_processed[col] = new_data_processed[col].astype(existing_data[col].dtype)
+                        except Exception as e:
+                            logging.warning(f"Could not convert column {col} to matching dtype: {e}")
+                    else:
+                        # If column exists in existing_data but not in new_data_processed, add it
+                        logging.info(f"Adding missing column {col} to new_data_processed")
+                        if pd.api.types.is_numeric_dtype(existing_data[col]):
+                            new_data_processed[col] = np.nan
+                        else:
+                            new_data_processed[col] = None
+                
+                # Ensure both dataframes have the same columns before concatenation
+                for col in new_data_processed.columns:
+                    if col not in existing_data.columns:
+                        # Add the column with appropriate data type
+                        if pd.api.types.is_numeric_dtype(new_data_processed[col]):
+                            existing_data[col] = np.nan
+                        else:
+                            existing_data[col] = None
+                        logging.info(f"Added missing column {col} to existing_data")
+                
+                # Debug column dtypes
+                logging.info(f"Existing data dtypes: {existing_data.dtypes}")
+                logging.info(f"New data dtypes: {new_data_processed.dtypes}")
+                
+                # Combine existing and new data by appending new data below existing data
+                # Use axis=0 to stack vertically and ignore_index=True to reset indices
+                combined_data = pd.concat([existing_data, new_data_processed], axis=0, ignore_index=True)
+                
+                # Debug the combined data
+                logging.info(f"Combined data columns: {combined_data.columns.tolist()}")
+                logging.info(f"Combined data sample:\n{combined_data.tail(3)}")
+                
+                # Convert Date to datetime for proper sorting and deduplication
+                combined_data['Date'] = pd.to_datetime(combined_data['Date'])
+                logging.info(f"Debug - After concat, combined_data shape: {combined_data.shape}, existing_data shape: {existing_data.shape}")
+                
+                # Remove duplicate dates, keeping the last entry
+                combined_data = combined_data.drop_duplicates(subset='Date', keep='last')
+                logging.info(f"Debug - After drop_duplicates, combined_data shape: {combined_data.shape}")
+                
+                # Sort by date to ensure chronological order
+                combined_data = combined_data.sort_values('Date')
+                
+                # Fill any NaN values in the Date column
+                if combined_data['Date'].isna().any():
+                    logging.warning(f"Found NaN values in Date column, dropping those rows")
+                    combined_data = combined_data.dropna(subset=['Date'])
+                
+                # Convert Date back to yyyy-mm-dd string format before saving
+                combined_data['Date'] = combined_data['Date'].dt.strftime('%Y-%m-%d')
+                
+                # Debug the final combined data
+                logging.info(f"Final combined data sample:\n{combined_data.tail(3)}")
+                logging.info(f"Final combined data shape: {combined_data.shape}")
+                
+                # Get the latest data points from existing and new data for comparison
+                latest_existing = None
+                latest_new = None
+                
+                if not existing_data.empty:
+                    # Get the latest row from existing data
+                    existing_data_copy = existing_data.copy()
+                    if 'Date' in existing_data_copy.columns:
+                        existing_data_copy['Date'] = pd.to_datetime(existing_data_copy['Date'])
+                        latest_existing = existing_data_copy.sort_values('Date').iloc[-1].to_dict()
+                    else:
+                        logging.warning("No Date column in existing_data, cannot determine latest entry")
+                
+                if not new_data_processed.empty:
+                    # Get the latest row from new data
+                    new_data_copy = new_data_processed.copy()
+                    if 'Date' in new_data_copy.columns:
+                        new_data_copy['Date'] = pd.to_datetime(new_data_copy['Date'])
+                        latest_new = new_data_copy.sort_values('Date').iloc[-1].to_dict()
+                    else:
+                        logging.warning("No Date column in new_data_processed, cannot determine latest entry")
+                
                 # Check if any of the key values have changed
                 values_changed = False
-                for col in ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']:
-                    if col in latest_existing and col in latest_new:
-                        try:
-                            # Convert values to float before comparison to handle potential string values
-                            existing_val = float(latest_existing[col])
-                            new_val = float(latest_new[col])
-                            if not np.isclose(existing_val, new_val, atol=0.0001):  # Small threshold for float comparison
-                                values_changed = True
-                                logging.info(f"Latest {col} value updated: {existing_val} -> {new_val}")
-                        except (ValueError, TypeError) as e:
-                            # Handle case where conversion to float fails
-                            logging.warning(f"Could not compare {col} values due to type mismatch: {e}")
-                            # If values are strings, compare them directly
-                            if str(latest_existing[col]) != str(latest_new[col]):
-                                values_changed = True
-                                logging.info(f"Latest {col} value updated: {latest_existing[col]} -> {latest_new[col]}")
-                        except Exception as e:
-                            logging.warning(f"Error comparing {col} values: {e}")
-                            continue
+                
+                # Only proceed with comparison if we have both latest points
+                if latest_existing is not None and latest_new is not None:
+                    logging.info(f"Comparing latest existing data: {latest_existing['Date']} with latest new data: {latest_new['Date']}")
+                    
+                    for col in ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']:
+                        if col in latest_existing and col in latest_new:
+                            try:
+                                # Convert values to float before comparison to handle potential string values
+                                existing_val = float(latest_existing[col])
+                                new_val = float(latest_new[col])
+                                if not np.isclose(existing_val, new_val, atol=0.0001):  # Small threshold for float comparison
+                                    values_changed = True
+                                    logging.info(f"Latest {col} value updated: {existing_val} -> {new_val}")
+                            except (ValueError, TypeError) as e:
+                                # Handle case where conversion to float fails
+                                logging.warning(f"Could not compare {col} values due to type mismatch: {e}")
+                                # If values are strings, compare them directly
+                                if str(latest_existing[col]) != str(latest_new[col]):
+                                    values_changed = True
+                                    logging.info(f"Latest {col} value updated: {latest_existing[col]} -> {latest_new[col]}")
+                            except Exception as e:
+                                logging.warning(f"Error comparing {col} values: {e}")
+                                # Skip to the next column
+                                continue
 
                 if values_changed:
-                    # Save the updated data
-                    combined_data.to_csv(data_path, sep='\t', index=False)
+                    # Save the updated data with consistent formatting
+                    self._save_data_with_consistent_format(combined_data, data_path)
                     logging.info(f"Data for {ticker} updated with latest price corrections")
                     return combined_data
                 else:
@@ -582,18 +776,18 @@ class StockDataManager:
                 # Create a new DataFrame with standardized columns
                 standard_columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
                 
-                # Create an empty DataFrame with the standard columns
-                new_df = pd.DataFrame(columns=standard_columns)
+                # Create a new DataFrame with the same index as the original data
+                new_df = pd.DataFrame(index=data.index)
                 
                 # First ensure we have a Date column
                 if 'Date' in data.columns:
-                    new_df['Date'] = data['Date']
+                    new_df['Date'] = data['Date'].values  # Use .values to avoid index alignment issues
                 else:
                     # Try to find a date column with a different name
                     date_found = False
                     for col in data.columns:
                         if 'date' in str(col).lower():
-                            new_df['Date'] = data[col]
+                            new_df['Date'] = data[col].values  # Use .values to avoid index alignment issues
                             date_found = True
                             break
                     
@@ -610,21 +804,25 @@ class StockDataManager:
                         
                     # Try exact match first
                     if std_col in data.columns:
-                        new_df[std_col] = data[std_col]
+                        new_df[std_col] = data[std_col].values  # Use .values to avoid index alignment issues
                         continue
 
                     # Try case-insensitive match
+                    col_matched = False
                     for col in data.columns:
                         if std_col.lower() == str(col).lower():
-                            new_df[std_col] = data[col]
+                            new_df[std_col] = data[col].values  # Use .values to avoid index alignment issues
+                            col_matched = True
                             break
+                    
+                    if col_matched:
+                        continue
 
                     # Try partial match in complex columns
-                    if std_col not in new_df.columns:
-                        for col in data.columns:
-                            if std_col in str(col):
-                                new_df[std_col] = data[col]
-                                break
+                    for col in data.columns:
+                        if std_col.lower() in str(col).lower():
+                            new_df[std_col] = data[col].values  # Use .values to avoid index alignment issues
+                            break
                 
                 # Ensure we have at least Close price data
                 if 'Close' not in new_df.columns and 'Adj Close' not in new_df.columns:
@@ -654,13 +852,17 @@ class StockDataManager:
                     new_df = new_df.dropna(subset=['Date'])
                     new_df = new_df.dropna(how='all', subset=[col for col in new_df.columns if col != 'Date'])
                     
+                    # Reset index to avoid any alignment issues
+                    new_df = new_df.reset_index(drop=True)
+                    
                     # Set Date as index for easier filtering
                     data = new_df.set_index('Date')
 
                     # Save the normalized data back to file
                     try:
                         data_to_save = data.reset_index()
-                        data_to_save.to_csv(data_path, sep='\t', index=False)
+                        # Save with consistent formatting
+                        self._save_data_with_consistent_format(data_to_save, data_path)
                         logging.info(f"Normalized column structure for {ticker} data while loading")
                     except Exception as save_error:
                         logging.warning(f"Could not save normalized data for {ticker}: {save_error}")
@@ -1471,35 +1673,41 @@ class StockDataManager:
         try:
             # Try to use _load_stock_data if it exists
             if hasattr(self, '_load_stock_data'):
-                logging.info(f"Redirecting to _load_stock_data for {ticker}")
-                return self._load_stock_data(ticker)
-
-            # Try to use download_stock_data if it exists
-            elif hasattr(self, 'download_stock_data'):
-                logging.info(f"Redirecting to download_stock_data for {ticker}")
-                return self.download_stock_data(ticker, start_date, end_date)
-
-            # If neither method exists, try to find any method that might return stock data
+                return self._load_stock_data(ticker, start_date, end_date)
+            # Try to use load_data if it exists
+            elif hasattr(self, 'load_data'):
+                data = self.load_data(ticker)
+                if data is None or data.empty:
+                    # If data is empty, try force downloading
+                    logging.warning(f"No data found for {ticker}, attempting force download")
+                    self.update_data(ticker, force_download=True)
+                    data = self.load_data(ticker)
+                return data
+            # Try to use update_data if it exists
+            elif hasattr(self, 'update_data'):
+                return self.update_data(ticker)
+            # Fallback to direct yfinance download
             else:
-                for method_name in dir(self):
-                    if method_name.startswith('_') and ('load' in method_name or 'get' in method_name) and 'data' in method_name:
-                        method = getattr(self, method_name)
-                        if callable(method):
-                            try:
-                                logging.info(f"Trying alternative method {method_name} for {ticker}")
-                                result = method(ticker)
-                                if isinstance(result, pd.DataFrame) and not result.empty:
-                                    return result
-                            except Exception as e:
-                                logging.warning(f"Method {method_name} failed: {str(e)}")
-
-                # If all else fails, raise an informative error
-                raise AttributeError(f"Could not find a suitable method to get data for {ticker}")
+                logging.warning(f"No data loading method found, using direct yfinance download for {ticker}")
+                import yfinance as yf
+                ticker_obj = yf.Ticker(ticker)
+                data = ticker_obj.history(period="max")
+                return data
+        except AttributeError as e:
+            logging.error(f"Method not found: {e}")
+            raise AttributeError(f"Could not find a suitable method to get data for {ticker}")
 
         except Exception as e:
             logging.error(f"Error in get_data wrapper: {str(e)}")
-            # Return empty DataFrame as fallback
-            return pd.DataFrame()
+            # Try force download as a last resort
+            try:
+                logging.warning(f"Attempting force download for {ticker} after error")
+                self.update_data(ticker, force_download=True)
+                return self.load_data(ticker)
+            except Exception as download_error:
+                logging.error(f"Force download failed for {ticker}: {download_error}")
+                # Return empty DataFrame as fallback
+                return pd.DataFrame()
 
     def get_fundamental_data(self, ticker: str) -> Optional[Dict[str, Any]]:
         """
