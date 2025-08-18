@@ -1,9 +1,0 @@
-2025-02-17 13:25:50,615 - INFO - 
-=== Updating file list ===
-2025-02-17 13:25:50,615 - INFO - Found 6 CSV files
-2025-02-17 13:25:50,615 - INFO - Max fields found: 4
-2025-02-17 13:25:50,667 - INFO - 
-=== Updating file DataFrame ===
-2025-02-17 13:25:50,747 - INFO - CSVBrowser application started
-2025-02-17 13:25:58,679 - INFO - Application is closing
-2025-02-17 13:25:58,742 - INFO - CSVBrowser application terminated
