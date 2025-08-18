@@ -1,0 +1,27 @@
+{
+  "1": {
+    "cik_str": "0000320193",
+    "title": "Apple Inc.",
+    "ticker": "AAPL"
+  },
+  "2": {
+    "cik_str": "0000789019",
+    "title": "Microsoft Corporation",
+    "ticker": "MSFT"
+  },
+  "3": {
+    "cik_str": "0001652044",
+    "title": "Alphabet Inc.",
+    "ticker": "GOOGL"
+  },
+  "4": {
+    "cik_str": "0001018724",
+    "title": "Amazon.com, Inc.",
+    "ticker": "AMZN"
+  },
+  "5": {
+    "cik_str": "0001326801",
+    "title": "Meta Platforms, Inc.",
+    "ticker": "META"
+  }
+}

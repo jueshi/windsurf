@@ -1,0 +1,71 @@
+2025-08-14 13:57:28,566 - INFO - Logging to: C:\Users\juesh\OneDrive\Documents\windsurf\stock_charts_refactored\logs\extraction_validation.log
+2025-08-14 13:57:28,566 - INFO - Using 10-K file: c:\Users\juesh\OneDrive\Documents\windsurf\stock_charts_refactored\sec-edgar-filings\AAPL\10-K\0000320193-24-000123\full-submission.txt
+2025-08-14 13:57:28,567 - INFO - Loading 10-K report from c:\Users\juesh\OneDrive\Documents\windsurf\stock_charts_refactored\sec-edgar-filings\AAPL\10-K\0000320193-24-000123\full-submission.txt...
+2025-08-14 13:57:28,573 - INFO - Report loaded. Length: 9759333 characters
+2025-08-14 13:57:28,574 - INFO - 
+--- VALIDATING BUSINESS SECTION EXTRACTION ---
+2025-08-14 13:57:28,577 - INFO - Business section extracted: True
+2025-08-14 13:57:28,577 - INFO - Business section length: 15739
+2025-08-14 13:57:28,577 - INFO - Preview: Company Background The Company designs, manufactures and markets smartphones, personal computers, tablets, wearables and accessories, and sells a vari...
+2025-08-14 13:57:28,577 - INFO - Wrote Business section to C:\Users\juesh\OneDrive\Documents\windsurf\stock_charts_refactored\extraction_validation\Business.txt
+2025-08-14 13:57:28,577 - INFO - 
+--- VALIDATING RISK FACTORS SECTION EXTRACTION ---
+2025-08-14 13:57:28,587 - INFO - Risk Factors section extracted: True
+2025-08-14 13:57:28,587 - INFO - Risk Factors section length: 68736
+2025-08-14 13:57:28,587 - INFO - Preview: The Company’s business, reputation, results of operations, financial condition and stock price can be affected by a number of factors, whether current...
+2025-08-14 13:57:28,589 - INFO - Wrote Risk_Factors section to C:\Users\juesh\OneDrive\Documents\windsurf\stock_charts_refactored\extraction_validation\Risk_Factors.txt
+2025-08-14 13:57:28,590 - INFO - 
+--- VALIDATING MD&A SECTION EXTRACTION ---
+2025-08-14 13:57:28,590 - INFO - Searching for MD&A start patterns...
+2025-08-14 13:57:28,590 - INFO - Found MD&A start pattern #0: '<span style=\"color:#000000;fo...' at position 350607
+2025-08-14 13:57:28,591 - INFO - Context before: 'g-left:45pt;text-align:justify;text-indent:-45pt">'
+2025-08-14 13:57:28,591 - INFO - Context after: ' of Financial Condition and Results of Operations<'
+2025-08-14 13:57:28,599 - INFO -   Found MD&A end pattern #12: 'Financial\s+Statements...' at relative position 314
+2025-08-14 13:57:28,599 - INFO -   MD&A section would be 314 characters long
+2025-08-14 13:57:28,601 - INFO - Found MD&A start pattern #1: '<span[^>]*>Item 7\.&#160;&#160...' at position 350607
+2025-08-14 13:57:28,601 - INFO - Context before: 'g-left:45pt;text-align:justify;text-indent:-45pt">'
+2025-08-14 13:57:28,601 - INFO - Context after: ' of Financial Condition and Results of Operations<'
+2025-08-14 13:57:28,605 - INFO -   Found MD&A end pattern #12: 'Financial\s+Statements...' at relative position 314
+2025-08-14 13:57:28,606 - INFO -   MD&A section would be 314 characters long
+2025-08-14 13:57:28,607 - INFO - Found MD&A start pattern #2: '<span[^>]*>Item\s+7\.?\s*(?:&#...' at position 350607
+2025-08-14 13:57:28,607 - INFO - Context before: 'g-left:45pt;text-align:justify;text-indent:-45pt">'
+2025-08-14 13:57:28,607 - INFO - Context after: ' of Financial Condition and Results of Operations<'
+2025-08-14 13:57:28,614 - INFO -   Found MD&A end pattern #12: 'Financial\s+Statements...' at relative position 314
+2025-08-14 13:57:28,614 - INFO -   MD&A section would be 314 characters long
+2025-08-14 13:57:28,615 - INFO - Found MD&A start pattern #3: '<span[^>]*>ITEM\s+7\.?\s*(?:&#...' at position 350607
+2025-08-14 13:57:28,615 - INFO - Context before: 'g-left:45pt;text-align:justify;text-indent:-45pt">'
+2025-08-14 13:57:28,615 - INFO - Context after: ' of Financial Condition and Results of Operations<'
+2025-08-14 13:57:28,620 - INFO -   Found MD&A end pattern #12: 'Financial\s+Statements...' at relative position 314
+2025-08-14 13:57:28,620 - INFO -   MD&A section would be 314 characters long
+2025-08-14 13:57:28,623 - INFO - Found MD&A start pattern #4: 'Item 7\.&#160;&#160;&#160;&#16...' at position 350717
+2025-08-14 13:57:28,624 - INFO - Context before: 'f;font-size:9pt;font-weight:700;line-height:120%">'
+2025-08-14 13:57:28,624 - INFO - Context after: ' of Financial Condition and Results of Operations<'
+2025-08-14 13:57:28,633 - INFO -   Found MD&A end pattern #12: 'Financial\s+Statements...' at relative position 314
+2025-08-14 13:57:28,633 - INFO -   MD&A section would be 314 characters long
+2025-08-14 13:57:28,718 - INFO - No match for MD&A start pattern #5: 'Item\s+7\.\s*Management(?:&#82...'
+2025-08-14 13:57:28,828 - INFO - No match for MD&A start pattern #6: 'ITEM\s+7\.\s*MANAGEMENT(?:&#82...'
+2025-08-14 13:57:28,924 - INFO - No match for MD&A start pattern #7: 'Item\s+7\s+Management(?:&#8217...'
+2025-08-14 13:57:28,998 - INFO - No match for MD&A start pattern #8: 'ITEM\s+7\s+MANAGEMENT(?:&#8217...'
+2025-08-14 13:57:29,071 - INFO - No match for MD&A start pattern #9: 'Item\s+7\.\s*Management(?:&#82...'
+2025-08-14 13:57:29,153 - INFO - No match for MD&A start pattern #10: 'ITEM\s+7\.\s*MANAGEMENT(?:&#82...'
+2025-08-14 13:57:29,156 - INFO - Found MD&A start pattern #11: 'Management(?:&#8217;|')?s\s+Di...' at position 144357
+2025-08-14 13:57:29,157 - INFO - Context before: 'ine" href="#i7bfbfbe54b9647b1b4ba4ff4e0aba09d_94">'
+2025-08-14 13:57:29,157 - INFO - Context after: ' and Results of Operations</a></span></div></td><t'
+2025-08-14 13:57:29,161 - INFO -   Found MD&A end pattern #10: 'Quantitative\s+and\s+Qualitati...' at relative position 1416
+2025-08-14 13:57:29,161 - INFO -   MD&A section would be 1416 characters long
+2025-08-14 13:57:29,163 - INFO - Found MD&A start pattern #12: 'MANAGEMENT(?:&#8217;|')?S\s+DI...' at position 144357
+2025-08-14 13:57:29,163 - INFO - Context before: 'ine" href="#i7bfbfbe54b9647b1b4ba4ff4e0aba09d_94">'
+2025-08-14 13:57:29,163 - INFO - Context after: ' and Results of Operations</a></span></div></td><t'
+2025-08-14 13:57:29,167 - INFO -   Found MD&A end pattern #10: 'Quantitative\s+and\s+Qualitati...' at relative position 1416
+2025-08-14 13:57:29,167 - INFO -   MD&A section would be 1416 characters long
+2025-08-14 13:57:29,169 - INFO - Direct position extraction possible: Item 7 at 350607, Item 7A at 464869
+2025-08-14 13:57:29,169 - INFO - Section would be 114262 characters long
+2025-08-14 13:57:29,176 - INFO - MD&A section extracted: True
+2025-08-14 13:57:29,176 - INFO - MD&A section length: 125
+2025-08-14 13:57:29,176 - INFO - Preview: of Financial Condition and Results of Operations The following discussion should be read in conjunction with the consolidated...
+2025-08-14 13:57:29,177 - INFO - Wrote MD&A section to C:\Users\juesh\OneDrive\Documents\windsurf\stock_charts_refactored\extraction_validation\MD&A.txt
+2025-08-14 13:57:29,177 - INFO - 
+--- EXTRACTION VALIDATION SUMMARY ---
+2025-08-14 13:57:29,183 - INFO - 
+Extracted sections saved to: C:\Users\juesh\OneDrive\Documents\windsurf\stock_charts_refactored\extraction_validation
+2025-08-14 13:57:29,183 - INFO - Full validation log saved to: C:\Users\juesh\OneDrive\Documents\windsurf\stock_charts_refactored\logs\extraction_validation.log
