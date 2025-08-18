@@ -1,0 +1,182 @@
+MD&A SECTION ANALYSIS
+==================================================
+
+Searching for pattern: (?:Item|ITEM)\s+7[^<>{}\n]*(?:Management|MANAGEMENT)[^<>{}\n]*(?:Discussion|DISCUSSION)[^<>{}\n]*(?:Analysis|ANALYSIS)
+--------------------------------------------------
+Match 1:
+Position: 165389-165481
+Matched text: Item 7 of this Form 10-K under the heading &#8220;Management&#8217;s Discussion and Analysis
+Context: ...e located in Part I, Item 1 of this Form 10-K under the heading &#8220;Business&#8221; and Part II, Item 7 of this Form 10-K under the heading &#8220;Management&#8217;s Discussion and Analysis of Financial Condition and Results of Operations.&#8221; Forward-looking statements provide current...
+
+Match 2:
+Position: 209206-209263
+Matched text: Item 7, &#8220;Management&#8217;s Discussion and Analysis
+Context: ...size:9pt;font-weight:400;line-height:120%">This section should be read in conjunction with Part II, Item 7, &#8220;Management&#8217;s Discussion and Analysis of Financial Condition and Results of Operations&#8221; and the consolidated financial statements a...
+
+Match 3:
+Position: 350717-350790
+Matched text: Item 7.&#160;&#160;&#160;&#160;Management&#8217;s Discussion and Analysis
+Context: ...e="color:#000000;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:700;line-height:120%">Item 7.&#160;&#160;&#160;&#160;Management&#8217;s Discussion and Analysis of Financial Condition and Results of Operations</span></div><div style="margin-top:9pt;text-align:...
+
+Total matches for this pattern: 3
+
+Searching for pattern: (?:Management|MANAGEMENT)[^<>{}\n]*(?:Discussion|DISCUSSION)[^<>{}\n]*(?:Analysis|ANALYSIS)
+--------------------------------------------------
+Match 1:
+Position: 144357-144399
+Matched text: Management&#8217;s Discussion and Analysis
+Context: ...weight:400;line-height:100%;text-decoration:underline" href="#i7bfbfbe54b9647b1b4ba4ff4e0aba09d_94">Management&#8217;s Discussion and Analysis of Financial Condition and Results of Operations</a></span></div></td><td colspan="3" style="backgr...
+
+Match 2:
+Position: 165439-165481
+Matched text: Management&#8217;s Discussion and Analysis
+Context: ...r the heading &#8220;Business&#8221; and Part II, Item 7 of this Form 10-K under the heading &#8220;Management&#8217;s Discussion and Analysis of Financial Condition and Results of Operations.&#8221; Forward-looking statements provide current...
+
+Match 3:
+Position: 209221-209263
+Matched text: Management&#8217;s Discussion and Analysis
+Context: ...eight:400;line-height:120%">This section should be read in conjunction with Part II, Item 7, &#8220;Management&#8217;s Discussion and Analysis of Financial Condition and Results of Operations&#8221; and the consolidated financial statements a...
+
+Match 4:
+Position: 350748-350790
+Matched text: Management&#8217;s Discussion and Analysis
+Context: ...elvetica',sans-serif;font-size:9pt;font-weight:700;line-height:120%">Item 7.&#160;&#160;&#160;&#160;Management&#8217;s Discussion and Analysis of Financial Condition and Results of Operations</span></div><div style="margin-top:9pt;text-align:...
+
+Match 5:
+Position: 351419-351461
+Matched text: Management&#8217;s Discussion and Analysis
+Context: ...ems and year-to-year comparisons between 2023 and 2022 are not included, and can be found in &#8220;Management&#8217;s Discussion and Analysis of Financial Condition and Results of Operations&#8221; in Part II, Item 7 of the Company&#8217;s A...
+
+Total matches for this pattern: 5
+
+Searching for pattern: (?:MD&A|MD & A|M D & A)
+--------------------------------------------------
+Total matches for this pattern: 0
+
+
+HTML STRUCTURE ANALYSIS
+==================================================
+
+Searching for HTML pattern: <[^>]*>(?:Item|ITEM)\s+7[^<]*<[^>]*>
+--------------------------------------------------
+Match 1:
+Position: 143686-143875
+Matched text: <a style="color:#0000ff;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:400;line-height:100%;text-decoration:underline" href="#i7bfbfbe54b9647b1b4ba4ff4e0aba09d_94">Item 7.</a>
+Context: ...ly:'Helvetica',sans-serif;font-size:9pt;font-weight:400;line-height:100%;text-decoration:underline"><a style="color:#0000ff;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:400;line-height:100%;text-decoration:underline" href="#i7bfbfbe54b9647b1b4ba4ff4e0aba09d_94">Item 7.</a></span></div></td><td colspan="3" style="background-color:#efefef;padding:2px 1pt;text-align:left;ve...
+
+Match 2:
+Position: 145164-145355
+Matched text: <a style="color:#0000ff;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:400;line-height:100%;text-decoration:underline" href="#i7bfbfbe54b9647b1b4ba4ff4e0aba09d_166">Item 7A.</a>
+Context: ...ly:'Helvetica',sans-serif;font-size:9pt;font-weight:400;line-height:100%;text-decoration:underline"><a style="color:#0000ff;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:400;line-height:100%;text-decoration:underline" href="#i7bfbfbe54b9647b1b4ba4ff4e0aba09d_166">Item 7A.</a></span></div></td><td colspan="3" style="background-color:#ffffff;padding:2px 1pt;text-align:left;ve...
+
+Match 3:
+Position: 350607-350846
+Matched text: <span style="color:#000000;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:700;line-height:120%">Item 7.&#160;&#160;&#160;&#160;Management&#8217;s Discussion and Analysis of Financial Condition and Results of Operations</span>
+Context: ..."><span><br/></span></div></div><div style="padding-left:45pt;text-align:justify;text-indent:-45pt"><span style="color:#000000;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:700;line-height:120%">Item 7.&#160;&#160;&#160;&#160;Management&#8217;s Discussion and Analysis of Financial Condition and Results of Operations</span></div><div style="margin-top:9pt;text-align:justify"><span style="color:#000000;font-family:'Helveti...
+
+Match 4:
+Position: 464869-465076
+Matched text: <span style="color:#000000;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:700;line-height:120%">Item 7A.&#160;&#160;&#160;&#160;Quantitative and Qualitative Disclosures About Market Risk</span>
+Context: ...pan></div></div><div style="margin-top:18pt;padding-left:45pt;text-align:justify;text-indent:-45pt"><span style="color:#000000;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:700;line-height:120%">Item 7A.&#160;&#160;&#160;&#160;Quantitative and Qualitative Disclosures About Market Risk</span></div><div style="margin-top:9pt;text-align:justify"><span style="color:#000000;font-family:'Helveti...
+
+Total matches for this pattern: 4
+
+Searching for HTML pattern: <[^>]*>(?:Management|MANAGEMENT)[^<]*(?:Discussion|DISCUSSION)[^<]*(?:Analysis|ANALYSIS)[^<]*<[^>]*>
+--------------------------------------------------
+Match 1:
+Position: 144179-144452
+Matched text: <a style="color:#0000ff;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:400;line-height:100%;text-decoration:underline" href="#i7bfbfbe54b9647b1b4ba4ff4e0aba09d_94">Management&#8217;s Discussion and Analysis of Financial Condition and Results of Operations</a>
+Context: ...ly:'Helvetica',sans-serif;font-size:9pt;font-weight:400;line-height:100%;text-decoration:underline"><a style="color:#0000ff;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:400;line-height:100%;text-decoration:underline" href="#i7bfbfbe54b9647b1b4ba4ff4e0aba09d_94">Management&#8217;s Discussion and Analysis of Financial Condition and Results of Operations</a></span></div></td><td colspan="3" style="background-color:#efefef;padding:2px 1pt;text-align:left;ve...
+
+Total matches for this pattern: 1
+
+
+NEXT SECTION MARKER ANALYSIS
+==================================================
+
+Searching for next section pattern: <[^>]*>(?:Item|ITEM)\s+7A[^<]*<[^>]*>
+--------------------------------------------------
+Match 1:
+Position: 145164-145355
+Matched text: <a style="color:#0000ff;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:400;line-height:100%;text-decoration:underline" href="#i7bfbfbe54b9647b1b4ba4ff4e0aba09d_166">Item 7A.</a>
+Context: ...ly:'Helvetica',sans-serif;font-size:9pt;font-weight:400;line-height:100%;text-decoration:underline"><a style="color:#0000ff;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:400;line-height:100%;text-decoration:underline" href="#i7bfbfbe54b9647b1b4ba4ff4e0aba09d_166">Item 7A.</a></span></div></td><td colspan="3" style="background-color:#ffffff;padding:2px 1pt;text-align:left;ve...
+
+Match 2:
+Position: 464869-465076
+Matched text: <span style="color:#000000;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:700;line-height:120%">Item 7A.&#160;&#160;&#160;&#160;Quantitative and Qualitative Disclosures About Market Risk</span>
+Context: ...pan></div></div><div style="margin-top:18pt;padding-left:45pt;text-align:justify;text-indent:-45pt"><span style="color:#000000;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:700;line-height:120%">Item 7A.&#160;&#160;&#160;&#160;Quantitative and Qualitative Disclosures About Market Risk</span></div><div style="margin-top:9pt;text-align:justify"><span style="color:#000000;font-family:'Helveti...
+
+Total matches for this pattern: 2
+
+Searching for next section pattern: <[^>]*>(?:Item|ITEM)\s+8[^<]*<[^>]*>
+--------------------------------------------------
+Match 1:
+Position: 146613-146803
+Matched text: <a style="color:#0000ff;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:400;line-height:100%;text-decoration:underline" href="#i7bfbfbe54b9647b1b4ba4ff4e0aba09d_169">Item 8.</a>
+Context: ...ly:'Helvetica',sans-serif;font-size:9pt;font-weight:400;line-height:100%;text-decoration:underline"><a style="color:#0000ff;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:400;line-height:100%;text-decoration:underline" href="#i7bfbfbe54b9647b1b4ba4ff4e0aba09d_169">Item 8.</a></span></div></td><td colspan="3" style="background-color:#efefef;padding:2px 1pt;text-align:left;ve...
+
+Match 2:
+Position: 476287-476478
+Matched text: <span style="color:#000000;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:700;line-height:120%">Item 8.&#160;&#160;&#160;&#160;Financial Statements and Supplementary Data</span>
+Context: ..."><span><br/></span></div></div><div style="padding-left:45pt;text-align:justify;text-indent:-45pt"><span style="color:#000000;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:700;line-height:120%">Item 8.&#160;&#160;&#160;&#160;Financial Statements and Supplementary Data</span></div><div id="i7bfbfbe54b9647b1b4ba4ff4e0aba09d_172"></div><div style="margin-top:18pt;text-align:j...
+
+Total matches for this pattern: 2
+
+Searching for next section pattern: (?:Item|ITEM)\s+7A[^<>{}\n]*
+--------------------------------------------------
+Match 1:
+Position: 145343-145351
+Matched text: Item 7A.
+Context: ...eight:400;line-height:100%;text-decoration:underline" href="#i7bfbfbe54b9647b1b4ba4ff4e0aba09d_166">Item 7A.</a></span></div></td><td colspan="3" style="background-color:#ffffff;padding:2px 1pt;text-align:lef...
+
+Match 2:
+Position: 464979-465069
+Matched text: Item 7A.&#160;&#160;&#160;&#160;Quantitative and Qualitative Disclosures About Market Risk
+Context: ...e="color:#000000;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:700;line-height:120%">Item 7A.&#160;&#160;&#160;&#160;Quantitative and Qualitative Disclosures About Market Risk</span></div><div style="margin-top:9pt;text-align:justify"><span style="color:#000000;font-family:'...
+
+Total matches for this pattern: 2
+
+Searching for next section pattern: (?:Item|ITEM)\s+8[^<>{}\n]*
+--------------------------------------------------
+Match 1:
+Position: 146792-146799
+Matched text: Item 8.
+Context: ...eight:400;line-height:100%;text-decoration:underline" href="#i7bfbfbe54b9647b1b4ba4ff4e0aba09d_169">Item 8.</a></span></div></td><td colspan="3" style="background-color:#efefef;padding:2px 1pt;text-align:lef...
+
+Match 2:
+Position: 209397-209481
+Matched text: Item 8, &#8220;Financial Statements and Supplementary Data&#8221; of this Form 10-K.
+Context: ...s of Operations&#8221; and the consolidated financial statements and accompanying notes in Part II, Item 8, &#8220;Financial Statements and Supplementary Data&#8221; of this Form 10-K.</span></div><div id="i7bfbfbe54b9647b1b4ba4ff4e0aba09d_55"></div><div style="margin-top:18pt;paddin...
+
+Match 3:
+Position: 351169-351637
+Matched text: Item 8 of this Form 10-K. This Item generally discusses 2024 and 2023 items and year-to-year comparisons between 2024 and 2023. Discussions of 2022 items and year-to-year comparisons between 2023 and 2022 are not included, and can be found in &#8220;Management&#8217;s Discussion and Analysis of Financial Condition and Results of Operations&#8221; in Part II, Item 7 of the Company&#8217;s Annual Report on Form 10-K for the fiscal year ended September&#160;30, 2023.
+Context: ... conjunction with the consolidated financial statements and accompanying notes included in Part II, Item 8 of this Form 10-K. This Item generally discusses 2024 and 2023 items and year-to-year comparisons between 2024 and 2023. Discussions of 2022 items and year-to-year comparisons between 2023 and 2022 are not included, and can be found in &#8220;Management&#8217;s Discussion and Analysis of Financial Condition and Results of Operations&#8221; in Part II, Item 7 of the Company&#8217;s Annual Report on Form 10-K for the fiscal year ended September&#160;30, 2023.</span></div><div id="i7bfbfbe54b9647b1b4ba4ff4e0aba09d_100"></div><div style="margin-top:18pt;text-...
+
+Match 4:
+Position: 449619-449831
+Matched text: Item 8 of this Form 10-K) and state income taxes, partially offset by a lower effective tax rate on foreign earnings, the impact of the U.S. federal R&amp;D credit, and tax benefits from share-based compensation.
+Context: ...to Note 7, &#8220;Income Taxes&#8221; in the Notes to Consolidated Financial Statements in Part II, Item 8 of this Form 10-K) and state income taxes, partially offset by a lower effective tax rate on foreign earnings, the impact of the U.S. federal R&amp;D credit, and tax benefits from share-based compensation.</span></div><div style="margin-top:12pt;text-align:justify"><span style="color:#000000;font-family:...
+
+Match 5:
+Position: 461676-462093
+Matched text: Item 8 of this Form 10-K describes the significant accounting policies and methods used in the preparation of the Company&#8217;s consolidated financial statements. Management bases its estimates on historical experience and on various other assumptions it believes to be reasonable under the circumstances, the results of which form the basis for making judgments about the carrying values of assets and liabilities.
+Context: ...ignificant Accounting Policies&#8221; of the Notes to Consolidated Financial Statements in Part II, Item 8 of this Form 10-K describes the significant accounting policies and methods used in the preparation of the Company&#8217;s consolidated financial statements. Management bases its estimates on historical experience and on various other assumptions it believes to be reasonable under the circumstances, the results of which form the basis for making judgments about the carrying values of assets and liabilities.</span></div><div style="margin-top:18pt;text-align:justify"><span style="color:#000000;font-family:...
+
+Match 6:
+Position: 476397-476471
+Matched text: Item 8.&#160;&#160;&#160;&#160;Financial Statements and Supplementary Data
+Context: ...e="color:#000000;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:700;line-height:120%">Item 8.&#160;&#160;&#160;&#160;Financial Statements and Supplementary Data</span></div><div id="i7bfbfbe54b9647b1b4ba4ff4e0aba09d_172"></div><div style="margin-top:18pt;text-...
+
+Match 7:
+Position: 1349368-1349393
+Matched text: Item 8 of this Form 10-K.
+Context: ... report on the Company&#8217;s internal control over financial reporting, which appears in Part II, Item 8 of this Form 10-K.</span></div><div style="margin-top:18pt;text-align:justify"><span style="color:#000000;font-family:...
+
+Match 8:
+Position: 1480697-1480798
+Matched text: Item 8, &#8220;Financial Statements and Supplementary Data&#8221; of this Annual Report on Form 10-K.
+Context: ...line XBRL Document Set for the consolidated financial statements and accompanying notes in Part II, Item 8, &#8220;Financial Statements and Supplementary Data&#8221; of this Annual Report on Form 10-K.</span></div></td><td colspan="3" style="padding:0 1pt"/><td colspan="3" style="padding:0 1pt"/><td ...
+
+Total matches for this pattern: 8
+

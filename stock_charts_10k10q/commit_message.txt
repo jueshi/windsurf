@@ -1,0 +1,5 @@
+Resolve merge conflicts in ticker_lists.py
+
+- Fixed merge conflict in watch_list definition by choosing the more comprehensive version
+- Fixed merge conflict in country_etfs definition by using the detailed version with comments
+- Added Singapore (EWS) to the country_etfs list that was missing in the incoming changes

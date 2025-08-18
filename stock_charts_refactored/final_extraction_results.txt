@@ -1,0 +1,31 @@
+Final 10-K Extraction Results for AAPL
+==================================================
+
+BUSINESS SECTION EXTRACTION
+------------------------------
+Success! Extracted 15739 characters
+Start pattern: <span[^>]*>Item\s+1\.?\s*(?:&#160;)*\s*Business</s...
+End pattern: <span[^>]*>Item\s+1A\.?\s*(?:&#160;)*\s*Risk\s+Fac...
+Preview: Company Background The Company designs, manufactures and markets smartphones, personal computers, tablets, wearables and accessories, and sells a variety of related services. The Company’s fiscal year...
+
+RISK FACTORS SECTION EXTRACTION
+------------------------------
+Success! Extracted 68736 characters
+Start pattern: <span[^>]*>Item\s+1A\.?\s*(?:&#160;)*\s*Risk\s+Fac...
+End pattern: Item\s+1B\....
+Preview: The Company’s business, reputation, results of operations, financial condition and stock price can be affected by a number of factors, whether currently known or unknown, including those described bel...
+
+MD&A SECTION EXTRACTION
+------------------------------
+Failed to extract MD&A section
+
+ATTEMPTING DIRECT POSITION EXTRACTION FOR MD&A
+------------------------------
+Success! Extracted 15345 characters using direct position
+Preview: Item 7. Management’s Discussion and Analysis of Financial Condition and Results of Operations The following discussion should be read in conjunction with the consolidated financial statements and acco...
+
+EXTRACTION SUMMARY
+------------------------------
+Business section: Extracted
+Risk Factors section: Extracted
+MD&A section: Not found
