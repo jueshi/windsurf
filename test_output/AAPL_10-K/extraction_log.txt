@@ -1,0 +1,37 @@
+[2025-08-15 19:56:07] 
+================================================================================
+[2025-08-15 19:56:07] Testing SEC Filing Extraction for AAPL (10-K)
+[2025-08-15 19:56:07] Using MOCK SEC data
+[2025-08-15 19:56:07] ================================================================================
+
+[2025-08-15 19:56:07] 
+Step 1: Getting company CIK...
+[2025-08-15 19:56:07] CIK: 0000320193
+[2025-08-15 19:56:07] 
+Step 2: Getting latest filing info...
+[2025-08-15 19:56:07] Filing date: 2025-08-15
+[2025-08-15 19:56:07] Accession number: 000032019323000001
+[2025-08-15 19:56:07] Detail URL: mock://AAPL_10K.html
+[2025-08-15 19:56:07] 
+Step 3: Downloading filing...
+[2025-08-15 19:56:07] Downloaded 4062 bytes of HTML content
+[2025-08-15 19:56:07] Saved HTML content to test_output\AAPL_10-K\AAPL_10-K_filing.html
+[2025-08-15 19:56:07] 
+Step 4: Extracting tables...
+[2025-08-15 19:56:07] Extracted 3 tables
+[2025-08-15 19:56:07] Saved all tables to test_output\AAPL_10-K\AAPL_10-K_all_tables.xlsx
+[2025-08-15 19:56:07] 
+Step 5: Identifying financial tables...
+[2025-08-15 19:56:07] Financial tables identified:
+[2025-08-15 19:56:07]   balance_sheet: Found
+[2025-08-15 19:56:07]   income_statement: Found
+[2025-08-15 19:56:07]   cash_flow: Found
+[2025-08-15 19:56:07] 
+Step 6: Saving tables to Excel...
+[2025-08-15 19:56:07] Saved financial tables to test_output\AAPL_10-K
+[2025-08-15 19:56:07] 
+================================================================================
+[2025-08-15 19:56:07] Test completed successfully in 0:00:00.403134
+[2025-08-15 19:56:07] Output saved to: C:\Users\juesh\OneDrive\Documents\windsurf\stock_charts_10k-10q\test_output\AAPL_10-K
+[2025-08-15 19:56:07] ================================================================================
+
