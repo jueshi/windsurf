@@ -557,6 +557,12 @@ class StockDataGUI:
         ttk.Button(date_range_frame, text="Apply Date Range", command=self._apply_date_range).pack(side=tk.LEFT)
         # Reset date range to use full available data
         ttk.Button(date_range_frame, text="Reset Date Range", command=self._reset_date_range).pack(side=tk.LEFT, padx=(10, 0))
+        # Quick range buttons
+        ttk.Label(date_range_frame, text="Quick:").pack(side=tk.LEFT, padx=(10, 5))
+        ttk.Button(date_range_frame, text="6M", width=4, command=lambda: self._set_quick_range(days=182)).pack(side=tk.LEFT)
+        ttk.Button(date_range_frame, text="1Y", width=4, command=lambda: self._set_quick_range(days=365)).pack(side=tk.LEFT, padx=(5, 0))
+        ttk.Button(date_range_frame, text="3Y", width=4, command=lambda: self._set_quick_range(days=365*3)).pack(side=tk.LEFT, padx=(5, 0))
+        ttk.Button(date_range_frame, text="5Y", width=4, command=lambda: self._set_quick_range(days=365*5)).pack(side=tk.LEFT, padx=(5, 0))
 
         # Create a notebook with tabs for individual, comparison, and seasonality charts
         self.chart_notebook = ttk.Notebook(self.chart_frame)
@@ -2023,6 +2029,24 @@ class StockDataGUI:
         except Exception as e:
             messagebox.showerror("Error", f"Error applying date range: {str(e)}")
             logging.error(f"Error applying date range: {e}")
+
+    def _set_quick_range(self, days: int):
+        """Set the date range to [today - days, today] and apply it.
+
+        Args:
+            days: Number of days back from today for the start date.
+        """
+        try:
+            today = datetime.today().date()
+            start = today - timedelta(days=days)
+            if hasattr(self, 'start_date_var'):
+                self.start_date_var.set(start.strftime('%Y-%m-%d'))
+            if hasattr(self, 'end_date_var'):
+                self.end_date_var.set(today.strftime('%Y-%m-%d'))
+            # Apply immediately
+            self._apply_date_range()
+        except Exception as e:
+            logging.error(f"Error setting quick date range: {e}")
 
     def _reset_date_range(self):
         """Reset start/end dates to use the maximum available data range and refresh chart."""
