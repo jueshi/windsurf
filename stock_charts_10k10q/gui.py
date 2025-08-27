@@ -34,7 +34,9 @@ import plotly.io as pio
 from plotly.offline import plot
 from tkcalendar import DateEntry
 from data_manager import StockDataManager
+import google.generativeai as genai
 import gemini_analyzer
+import buffett_canslim
 import news_fetcher
 import sec_filing_extractor
 import sec_api_wrapper
@@ -553,6 +555,8 @@ class StockDataGUI:
 
         # Apply date range button
         ttk.Button(date_range_frame, text="Apply Date Range", command=self._apply_date_range).pack(side=tk.LEFT)
+        # Reset date range to use full available data
+        ttk.Button(date_range_frame, text="Reset Date Range", command=self._reset_date_range).pack(side=tk.LEFT, padx=(10, 0))
 
         # Create a notebook with tabs for individual, comparison, and seasonality charts
         self.chart_notebook = ttk.Notebook(self.chart_frame)
@@ -578,6 +582,75 @@ class StockDataGUI:
         self.business_analysis_frame = ttk.Frame(self.chart_notebook)
         self.chart_notebook.add(self.business_analysis_frame, text="Business Analysis")
         
+        # Create Buffett & CANSLIM tab
+        self.buffett_canslim_frame = ttk.Frame(self.chart_notebook)
+        self.chart_notebook.add(self.buffett_canslim_frame, text="Buffett & CANSLIM")
+
+        # Layout for Buffett & CANSLIM tab
+        bc_outer = ttk.Frame(self.buffett_canslim_frame, padding="10")
+        bc_outer.pack(fill=tk.BOTH, expand=True)
+
+        bc_controls = ttk.Frame(bc_outer)
+        bc_controls.pack(fill=tk.X, pady=(0, 5))
+        ttk.Button(bc_controls, text="Analyze Selected", command=self._analyze_buffett_canslim_current).pack(side=tk.LEFT)
+        self.bc_status_var = tk.StringVar(value="Select a ticker and click Analyze, or select while this tab is active.")
+        ttk.Label(bc_controls, textvariable=self.bc_status_var).pack(side=tk.LEFT, padx=10)
+
+        self.bc_content = ttk.PanedWindow(bc_outer, orient=tk.HORIZONTAL)
+        self.bc_content.pack(fill=tk.BOTH, expand=True)
+        # Track sash initialization
+        self._bc_sash_initialized = False
+
+        # Left: chart image
+        self.bc_left_frame = ttk.LabelFrame(self.bc_content, text="Radar & Trend")
+        self.bc_content.add(self.bc_left_frame, weight=2)
+        self.bc_chart_label = ttk.Label(self.bc_left_frame, width=48)
+        self.bc_chart_label.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        self._bc_chart_photo = None  # keep reference
+        # Zoom state for Buffett & CANSLIM chart
+        self._bc_base_image = None   # PIL.Image for original chart
+        self._bc_zoom_scale = 0.5    # current zoom scale
+        self._bc_user_zoomed = False # whether user has manually zoomed
+        # Refit image to container when layout changes, unless user has zoomed
+        def _bc_on_container_resize(event=None):
+            try:
+                if self._bc_base_image is not None and not self._bc_user_zoomed:
+                    self._update_bc_chart_image()
+            except Exception:
+                pass
+        try:
+            self.bc_left_frame.bind('<Configure>', _bc_on_container_resize)
+        except Exception:
+            pass
+
+        # Right: explanation text
+        bc_right = ttk.LabelFrame(self.bc_content, text="Explanation")
+        self.bc_content.add(bc_right, weight=3)
+        self.bc_text = tk.Text(bc_right, wrap=tk.WORD)
+        self.bc_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        # Make sure the right pane is visible: set min size and an initial sash position
+        try:
+            self.bc_content.paneconfig(bc_right, minsize=220)
+            self.bc_content.paneconfig(self.bc_left_frame, minsize=220)
+        except Exception:
+            pass
+        # Set a larger initial sash position; and ensure it's applied after layout via Configure
+        try:
+            self.root.after(100, lambda: self.bc_content.sashpos(0, 400))
+            def _adjust_bc_sash_once(event=None):
+                if getattr(self, '_bc_sash_initialized', False):
+                    return
+                try:
+                    w = self.bc_content.winfo_width()
+                    if w and w > 0:
+                        self.bc_content.sashpos(0, int(w * 0.55))
+                        self._bc_sash_initialized = True
+                except Exception:
+                    pass
+            self.bc_content.bind('<Configure>', _adjust_bc_sash_once)
+        except Exception:
+            pass
+
         # Create SEC filings tab
         self.sec_filings_frame = ttk.Frame(self.chart_notebook)
         self.chart_notebook.add(self.sec_filings_frame, text="SEC Filings")
@@ -818,7 +891,15 @@ class StockDataGUI:
         self.chart_label = ttk.Label(self.individual_chart_frame)
         self.chart_label.pack(fill=tk.BOTH, expand=True)
 
-        self.comparison_chart_label = ttk.Label(self.comparison_chart_frame)
+        # Use a fixed container to prevent label/image from resizing the parent frame
+        self.comparison_chart_container = ttk.Frame(self.comparison_chart_frame)
+        self.comparison_chart_container.pack(fill=tk.BOTH, expand=True)
+        # Disable geometry propagation so the container size is driven by layout, not image natural size
+        try:
+            self.comparison_chart_container.pack_propagate(False)
+        except Exception:
+            pass
+        self.comparison_chart_label = ttk.Label(self.comparison_chart_container)
         self.comparison_chart_label.pack(fill=tk.BOTH, expand=True)
         
         # Create a container for the seasonality chart display
@@ -1207,9 +1288,23 @@ class StockDataGUI:
         self._save_watch_list()
 
     def _get_selected_tickers(self, show_warning=True):
-        """Get selected tickers from listbox"""
+        """Get selected tickers preferring the main list; fall back to watch list if needed."""
         selected_indices = self.ticker_listbox.curselection()
         if not selected_indices:
+            # Fall back to watch list selection if present
+            try:
+                watch_indices = self.watch_listbox.curselection()
+            except Exception:
+                watch_indices = ()
+
+            if watch_indices:
+                selected_tickers = []
+                for i in watch_indices:
+                    ticker_text = self.watch_listbox.get(i)
+                    ticker = ticker_text.split(' - ')[0].strip()
+                    selected_tickers.append(ticker)
+                return selected_tickers
+
             if show_warning:
                 messagebox.showwarning("No Selection", "Please select at least one ticker.")
             return []
@@ -1436,9 +1531,23 @@ class StockDataGUI:
             logging.error(f"Error saving watch list: {e}")
 
     def _get_selected_tickers(self, show_warning=True):
-        """Get selected tickers from listbox"""
+        """Get selected tickers preferring the main list; fall back to watch list if needed."""
         selected_indices = self.ticker_listbox.curselection()
         if not selected_indices:
+            # Fall back to watch list selection if present
+            try:
+                watch_indices = self.watch_listbox.curselection()
+            except Exception:
+                watch_indices = ()
+
+            if watch_indices:
+                selected_tickers = []
+                for i in watch_indices:
+                    ticker_text = self.watch_listbox.get(i)
+                    ticker = ticker_text.split(' - ')[0].strip()
+                    selected_tickers.append(ticker)
+                return selected_tickers
+
             if show_warning:
                 messagebox.showwarning("No Selection", "Please select at least one ticker.")
             return []
@@ -1821,6 +1930,12 @@ class StockDataGUI:
 
             current_tab_index = self.chart_notebook.index("current")
 
+            # If Buffett & CANSLIM tab is active, run analysis and return
+            if hasattr(self, 'buffett_canslim_frame') and str(self.chart_notebook.select()) == str(self.buffett_canslim_frame):
+                if selected_tickers:
+                    self._analyze_buffett_canslim_current()
+                return
+
             # Tab indices are: 0: Individual, 1: Comparison, 2: Seasonality, 3: Fundamental, 4: Business Analysis
             if current_tab_index == 4:
                 if selected_tickers:
@@ -1849,6 +1964,12 @@ class StockDataGUI:
             logging.info(f"Selected tickers from watch list: {selected_tickers}")
 
             current_tab_index = self.chart_notebook.index("current")
+
+            # If Buffett & CANSLIM tab is active, run analysis and return
+            if hasattr(self, 'buffett_canslim_frame') and str(self.chart_notebook.select()) == str(self.buffett_canslim_frame):
+                if selected_tickers:
+                    self._analyze_buffett_canslim_current()
+                return
 
             # Tab indices are: 0: Individual, 1: Comparison, 2: Seasonality, 3: Fundamental, 4: Business Analysis
             if current_tab_index == 4:
@@ -1903,62 +2024,39 @@ class StockDataGUI:
             messagebox.showerror("Error", f"Error applying date range: {str(e)}")
             logging.error(f"Error applying date range: {e}")
 
-    def _on_ticker_selected(self, event):
-        """Handle ticker selection event from main ticker listbox, including deselection."""
+    def _reset_date_range(self):
+        """Reset start/end dates to use the maximum available data range and refresh chart."""
         try:
-            # Get selected ticker indices and build the list of selected tickers
-            selected_indices = self.ticker_listbox.curselection()
-            selected_tickers = []
-            for i in selected_indices:
-                ticker_text = self.ticker_listbox.get(i)
-                ticker = ticker_text.split(' ')[0].strip()
-                selected_tickers.append(ticker)
+            # Clear UI date fields
+            if hasattr(self, 'start_date_var'):
+                self.start_date_var.set("")
+            if hasattr(self, 'end_date_var'):
+                self.end_date_var.set("")
 
-            logging.info(f"Selected tickers from main list: {selected_tickers}")
+            # Clear manager filters so full range is used
+            if hasattr(self, 'manager'):
+                self.manager.start_date = None
+                self.manager.end_date = None
 
-            # Get the numerical index of the current tab
-            current_tab_index = self.chart_notebook.index("current")
+            # Refresh based on active tab and selection
+            if self.active_tab == "comparison":
+                self.status_var.set("Reset date range. Using full history for comparison chart.")
+                self._compare_percentage_performance()
+                return
 
-            # Tab indices are: 0: Individual, 1: Comparison, 2: Seasonality, 3: Fundamental
-            if current_tab_index == 3:
-                self._display_fundamental_data(selected_tickers)
-            elif selected_tickers:  # Only update other tabs if there's a selection
-                if current_tab_index == 1:
-                    self._compare_percentage_performance(tickers=selected_tickers)
-                elif current_tab_index == 2:
-                    self._generate_seasonality_chart(selected_tickers[0])
-                elif current_tab_index == 0:
-                    self._display_chart(selected_tickers[0])
+            # Try to refresh currently selected single ticker chart
+            ticker = self._get_selected_single_ticker()
+            if ticker:
+                self.status_var.set(f"Reset date range. Using full history for {ticker}.")
+                if self.active_tab == "seasonality":
+                    self._generate_seasonality_chart(ticker)
+                else:
+                    self._display_chart(ticker)
+            else:
+                self.status_var.set("Reset date range. Select a ticker to display chart with full history.")
         except Exception as e:
-            logging.error(f"Error handling ticker selection: {e}")
-
-    def _on_watch_ticker_selected(self, event):
-        """Handle ticker selection event from watch list, including deselection."""
-        try:
-            # Get selected ticker indices and build the list of selected tickers
-            selected_indices = self.watch_listbox.curselection()
-            selected_tickers = []
-            for i in selected_indices:
-                ticker = self.watch_listbox.get(i).strip()
-                selected_tickers.append(ticker)
-
-            logging.info(f"Selected tickers from watch list: {selected_tickers}")
-
-            # Get the numerical index of the current tab
-            current_tab_index = self.chart_notebook.index("current")
-
-            # Tab indices are: 0: Individual, 1: Comparison, 2: Seasonality, 3: Fundamental
-            if current_tab_index == 3:
-                self._display_fundamental_data(selected_tickers)
-            elif selected_tickers:  # Only update other tabs if there's a selection
-                if current_tab_index == 1:
-                    self._compare_percentage_performance(tickers=selected_tickers)
-                elif current_tab_index == 2:
-                    self._generate_seasonality_chart(selected_tickers[0])
-                elif current_tab_index == 0:
-                    self._display_chart(selected_tickers[0])
-        except Exception as e:
-            logging.error(f"Error handling watch ticker selection: {e}")
+            logging.error(f"Error resetting date range: {e}")
+            messagebox.showerror("Error", f"Error resetting date range: {str(e)}")
 
     def _on_tab_changed(self, event):
         """Handle tab change event
@@ -1997,6 +2095,10 @@ class StockDataGUI:
                         selected_tab == str(self.business_analysis_frame):
                     self.active_tab = "business_analysis"
                     logging.info("Switched to business analysis tab")
+                elif hasattr(self, 'buffett_canslim_frame') and self.buffett_canslim_frame.winfo_exists() and \
+                        selected_tab == str(self.buffett_canslim_frame):
+                    self.active_tab = "buffett_canslim"
+                    logging.info("Switched to Buffett & CANSLIM tab")
                 elif hasattr(self, 'sec_filings_frame') and self.sec_filings_frame.winfo_exists() and \
                         selected_tab == str(self.sec_filings_frame):
                     self.active_tab = "sec_filings"
@@ -2037,6 +2139,22 @@ class StockDataGUI:
                     # Check if open_10k_button exists before trying to access it
                     if hasattr(self, 'open_10k_button') and self.open_10k_button.winfo_exists():
                         self.open_10k_button.config(state="disabled")
+            elif self.active_tab == "buffett_canslim":
+                # Ensure right explanation pane is visible when entering the tab
+                try:
+                    if hasattr(self, 'bc_content') and self.bc_content.winfo_exists():
+                        w = self.bc_content.winfo_width()
+                        if w and w > 0:
+                            self.bc_content.sashpos(0, int(w * 0.55))
+                            self._bc_sash_initialized = True
+                except Exception:
+                    pass
+                if selected_tickers:
+                    self._analyze_buffett_canslim_current()
+                else:
+                    self.bc_text.delete("1.0", tk.END)
+                    self.bc_text.insert(tk.END, "Select a ticker to analyze.")
+                    self.bc_status_var.set("Waiting for ticker selection")
             elif selected_tickers: # For other tabs, only update if there is a selection
                 if self.active_tab == "comparison":
                     self._compare_percentage_performance(tickers=selected_tickers)
@@ -2046,7 +2164,169 @@ class StockDataGUI:
                     self._display_chart(selected_tickers[0])
         except Exception as e:
             logging.error(f"Error handling tab change: {e}")
+
+    def _get_selected_single_ticker(self) -> Optional[str]:
+        """Return the first selected ticker from main or watch list, or None."""
+        sel = self.ticker_listbox.curselection()
+        if sel:
+            t = self.ticker_listbox.get(sel[0])
+            return t.split(' ')[0].strip()
+        wsel = self.watch_listbox.curselection()
+        if wsel:
+            return self.watch_listbox.get(wsel[0]).strip()
+        return None
+
+    def _analyze_buffett_canslim_current(self):
+        """Trigger analysis for the currently selected ticker in the Buffett & CANSLIM tab."""
+        try:
+            ticker = self._get_selected_single_ticker()
+            if not ticker:
+                self.bc_status_var.set("No ticker selected")
+                return
+            self.bc_status_var.set(f"Analyzing {ticker} ...")
+
+            def worker():
+                try:
+                    result = buffett_canslim.analyze_stock_scores(ticker)
+                    # Build figure
+                    fig = buffett_canslim.build_analysis_figure(
+                        ticker,
+                        result['buffett_scores'],
+                        result['buffett_total'],
+                        result['canslim_scores'],
+                        result['canslim_total'],
+                        history_df=None,
+                    )
+                    # Render to PNG in-memory (PIL only; do not create Tk objects in worker thread)
+                    buf = io.BytesIO()
+                    fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+                    plt.close(fig)
+                    buf.seek(0)
+                    img = Image.open(buf)
+
+                    explanation = result['raw_text']
+
+                    def on_ui(msg=explanation):
+                        if not hasattr(self, 'bc_chart_label') or not self.bc_chart_label.winfo_exists():
+                            return
+                        # Ensure text widget exists
+                        if not hasattr(self, 'bc_text') or not self.bc_text.winfo_exists():
+                            return
+                        # Store base image and initial zoom
+                        self._bc_base_image = img
+                        # Start with fit-to-container scale and allow user zoom later
+                        self._bc_user_zoomed = False
+                        self._bc_zoom_scale = 1.0
+                        self._update_bc_chart_image()
+                        # Make the chart image zoomable
+                        self.bc_chart_label.configure(state='normal')
+                        # Linux scroll events
+                        self.bc_chart_label.bind('<Button-4>', self._zoom_chart_in)
+                        self.bc_chart_label.bind('<Button-5>', self._zoom_chart_out)
+                        # Windows/macOS MouseWheel
+                        self.bc_chart_label.bind('<MouseWheel>', self._on_mouse_wheel_zoom)
+                        # Populate explanation text reliably
+                        try:
+                            self.bc_text.configure(state='normal')
+                        except Exception:
+                            pass
+                        self.bc_text.delete('1.0', tk.END)
+                        # Format Chinese text to be more readable
+                        formatted = (msg or "")  # preserve original line breaks
+                        try:
+                            logging.info(f"BC explanation length: {len(formatted)}")
+                        except Exception:
+                            pass
+                        if not formatted.strip():
+                            formatted = "No explanation text was returned by the analyzer."
+                        self.bc_text.insert(tk.END, formatted)
+                        try:
+                            self.bc_text.see('1.0')
+                        except Exception:
+                            pass
+                        try:
+                            self.bc_text.update_idletasks()
+                        except Exception:
+                            pass
+                        self.bc_status_var.set(f"Completed analysis for {ticker}")
+
+                    self.root.after(0, on_ui)
+                except Exception as e:
+                    err_msg = f"Error in Buffett & CANSLIM analysis: {e}"
+                    logging.error(err_msg)
+                    def on_err(msg=err_msg):
+                        self.bc_status_var.set(f"Error: {msg}")
+                    self.root.after(0, on_err)
+
+            # Show immediate placeholder so users see progress and to verify text area renders
+            try:
+                if hasattr(self, 'bc_text') and self.bc_text.winfo_exists():
+                    self.bc_text.configure(state='normal')
+                    self.bc_text.delete('1.0', tk.END)
+                    self.bc_text.insert(tk.END, f"Analyzing {ticker}…")
+                    self.bc_text.see('1.0')
+            except Exception:
+                pass
+
+            threading.Thread(target=worker, daemon=True).start()
+        except Exception as e:
+            logging.error(f"Error starting Buffett & CANSLIM analysis: {e}")
             
+    def _update_bc_chart_image(self):
+        """Re-render the Buffett & CANSLIM chart image based on current zoom scale."""
+        try:
+            if not self._bc_base_image or not hasattr(self, 'bc_chart_label') or not self.bc_chart_label.winfo_exists():
+                return
+            # Determine target scale: fit image to container if user hasn't zoomed
+            scale = self._bc_zoom_scale
+            if not getattr(self, '_bc_user_zoomed', False):
+                try:
+                    # Use the label size as the actual drawing area
+                    avail_w = max(1, self.bc_chart_label.winfo_width())
+                    avail_h = max(1, self.bc_chart_label.winfo_height())
+                    # Keep some padding
+                    pad = 16
+                    avail_w = max(1, avail_w - pad)
+                    avail_h = max(1, avail_h - pad)
+                    base_w, base_h = self._bc_base_image.size
+                    if base_w > 0 and base_h > 0 and avail_w > 0 and avail_h > 0:
+                        fit_scale = min(avail_w / base_w, avail_h / base_h)
+                        # Avoid oversizing
+                        scale = max(0.1, min(fit_scale, 3.0))
+                        self._bc_zoom_scale = scale
+                except Exception:
+                    pass
+            # Clamp final scale
+            scale = max(0.1, min(scale, 5.0))
+            base_w, base_h = self._bc_base_image.size
+            new_size = (max(1, int(base_w * scale)), max(1, int(base_h * scale)))
+            resized = self._bc_base_image.resize(new_size, Image.LANCZOS)
+            self._bc_chart_photo = ImageTk.PhotoImage(resized)
+            self.bc_chart_label.configure(image=self._bc_chart_photo)
+        except Exception as e:
+            logging.error(f"Error updating BC chart image: {e}")
+
+    def _zoom_chart_in(self, event=None):
+        """Zoom in the Buffett & CANSLIM chart."""
+        self._bc_user_zoomed = True
+        self._bc_zoom_scale *= 1.1
+        self._update_bc_chart_image()
+
+    def _zoom_chart_out(self, event=None):
+        """Zoom out the Buffett & CANSLIM chart."""
+        self._bc_user_zoomed = True
+        self._bc_zoom_scale /= 1.1
+        self._update_bc_chart_image()
+
+    def _on_mouse_wheel_zoom(self, event):
+        """Mouse wheel zoom handler for Windows/macOS."""
+        try:
+            if event.delta > 0:
+                self._zoom_chart_in()
+            else:
+                self._zoom_chart_out()
+        except Exception as e:
+            logging.error(f"Mouse wheel zoom error: {e}")
     def _compare_percentage_performance0(self, tickers=None):
         """Generate and display an interactive comparison chart showing percentage performance of multiple stocks"""
         try:
@@ -3113,9 +3393,10 @@ class StockDataGUI:
                 # Load and resize the image
                 img = Image.open(chart_path)
 
-                # Get the chart frame size
-                chart_width = self.comparison_chart_frame.winfo_width()
-                chart_height = self.comparison_chart_frame.winfo_height()
+                # Get the comparison container size (fixed, non-propagating)
+                target_widget = getattr(self, 'comparison_chart_container', self.comparison_chart_frame)
+                chart_width = target_widget.winfo_width()
+                chart_height = target_widget.winfo_height()
 
                 # If the frame hasn't been rendered yet, use default size
                 if chart_width <= 1:

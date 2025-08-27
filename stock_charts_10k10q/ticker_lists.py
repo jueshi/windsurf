@@ -275,9 +275,16 @@ index_etfs = [
 ]
 
 eps_growth_stocks_2025_8_3 = ["NVDA", "AVGO", "AMD", "APH", "UBS", "NET", "CCJ", "GFI", "CLS", "ESLT", "KGC", "CELH", "EVR", "SRAD", "FYBR", "BE", "W", "LIF", "EGO", "OLO", "CDTX", "CCEC", "ATAI", "TBPH", "ISSC", "XGN", "ELTX", "ASMB"]
-canslim_8_3_2025_stocks = ["APP", "AVGO", "CLS", "EVR", "GFI", "HIMS", "HWM", "NVDA"]
+canslim_8_3_2025_stocks = ["APP", "AVGO", "CLS", "EVR", "GFI", "HIMS", "HWM", "NVDA", "ATLC", "DRD", "FUTU", "RCL"]
 
-watch_list = ["XMAR", "AMZN", "NEXT", "0700.HK", "TSM", "BRK-B", "tsm", "ALAB", "nvda", "SPY", "IWM", "QQQ", "DIA"]
+
+watch_list = ["XMAR", "AMZN", "NEXT", "0700.HK", "TSM", "BRK-B", "ALAB", "nvda", "SPY", "IWM", "QQQ", "DIA", "MU", "APH", "NFLX", "ESLT", "PLTR"]
+
+
+
+
+
+
 
 
 
@@ -460,6 +467,54 @@ us_crypto_futures_etfs = [
     "XBTF", # VanEck Bitcoin Strategy ETF
     "BTF",  # Valkyrie Bitcoin and Ether Strategy ETF
 ]
+
+
+
+
+
+
+
+
+Buffet_real_estate_stocks = ["DHI", "LEN", "SHW", "HD", "LOW", "SOFI", "GLD"]
+
+
+
+Data_Center_REITs_stocks = ["EQIX", "DLR", "AMT", "IRM"]
+
+
+
+
+Residential_REITs_stocks = ["AVB", "EQR", "MAA", "ESS", "UDR", "CPT", "INVH", "AMH"]
+
+
+Industrial_REITs_stocks = ["PLD", "COLD", "STAG", "EGP", "FR"]
+
+
+REITs_Retail_stocks = ["SPG", "O", "KIM", "REG", "FRT", "NNN"]
+
+
+REITs_Healthcare_stocks = ["WELL", "VTR", "DOC"]
+
+
+REITs_Self_Storage_stocks = ["PSA", "EXR", "CUBE"]
+
+
+
+
+REITs_多户住宅_stocks = ["MAA", "EQR", "AVB", "CPT", "UDR", "ESS"]
+
+
+eps_growth_8_20_2025_stocks = ["BE", "WGS", "LIF", "FIGS", "AVGO", "AVAH", "PAY", "ROAD", "BTSG", "SRAD", "ASLE", "TBPH", "NVDA", "TAK", "ESLT", "NFLX", "APH", "ESE", "INFU", "EVR", "GFI", "UBS", "FTLF", "INTR", "CWK", "KGC", "EGO", "ATLC", "RM", "VRNS", "CDTX", "COGT", "W", "XGN", "Z", "ELTX", "YEXT", "VSTM", "FYBR", "DBD", "OLO", "AAPG"]
+
+
+
+
+TL_support_stocks = ["THM", "WPM", "ROL", "GNTY", "GPAT", "SD", "PLTR", "WDC", "SNDK", "INTC", "XMAR", "ALAB"]
+
+
+
+
+
 
 
 
