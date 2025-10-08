@@ -31,7 +31,7 @@ if not _available:
     _available = ['DejaVu Sans']
 rcParams['font.sans-serif'] = _available
 
-MODEL_NAME = os.getenv('GEMINI_MODEL_NAME', 'gemini-1.5-flash')
+MODEL_NAME = os.getenv('GEMINI_MODEL_NAME', 'gemini-2.5-flash')
 
 # Local import: this file sits next to stock_radar_batch.py
 from stock_radar_batch import analyze_stock

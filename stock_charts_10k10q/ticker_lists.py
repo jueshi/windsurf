@@ -17,7 +17,8 @@ tickers_comment_dict = {} #manually build a dictionary of tickers and comments
 
 
 # List of tickers to process
-Jues401k_stocks = ["ALAB", "QQQ", "IWM", "GLD", "AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "META", "NVDA", "BRK-B", "AVGO", "COST", "MCD", "BABA", "AMD", "NIO", "AFRM", "CQQQ", "SPYX", "SPYV", "SPYU", "CRM", "ADI", "TXN", "AAOI", "EWS", "NKE", "AMZA", "YINN", "JD", "BIDU", "TNA", "TECS", "TECL", "INTC", "TSM", "LRCX", "MRVL", "SPMO", "WDC", "PLTR"]
+Jues401k_stocks = ["ALAB", "QQQ", "IWM", "GLD", "AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "META", "NVDA", "BRK-B", "AVGO", "COST", "MCD", "BABA", "AMD", "NIO", "AFRM", "CQQQ", "SPYX", "SPYV", "SPYU", "CRM", "ADI", "TXN", "AAOI", "EWS", "NKE", "AMZA", "YINN", "JD", "BIDU", "TNA", "TECS", "TECL", "INTC", "TSM", "LRCX", "MRVL", "SPMO", "WDC", "PLTR", "SOFI"]
+
 
 
  
@@ -278,7 +279,7 @@ eps_growth_stocks_2025_8_3 = ["NVDA", "AVGO", "AMD", "APH", "UBS", "NET", "CCJ",
 canslim_8_3_2025_stocks = ["APP", "AVGO", "CLS", "EVR", "GFI", "HIMS", "HWM", "NVDA", "ATLC", "DRD", "FUTU", "RCL"]
 
 
-watch_list = ["XMAR", "AMZN", "NEXT", "0700.HK", "TSM", "BRK-B", "ALAB", "nvda", "SPY", "IWM", "QQQ", "DIA", "MU", "APH", "NFLX", "ESLT", "PLTR"]
+watch_list = ["XMAR", "AMZN", "0700.HK", "TSM", "BRK-B", "ALAB", "nvda", "SPY", "IWM", "QQQ", "DIA", "MU", "APH", "NFLX", "ESLT", "PLTR", "SOFI", "AVGO", "GS", "COST", "BYD", "BYDDY", "CQQQ", "YINN", "HOOD", "APP", "LRCX", "OPEN", "NTNX", "SPMO", "VGT", "TQQQ", "TECL", "VZ", "MO", "BEN", "OKE", "IPG", "CCI", "GIS", "TFC", "KIM", "CME", "KEY", "KMI", "MRVL", "OKTA", "QQQM", "VOO", "DBC", "GLD", "QCOM", "ASML", "JNJ", "CRDO", "CRCL", "WDC", "MAGS", "ORCX", "TSLL", "AVL", "ARMG", "FNGU", "FNGO", "UBRL", "MSFX", "BRKU", "FBL", "IONQ"]
 
 
 
@@ -292,7 +293,102 @@ watch_list = ["XMAR", "AMZN", "NEXT", "0700.HK", "TSM", "BRK-B", "ALAB", "nvda",
 
 
 
-Jues401k_stocks_stocks = ["ALAB", "QQQ", "IWM", "GLD", "AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "META", "NVDA", "BRK-B", "AVGO", "COST", "MCD", "BABA", "AMD", "NIO", "AFRM", "CQQQ", "SPYX", "SPYV", "SPYU", "CRM", "ADI", "TXN", "AAOI", "EWS", "NKE", "AMZA", "YINN", "JD", "BIDU", "TNA", "TECS", "TECL", "INTC", "TSM", "LRCX", "MRVL", "SPMO", "WDC", "GS", "PLTR"]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Jues401k_stocks_stocks = ["ALAB", "QQQ", "IWM", "GLD", "AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "META", "NVDA", "BRK-B", "AVGO", "COST", "BABA", "AMD", "NIO", "AFRM", "CQQQ", "SPYX", "SPYV", "SPYU", "CRM", "ADI", "AAOI", "EWS", "YINN", "JD", "BIDU", "TNA", "TECS", "TECL", "INTC", "TSM", "LRCX", "MRVL", "SPMO", "WDC", "GS", "PLTR", "ORCL", "IVV", "IEMG", "PG", "JNJ", "KO", "PEP", "MCD", "WMT", "VT", "TLT", "IEF", "DBC", "VTI", "VOO", "CRWD", "CRDO", "SNDK", "AKBA", "ASND", "DVAX", "PRCT", "SNPS", "MAGS", "V", "MA", "AVGX", "AVL", "TSLL", "ORCX", "FNGU", "ARMG", "APED", "GGLL", "FNGO", "UBRL", "CRWL", "MSFX", "FBL", "BRKU", "LABX", "ENOR"]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 nucleus_stock_stocks = ["BX", "CEG", "SMR", "NLR", "URA", "CCJ", "URNM", "URAN", "BWXT"]
@@ -521,6 +617,21 @@ TL_support_stocks = ["THM", "WPM", "ROL", "GNTY", "GPAT", "SD", "PLTR", "WDC", "
 
 
 
+
+
+finviz_heat_map_stocks = ["MSFT", "ORCL", "PLTR", "RNRW", "SNPS", "CRWD", "FTNT", "NVDA", "AVGO", "AMD", "QCOM", "TXN", "INTC", "AAPL", "CRM", "NOW", "INTU", "UBER", "ADBE", "PAYX", "ADSK", "DOCU", "COMPUTE", "ANET", "CSCO", "IBM", "FIS", "ACN", "IT", "APH", "KLAC", "AMAT", "LRCX", "GPN", "TEL", "TRMB", "KFY", "FFIV", "DELL", "HPQ", "WDC", "STX", "AMZN", "EBAY", "GME", "TSLA", "GM", "F", "HD", "LOW", "MCD", "SBUX", "CMG", "YUM", "DRI", "TJX", "ROST", "AZO", "ORLY", "BKNG", "ABNB", "MAR", "HLT", "NKE", "LULU", "FSR", "RIVN", "LCID", "LVS", "LEN", "GOOG", "META", "NFLX", "DIS", "TKO", "FOXA", "TMUS", "T", "VZ", "CHTR", "BA", "LMT", "GE", "GD", "NOC", "RTX", "LHX", "TDG", "DE", "CAT", "PCAR", "UNP", "NSC", "CSX", "WM", "RSG", "DAL", "UAL", "LUV", "ITW", "CMI", "PH", "GWW", "OTIS", "IR", "HON", "IEX", "MMM", "URI", "EMR", "ETN", "ROK", "AME", "LLY", "JNJ", "ABT", "BSY", "DXCM", "GILD", "BMY", "AMGN", "MRK", "PFE", "ABBV", "UNH", "ELV", "CI", "HCA", "SYK", "MDT", "EW", "ISRG", "DHR", "TMO", "A", "VRTX", "REGN", "BIIB", "WMT", "COST", "TGT", "DG", "KO", "PEP", "K", "MDLZ", "GIS", "SYY", "PG", "EL", "CL", "MO", "PM", "JPM", "V", "BRK-B", "AXP", "BAC", "WFC", "C", "BK", "COF", "SYF", "BLK", "BX", "KKR", "STT", "MS", "GS", "SPGI", "ICE", "CME", "MCO", "CB", "ALL", "AIG", "TRV", "PGR", "MMC", "L", "MET", "PRU", "PNC", "USB", "TFC", "AON", "FITB", "RF", "AMT", "PLD", "CCI", "DLR", "IRM", "WY", "EQR", "O", "XOM", "CVX", "COP", "EOG", "OXY", "SLB", "EPD", "ET", "NEE", "DUK", "SO", "D", "ES", "AEP", "SRE", "FE", "ED", "LIN", "SHW", "LYB", "EMN", "ECL", "FCX", "NUE", "STLD", "VMC"]
+
+
+high_profit_margin_stocks = ["NOW", "DDOG", "CRWD", "MPWR", "NVDA", "PANW"]
+
+
+
+
+
+
+
+
+ticker_1_brokerage_link_stocks = ["CQQQ", "FBL", "MSFX", "UBRL", "THD", "ORCX", "CRWL", "BRKU", "AVL", "ARMG"]
 
 
 # Function to check if a ticker symbol is valid and suggest alternatives if not

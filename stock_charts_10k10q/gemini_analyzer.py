@@ -11,10 +11,177 @@ from pathlib import Path
 from sec_edgar_downloader import Downloader
 from lxml import html
 from serpapi import GoogleSearch
+from functools import wraps
+from datetime import datetime, timedelta
+from threading import Lock
+
+# Helper to format Gemini API errors with actionable guidance
+def _format_gemini_error(e: Exception) -> str:
+    """
+    Return a user-friendly error message for common Gemini API failures.
+
+    Specifically detects SERVICE_DISABLED (API not enabled) and provides
+    activation guidance.
+    """
+    msg = str(e)
+    # Common signals for API not enabled
+    service_disabled_tokens = [
+        "SERVICE_DISABLED",
+        "Generative Language API has not been used",
+        "API has not been used in project",
+        "it is disabled"
+    ]
+    if any(tok in msg for tok in service_disabled_tokens):
+        # Try to surface activation URL if present in the error payload
+        activation_hint = "https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview"
+        # If a project number is embedded in the message, add it as a hint
+        project_hint = ""
+        import re as _re
+        m = _re.search(r"project[s]?\/?(\d{6,})", msg)
+        if m:
+            project_hint = f"?project={m.group(1)}"
+        return (
+            "Gemini API is disabled for your Google Cloud project.\n\n"
+            "How to fix:\n"
+            "1) Open the Generative Language API page in Google Cloud Console:\n"
+            f"   {activation_hint}{project_hint}\n"
+            "2) Click Enable.\n"
+            "3) Ensure Billing is enabled on the same project.\n"
+            "4) Make sure the API key you are using (GEMINI_API_KEY) belongs to this project.\n"
+            "5) Wait a few minutes for propagation, then retry.\n\n"
+            f"Original error: {msg}"
+        )
+    # Default: return the raw error message
+    return f"An error occurred while communicating with the Gemini API: {msg}"
+
+# Rate limiting decorator
+def rate_limited(max_per_minute):
+    """
+    Decorator to limit the number of API calls per minute.
+    
+    Args:
+        max_per_minute (int): Maximum number of API calls allowed per minute
+    """
+    interval = 60.0 / max_per_minute
+    last_called = [0.0]  # Using list to make it mutable in the nested function
+    
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            elapsed = time.time() - last_called[0]
+            wait_time = max(0, interval - elapsed)
+            
+            if wait_time > 0:
+                logging.info(f"Rate limiting: Waiting {wait_time:.2f} seconds before next API call")
+                time.sleep(wait_time)
+            
+            result = func(*args, **kwargs)
+            last_called[0] = time.time()
+            return result
+        return wrapper
+    return decorator
+
+class GeminiAnalyzer:
+    # Class variable to track last API call time
+    _last_api_call = 0
+    MIN_API_INTERVAL = 2.0  # Minimum seconds between API calls (adjust as needed)
+    
+    @classmethod
+    def _rate_limited_generate_content(cls, model, prompt):
+        """Helper method to enforce rate limiting on API calls"""
+        current_time = time.time()
+        time_since_last_call = current_time - cls._last_api_call
+        
+        # Calculate how long to wait before making the next call
+        wait_time = max(0, cls.MIN_API_INTERVAL - time_since_last_call)
+        
+        if wait_time > 0:
+            logging.info(f"Rate limiting: Waiting {wait_time:.2f} seconds before next API call")
+            time.sleep(wait_time)
+        
+        # Make the API call
+        response = model.generate_content(prompt)
+        
+        # Update the last call time
+        cls._last_api_call = time.time()
+        
+        return response
+
+import random
+
+class GeminiRateLimiter:
+    _instance = None
+    _lock = Lock()
+    _last_call_time = 0
+    MIN_INTERVAL = 5.0  # Minimum seconds between API calls
+    MAX_RETRIES = 3     # Maximum number of retries for rate limit errors
+    BASE_DELAY = 5.0    # Base delay in seconds for exponential backoff
+    
+    def __new__(cls):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super(GeminiRateLimiter, cls).__new__(cls)
+        return cls._instance
+    
+    def wait_for_rate_limit(self):
+        with self._lock:
+            current_time = time.time()
+            time_since_last_call = current_time - self._last_call_time
+            wait_time = max(0, self.MIN_INTERVAL - time_since_last_call)
+            
+            if wait_time > 0:
+                logging.info(f"Rate limiting: Waiting {wait_time:.2f} seconds before next API call")
+                time.sleep(wait_time)
+            
+            self._last_call_time = time.time()
+    
+    def make_api_call_with_retry(self, api_call_func, *args, **kwargs):
+        """
+        Makes an API call with retry logic for rate limit errors.
+        
+        Args:
+            api_call_func: The function that makes the API call
+            *args: Positional arguments to pass to the API call function
+            **kwargs: Keyword arguments to pass to the API call function
+            
+        Returns:
+            The result of the API call
+            
+        Raises:
+            Exception: If all retry attempts are exhausted
+        """
+        last_exception = None
+        
+        for attempt in range(self.MAX_RETRIES + 1):
+            try:
+                # Apply rate limiting
+                self.wait_for_rate_limit()
+                
+                # Make the API call
+                return api_call_func(*args, **kwargs)
+                
+            except Exception as e:
+                last_exception = e
+                if "RATE_LIMIT_EXCEEDED" in str(e) and attempt < self.MAX_RETRIES:
+                    # Calculate exponential backoff with jitter
+                    delay = self.BASE_DELAY * (2 ** attempt) * (0.5 + random.random())
+                    logging.warning(f"Rate limit exceeded (attempt {attempt + 1}/{self.MAX_RETRIES}). "
+                                 f"Retrying in {delay:.2f} seconds...")
+                    time.sleep(delay)
+                    continue
+                elif attempt >= self.MAX_RETRIES:
+                    logging.error(f"Max retries ({self.MAX_RETRIES}) exceeded. Last error: {str(e)}")
+                else:
+                    # For non-rate-limit errors, re-raise immediately
+                    raise
+        
+        # If we get here, all retries were exhausted
+        raise last_exception or Exception("Unknown error in API call with retry")
 
 def analyze_ticker(ticker, company_info):
     """
-    Analyzes a stock ticker using Google Gemini API.
+    Analyzes a stock ticker using Google Gemini API with rate limiting.
 
     Args:
         ticker (str): The stock ticker symbol.
@@ -28,16 +195,17 @@ def analyze_ticker(ticker, company_info):
     if not api_key:
         return "Error: GEMINI_API_KEY not found in environment variables."
 
+    # Initialize rate limiter
+    rate_limiter = GeminiRateLimiter()
+    
+    # Configure Gemini
     genai.configure(api_key=api_key)
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash')
     except Exception as e:
-        print(f"Could not initialize model: {e}")
-        print("Available models:")
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                print(m.name)
-        return "Error: Could not initialize Gemini model."
+        # If API is disabled or unauthorized, listing models will also fail.
+        # Provide actionable guidance instead of attempting further calls.
+        return _format_gemini_error(e)
 
 
     prompt = f"""
@@ -66,10 +234,14 @@ def analyze_ticker(ticker, company_info):
     """
 
     try:
+        # Apply rate limiting
+        rate_limiter.wait_for_rate_limit()
+        
+        # Make the API call
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"An error occurred while communicating with the Gemini API: {e}"
+        return _format_gemini_error(e)
 
 def _get_filing_url(ticker, filing_type):
     """
@@ -628,7 +800,7 @@ def analyze_10k_report(ticker):
     # full_text = soup.get_text(separator='\n', strip=True)
     
     # Save HTML content to a file
-    html_path = f"{ticker}_10Q.html"
+    html_path = f"{ticker}_10K.html"
     try:
         with open(html_path, 'w', encoding='utf-8') as f:
             f.write(report_text)
@@ -714,7 +886,7 @@ def analyze_10k_report(ticker):
 
     genai.configure(api_key=api_key)
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash')
     except Exception as e:
         return f"Error: Could not initialize Gemini model: {e}"
 
@@ -741,6 +913,13 @@ def analyze_10k_report(ticker):
     """
 
     try:
+        # Initialize rate limiter
+        rate_limiter = GeminiRateLimiter()
+        
+        # Apply rate limiting
+        rate_limiter.wait_for_rate_limit()
+        
+        # Make the API call
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
@@ -920,7 +1099,7 @@ def analyze_10q_report(ticker):
 
     genai.configure(api_key=api_key)
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash')
     except Exception as e:
         return f"Error: Could not initialize Gemini model: {e}"
 
@@ -946,6 +1125,13 @@ def analyze_10q_report(ticker):
     """
 
     try:
+        # Initialize rate limiter
+        rate_limiter = GeminiRateLimiter()
+        
+        # Apply rate limiting
+        rate_limiter.wait_for_rate_limit()
+        
+        # Make the API call
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
@@ -962,13 +1148,14 @@ def analyze_news(news_articles):
         str: A structured summary of the news.
     """
     load_dotenv()
+    # load_dotenv(dotenv_path=Path(__file__).resolve().parents[1] / ".env") 
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         return "Error: GEMINI_API_KEY not found in environment variables."
 
     genai.configure(api_key=api_key)
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash')
     except Exception as e:
         return f"Error: Could not initialize Gemini model: {e}"
 
@@ -984,6 +1171,13 @@ def analyze_news(news_articles):
         新闻内容: {article.get('content', 'N/A')}
         """
         try:
+            # Initialize rate limiter
+            rate_limiter = GeminiRateLimiter()
+            
+            # Apply rate limiting
+            rate_limiter.wait_for_rate_limit()
+            
+            # Make the API call
             response = model.generate_content(prompt)
             # Clean the response to make it valid JSON
             cleaned_response = response.text.strip().replace("```json", "").replace("```", "")
@@ -1035,7 +1229,7 @@ def general_search(ticker, company_info, query):
 
     genai.configure(api_key=api_key)
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash')
     except Exception as e:
         print(f"Could not initialize model: {e}")
         return "Error: Could not initialize Gemini model."
@@ -1054,11 +1248,17 @@ def general_search(ticker, company_info, query):
     """
 
     try:
-        response = model.generate_content(prompt)
+        # Initialize rate limiter
+        rate_limiter = GeminiRateLimiter()
+        
+        # Make the API call with retry mechanism
+        def make_api_call():
+            return model.generate_content(prompt)
+            
+        response = rate_limiter.make_api_call_with_retry(make_api_call)
         return response.text
     except Exception as e:
         return f"An error occurred while communicating with the Gemini API: {e}"
-
 
 def general_ai_search(query):
     """
@@ -1077,7 +1277,7 @@ def general_ai_search(query):
 
     genai.configure(api_key=api_key)
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash')
     except Exception as e:
         print(f"Could not initialize model: {e}")
         return "Error: Could not initialize Gemini model."
@@ -1091,7 +1291,14 @@ def general_ai_search(query):
     """
 
     try:
-        response = model.generate_content(prompt)
+        # Initialize rate limiter
+        rate_limiter = GeminiRateLimiter()
+        
+        # Make the API call with retry mechanism
+        def make_api_call():
+            return model.generate_content(prompt)
+            
+        response = rate_limiter.make_api_call_with_retry(make_api_call)
         return response.text
     except Exception as e:
         return f"An error occurred while communicating with the Gemini API: {e}"
