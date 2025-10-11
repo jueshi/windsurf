@@ -437,6 +437,10 @@ class StockDataGUI:
         # Refresh Lists button reloads ticker lists from ticker_lists.py
         ttk.Button(button_frame, text="Refresh Lists", command=self._refresh_ticker_lists).pack(side=tk.LEFT, padx=(0, 5))
         
+        # Navigation between lists
+        ttk.Button(button_frame, text="Prev List", command=self._go_prev_list).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(button_frame, text="Next List", command=self._go_next_list).pack(side=tk.LEFT, padx=(0, 5))
+
         # Remove List button removes the currently selected list from ticker_lists.py
         ttk.Button(button_frame, text="Remove List", command=self._remove_current_list).pack(side=tk.LEFT)
         ttk.Button(button_frame, text="Live Charts", command=self._open_live_charts_for_current_list).pack(side=tk.LEFT, padx=(5, 0))
@@ -1009,6 +1013,38 @@ class StockDataGUI:
             self.status_var.set(f"Selected list: {selected_list} with {len(self.ticker_lists[selected_list])} tickers")
             # Auto-load the selected ticker list
             self._load_ticker_list()
+
+    def _go_prev_list(self):
+        try:
+            values = list(self.ticker_list_combo['values']) if self.ticker_list_combo else []
+            if not values:
+                messagebox.showwarning("No Lists", "There are no ticker lists to navigate.")
+                return
+            current = self.ticker_list_var.get()
+            idx = values.index(current) if current in values else 0
+            new_idx = (idx - 1) % len(values)
+            new_name = values[new_idx]
+            self.ticker_list_var.set(new_name)
+            self._load_ticker_list()
+            self.status_var.set(f"Switched to list: {new_name} ({len(self.ticker_lists.get(new_name, []))} tickers)")
+        except Exception as e:
+            logging.error(f"Error going to previous list: {e}")
+
+    def _go_next_list(self):
+        try:
+            values = list(self.ticker_list_combo['values']) if self.ticker_list_combo else []
+            if not values:
+                messagebox.showwarning("No Lists", "There are no ticker lists to navigate.")
+                return
+            current = self.ticker_list_var.get()
+            idx = values.index(current) if current in values else -1
+            new_idx = (idx + 1) % len(values)
+            new_name = values[new_idx]
+            self.ticker_list_var.set(new_name)
+            self._load_ticker_list()
+            self.status_var.set(f"Switched to list: {new_name} ({len(self.ticker_lists.get(new_name, []))} tickers)")
+        except Exception as e:
+            logging.error(f"Error going to next list: {e}")
 
     def _open_live_charts_for_current_list(self):
         try:
