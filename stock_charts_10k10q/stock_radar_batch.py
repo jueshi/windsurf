@@ -33,11 +33,21 @@ import re
 import os
 from datetime import datetime, timedelta
 import google.generativeai as genai
+import os
 
 # ===== 用户配置 =====
 stock_list = ["META", "NVDA", "MSFT"]  # 你要跟踪的股票代码列表
 api_key = os.getenv("GEMINI_API_KEY")
-model_name = "gemini-1.5-flash"
+# Prefer env override; default to a current flash model. We'll also try fallbacks automatically.
+model_name = os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash")
+
+_MODEL_FALLBACKS = [
+    # Order matters; most capable first
+    model_name,
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash-8b",
+]
 
 def analyze_stock(stock_code):
     """调用AI分析单只股票，并返回结果字典"""
@@ -71,13 +81,27 @@ def analyze_stock(stock_code):
     CANSLIM综合评分（数字）
     """
     genai.configure(api_key=api_key)
-    try:
-        model = genai.GenerativeModel(model_name)
-    except Exception as e:
-        raise Exception(f"Error initializing model: {e}")
-    resp = model.generate_content(analysis_prompt)
-    text = resp.text or ""
-
+    last_err = None
+    text = ""
+    # Try candidates until one succeeds
+    for _name in _MODEL_FALLBACKS:
+        try:
+            if not _name:
+                continue
+            model = genai.GenerativeModel(_name)
+            resp = model.generate_content(analysis_prompt)
+            text = (resp.text or "").strip()
+            if text:
+                break
+        except Exception as e:
+            last_err = e
+            # Try next model if 404/not supported
+            if any(tok in str(e) for tok in ["404", "not found", "not supported", "Unsupported", "NOT_FOUND"]):
+                continue
+            # Other errors: re-raise to surface auth/rate-limit issues
+            raise
+    else:
+        raise Exception(f"Failed to generate content with Gemini models. Last error: {last_err}")
     # Robust extraction with validation
     m_blist = re.search(r'Buffett分数列表.*?(\d+(?:,\d+){7})', text)
     m_btotal = re.search(r'Buffett综合评分.*?(\d+)', text)

@@ -42,6 +42,7 @@ import sec_filing_extractor
 import sec_api_wrapper
 import webbrowser
 import tempfile
+from live_chart_generator import generate_chart_html
 from thread_safe_tkinter import (
     setup_thread_safe_tkinter,
     safe_update_text_widget,
@@ -438,6 +439,7 @@ class StockDataGUI:
         
         # Remove List button removes the currently selected list from ticker_lists.py
         ttk.Button(button_frame, text="Remove List", command=self._remove_current_list).pack(side=tk.LEFT)
+        ttk.Button(button_frame, text="Live Charts", command=self._open_live_charts_for_current_list).pack(side=tk.LEFT, padx=(5, 0))
 
         # Create a frame for the second row with Add Ticker and New List Name
         second_row_frame = ttk.Frame(top_frame)
@@ -860,6 +862,31 @@ class StockDataGUI:
         ttk.Label(ba_filter_frame, text="(Multiple terms use AND logic, ! for exclusion)", 
                  font=("Helvetica", 8)).pack(side=tk.LEFT, padx=5)
         
+        # BA tuning controls: freshness (days), history depth, and show/hide change-over-time
+        ba_opts_frame = ttk.Frame(ba_frame)
+        ba_opts_frame.pack(fill=tk.X, pady=(0,5))
+        
+        # Variables
+        self.ba_freshness_days_var = tk.IntVar(value=30)
+        self.ba_history_max_items_var = tk.IntVar(value=5)
+        self.ba_show_change_var = tk.BooleanVar(value=True)
+        
+        ttk.Label(ba_opts_frame, text="Freshness (days):").pack(side=tk.LEFT, padx=(0,5))
+        try:
+            freshness_spin = ttk.Spinbox(ba_opts_frame, from_=1, to=365, width=5, textvariable=self.ba_freshness_days_var)
+        except Exception:
+            freshness_spin = tk.Spinbox(ba_opts_frame, from_=1, to=365, width=5, textvariable=self.ba_freshness_days_var)
+        freshness_spin.pack(side=tk.LEFT)
+        
+        ttk.Label(ba_opts_frame, text="History (max):").pack(side=tk.LEFT, padx=(10,5))
+        try:
+            history_spin = ttk.Spinbox(ba_opts_frame, from_=1, to=20, width=5, textvariable=self.ba_history_max_items_var)
+        except Exception:
+            history_spin = tk.Spinbox(ba_opts_frame, from_=1, to=20, width=5, textvariable=self.ba_history_max_items_var)
+        history_spin.pack(side=tk.LEFT)
+        
+        ttk.Checkbutton(ba_opts_frame, text="Show Change Over Time", variable=self.ba_show_change_var).pack(side=tk.LEFT, padx=(10,0))
+        
         ba_text_frame = ttk.Frame(ba_frame)
         ba_text_frame.pack(fill=tk.BOTH, expand=True, pady=5)
 
@@ -982,6 +1009,31 @@ class StockDataGUI:
             self.status_var.set(f"Selected list: {selected_list} with {len(self.ticker_lists[selected_list])} tickers")
             # Auto-load the selected ticker list
             self._load_ticker_list()
+
+    def _open_live_charts_for_current_list(self):
+        try:
+            selected_list = self.ticker_list_var.get()
+            if not selected_list or selected_list not in self.ticker_lists:
+                messagebox.showwarning("No List Selected", "Please select a ticker list first.")
+                return
+            tickers = [t for t in self.ticker_lists.get(selected_list, []) if isinstance(t, str) and t.strip()]
+            if not tickers:
+                messagebox.showwarning("Empty List", "The selected ticker list is empty.")
+                return
+            columns = 4
+            output_path = os.path.join(tempfile.gettempdir(), f"{selected_list}_stock_charts.html")
+            generate_chart_html(tickers, columns, output_path)
+            try:
+                webbrowser.register('edge', None, webbrowser.BackgroundBrowser(r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'))
+                webbrowser.get('edge').open(f"file:///{os.path.abspath(output_path)}")
+                self.status_var.set(f"Live charts for {selected_list} opened in Edge browser")
+            except Exception as browser_error:
+                logging.warning(f"Could not open Edge browser: {browser_error}. Using default browser.")
+                webbrowser.open(f"file:///{os.path.abspath(output_path)}")
+                self.status_var.set(f"Live charts for {selected_list} opened in default browser")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error generating live charts: {str(e)}")
+            self.status_var.set("Error generating live charts")
 
     # def _refresh_ticker_lists(self):
     #     """Reload ticker lists from ticker_lists.py"""
@@ -3551,6 +3603,89 @@ class StockDataGUI:
             messagebox.showerror("Error", f"Error generating HTML report: {str(e)}")
             self.status_var.set("Error generating HTML report")
 
+    def _get_ba_cache_file(self, ticker: str) -> str:
+        """Return a unique timestamped BA markdown cache file path for a ticker."""
+        cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache")
+        os.makedirs(cache_dir, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        return os.path.join(cache_dir, f"{ticker}_business_analysis_{ts}.md")
+
+    def _find_latest_ba_cache_file(self, ticker: str) -> str | None:
+        """Return the most recent BA markdown cache file path for a ticker, or None if none found."""
+        try:
+            cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache")
+            if not os.path.isdir(cache_dir):
+                return None
+            prefix = f"{ticker}_business_analysis"
+            candidates = [
+                os.path.join(cache_dir, name)
+                for name in os.listdir(cache_dir)
+                if name.startswith(prefix) and name.endswith(".md")
+            ]
+            if not candidates:
+                return None
+            return max(candidates, key=lambda p: os.path.getmtime(p))
+        except Exception:
+            return None
+
+    def _list_ba_cache_files(self, ticker: str) -> list[str]:
+        """Return all BA markdown files for ticker sorted by mtime descending (latest first)."""
+        cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache")
+        if not os.path.isdir(cache_dir):
+            return []
+        prefix = f"{ticker}_business_analysis"
+        paths = [
+            os.path.join(cache_dir, name)
+            for name in os.listdir(cache_dir)
+            if name.startswith(prefix) and name.endswith('.md')
+        ]
+        return sorted(paths, key=lambda p: os.path.getmtime(p), reverse=True)
+
+    def _build_ba_change_over_time_section(self, ticker: str, max_items: int = 5) -> str:
+        """Build a markdown section summarizing change over time using historical BA files."""
+        try:
+            files = self._list_ba_cache_files(ticker)
+            if len(files) < 2:
+                return ""
+            files = files[:max_items]
+
+            from difflib import ndiff, SequenceMatcher
+            lines = ["## Change Over Time (last {} versions)".format(len(files))]
+            # Add list of versions with timestamps
+            for idx, path in enumerate(files):
+                ts = datetime.fromtimestamp(os.path.getmtime(path)).strftime('%Y-%m-%d %H:%M:%S')
+                label = "latest" if idx == 0 else ""
+                lines.append(f"- {ts} {label}")
+
+            # Compare adjacent versions for quick stats (latest vs previous, etc.)
+            lines.append("")
+            for i in range(len(files) - 1):
+                newer = files[i]
+                older = files[i + 1]
+                with open(newer, 'r', encoding='utf-8') as f1, open(older, 'r', encoding='utf-8') as f2:
+                    new_txt = f1.read().splitlines()
+                    old_txt = f2.read().splitlines()
+                diff = list(ndiff(old_txt, new_txt))
+                added = sum(1 for d in diff if d.startswith('+ '))
+                removed = sum(1 for d in diff if d.startswith('- '))
+                ratio = SequenceMatcher(None, '\n'.join(old_txt), '\n'.join(new_txt)).ratio()
+                new_ts = datetime.fromtimestamp(os.path.getmtime(newer)).strftime('%Y-%m-%d %H:%M:%S')
+                old_ts = datetime.fromtimestamp(os.path.getmtime(older)).strftime('%Y-%m-%d %H:%M:%S')
+                lines.append(f"- Δ {old_ts} → {new_ts}: +{added} / -{removed}, similarity {ratio:.2f}")
+
+            return "\n".join(lines)
+        except Exception as e:
+            logging.error(f"Error building BA change-over-time section: {e}")
+            return ""
+
+    def _is_cache_fresh(self, path: str, days: int = 30) -> bool:
+        """Check if file at path was modified within the last `days`."""
+        try:
+            mtime = os.path.getmtime(path)
+            return (datetime.now() - datetime.fromtimestamp(mtime)) <= timedelta(days=days)
+        except Exception:
+            return False
+
     def _run_business_analysis(self):
         """Runs the business analysis for the selected ticker."""
         selected_tickers = self._get_selected_tickers(show_warning=True)
@@ -3563,6 +3698,26 @@ class StockDataGUI:
             selected_tickers = [self.watch_listbox.get(i).strip() for i in selected_indices]
 
         ticker = selected_tickers[0]
+        # Load fresh cached BA markdown (<= 30 days) if available
+        try:
+            cache_file = self._find_latest_ba_cache_file(ticker)
+            if cache_file and os.path.exists(cache_file) and self._is_cache_fresh(cache_file, days=self.ba_freshness_days_var.get()):
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    cached_md = f.read()
+                self.business_analysis_original_text = cached_md
+                self.business_analysis_filter_var.set("")
+                safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
+                safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, cached_md)
+                safe_update_text_widget(self.business_analysis_text, 'see', "1.0")
+                # Append change-over-time section if enabled and history exists
+                if self.ba_show_change_var.get():
+                    change_md = self._build_ba_change_over_time_section(ticker, max_items=self.ba_history_max_items_var.get())
+                    if change_md:
+                        safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, "\n\n---\n" + change_md)
+                safe_update_status(self.status_var, f"Loaded cached Business Analysis for {ticker} (fresh)")
+                return
+        except Exception as e:
+            logging.error(f"Error reading BA cache: {e}")
         # Use thread-safe text widget updates
         safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
         safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, f"Running business analysis for {ticker}...")
@@ -3594,15 +3749,25 @@ class StockDataGUI:
                 safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
                 safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, analysis_result)
                 safe_update_text_widget(self.business_analysis_text, 'see', "1.0")
-
-                # Save the analysis to a file
+                # Append change-over-time section based on saved history if enabled
                 try:
-                    analysis_dir = os.path.join("stock_data", "business_analysis")
-                    os.makedirs(analysis_dir, exist_ok=True)
-                    analysis_file = os.path.join(analysis_dir, f"{ticker}_analysis.txt")
+                    if self.ba_show_change_var.get():
+                        change_md = self._build_ba_change_over_time_section(ticker, max_items=self.ba_history_max_items_var.get())
+                        if change_md:
+                            safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, "\n\n---\n" + change_md)
+                except Exception:
+                    pass
+
+                # Save the analysis to a markdown cache file
+                try:
+                    analysis_file = self._get_ba_cache_file(ticker)
                     with open(analysis_file, "w", encoding="utf-8") as f:
+                        # Optionally add a simple header
+                        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        f.write(f"# Business Analysis: {ticker}\n\n")
+                        f.write(f"_Generated: {timestamp}_\n\n")
                         f.write(analysis_result)
-                    safe_update_status(self.status_var, f"Saved analysis for {ticker}")
+                    safe_update_status(self.status_var, f"Saved Business Analysis markdown for {ticker}")
                 except Exception as e:
                     logging.error(f"Could not save analysis: {e}")
                     safe_show_message('error', "Error", f"Could not save analysis: {e}")
@@ -3676,12 +3841,9 @@ class StockDataGUI:
     def _load_cached_analysis(self, ticker):
         """Load cached business analysis for a ticker"""
         try:
-            # Check if we have a cached analysis
-            cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache")
-            os.makedirs(cache_dir, exist_ok=True)
-            cache_file = os.path.join(cache_dir, f"{ticker}_business_analysis.txt")
-            
-            if os.path.exists(cache_file):
+            # Check if we have a fresh cached analysis (load latest)
+            cache_file = self._find_latest_ba_cache_file(ticker)
+            if cache_file and os.path.exists(cache_file) and self._is_cache_fresh(cache_file, days=self.ba_freshness_days_var.get()):
                 with open(cache_file, "r", encoding="utf-8") as f:
                     analysis = f.read()
                 
@@ -3694,12 +3856,21 @@ class StockDataGUI:
                 # Use thread-safe text widget updates
                 safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
                 safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, analysis)
-                safe_update_status(self.status_var, f"Loaded cached business analysis for {ticker}")
+                # Append change-over-time section if enabled and history exists
+                if self.ba_show_change_var.get():
+                    change_md = self._build_ba_change_over_time_section(ticker, max_items=self.ba_history_max_items_var.get())
+                    if change_md:
+                        safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, "\n\n---\n" + change_md)
+                safe_update_status(self.status_var, f"Loaded cached business analysis for {ticker} (fresh)")
                 return True
             else:
                 safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
-                safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, 
-                                       f"No cached analysis found for {ticker}. Click 'Analyze' to generate.")
+                safe_update_text_widget(
+                    self.business_analysis_text,
+                    'insert',
+                    tk.END,
+                    f"No fresh cached analysis found for {ticker}. Click 'Run BA' to generate or refresh."
+                )
                 return False
         except Exception as e:
             logging.error(f"Error loading cached analysis: {e}")

@@ -179,6 +179,36 @@ class GeminiRateLimiter:
         # If we get here, all retries were exhausted
         raise last_exception or Exception("Unknown error in API call with retry")
 
+# ----- Gemini model selection helpers -----
+def _get_gemini_model_candidates() -> list:
+    """Build a list of Gemini model candidates using env override and sensible fallbacks."""
+    env_name = os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash")
+    candidates = [env_name, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-8b"]
+    # De-duplicate while preserving order
+    seen = set()
+    ordered = []
+    for n in candidates:
+        if n and n not in seen:
+            seen.add(n)
+            ordered.append(n)
+    return ordered
+
+def _init_gemini_model_with_fallback() -> genai.GenerativeModel:
+    """Try to initialize a GenerativeModel across known candidates; fall back on 404/unsupported."""
+    last_err = None
+    for name in _get_gemini_model_candidates():
+        try:
+            return genai.GenerativeModel(name)
+        except Exception as e:
+            last_err = e
+            msg = str(e)
+            if any(tok in msg for tok in ["404", "not found", "NOT_FOUND", "not supported", "Unsupported"]):
+                continue
+            # Other errors (auth, service disabled) should bubble for better guidance
+            raise
+    # If none worked, raise the last error for formatting upstream
+    raise last_err or Exception("No supported Gemini model found")
+
 def analyze_ticker(ticker, company_info):
     """
     Analyzes a stock ticker using Google Gemini API with rate limiting.
@@ -201,10 +231,9 @@ def analyze_ticker(ticker, company_info):
     # Configure Gemini
     genai.configure(api_key=api_key)
     try:
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        model = _init_gemini_model_with_fallback()
     except Exception as e:
-        # If API is disabled or unauthorized, listing models will also fail.
-        # Provide actionable guidance instead of attempting further calls.
+        # If API is disabled or unauthorized, return actionable guidance
         return _format_gemini_error(e)
 
 
@@ -1229,10 +1258,10 @@ def general_search(ticker, company_info, query):
 
     genai.configure(api_key=api_key)
     try:
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        model = _init_gemini_model_with_fallback()
     except Exception as e:
         print(f"Could not initialize model: {e}")
-        return "Error: Could not initialize Gemini model."
+        return _format_gemini_error(e)
 
     prompt = f"""
     针对股票代码为 '{ticker}' 的公司 '{company_info.get('longName', 'N/A')}'，请回答以下问题。
