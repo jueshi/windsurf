@@ -91,6 +91,9 @@ class StockDataGUI:
             logging.error(f"Error loading watch list: {e}")
 
         self._create_widgets()
+        
+        # Auto-load the first ticker list after GUI is created
+        self.root.after(200, self._load_first_ticker_list)
 
     def _load_ticker_lists_from_module(self):
         """Load all ticker lists from ticker_lists module"""
@@ -517,9 +520,9 @@ class StockDataGUI:
         ticker_buttons_frame = ttk.Frame(left_frame)
         ticker_buttons_frame.pack(fill=tk.X, pady=(5, 0))
         
-        ttk.Button(ticker_buttons_frame, text="↑ Move Up", command=self._move_ticker_up, width=10).pack(side=tk.LEFT, padx=(0, 2))
-        ttk.Button(ticker_buttons_frame, text="↓ Move Down", command=self._move_ticker_down, width=10).pack(side=tk.LEFT, padx=(0, 2))
-        ttk.Button(ticker_buttons_frame, text="Sort A-Z", command=self._sort_tickers, width=10).pack(side=tk.LEFT)
+        ttk.Button(ticker_buttons_frame, text="A-Z", command=self._sort_tickers, width=10).pack(side=tk.LEFT)
+        ttk.Button(ticker_buttons_frame, text="↑", command=self._move_ticker_up, width=10).pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Button(ticker_buttons_frame, text="↓", command=self._move_ticker_down, width=10).pack(side=tk.LEFT, padx=(0, 2))
 
         # --- Middle Pane: Watch List ---
         middle_pane_frame = ttk.Frame(self.paned_window, width=50)  # Set very narrow fixed width
@@ -1185,6 +1188,17 @@ class StockDataGUI:
             self.status_var.set(f"Filter {terms_display}: showing {filtered_count}/{len(tickers)} tickers from {selected_list}")
         else:
             self.status_var.set(f"Showing all {len(tickers)} tickers from {selected_list}")
+
+    def _load_first_ticker_list(self):
+        """Automatically load the first ticker list on startup"""
+        if self.ticker_lists:
+            # Get the first list name
+            first_list = list(self.ticker_lists.keys())[0]
+            # Set it as the selected value in the combobox
+            self.ticker_list_var.set(first_list)
+            # Load the list
+            self._load_ticker_list()
+            logging.info(f"Auto-loaded first ticker list: {first_list}")
 
     def _load_ticker_list(self):
         """Load selected ticker list into listbox"""

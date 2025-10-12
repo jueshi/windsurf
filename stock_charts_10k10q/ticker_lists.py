@@ -5,6 +5,10 @@
 
 import json
 
+A_ping_401k_ping_stocks = ["AAPL", "AMZN", "AMZU", "ASAN", "AVGO", "CRDO", "CRWD", "FRMI", "INTC", "LRCX", "META", "MSFT", "MSTR", "NVDA", "PRCT", "QCOM", "QQQ", "QQQM", "SPMO", "SPY", "TECS", "TSLA", "V"]
+
+A_jue_401k_2025_stocks = ["AAOI", "AAPL", "AFRM", "AMGN", "ARMG", "AVGO", "AVL", "AVPT", "BABA", "BIDU", "BRKU", "CQQQ", "CRDO", "CRWD", "CRWL", "CRWV", "CRM", "DBC", "DOXGX", "EDMCQ", "FBL", "FNGU", "FSSNX", "FXAIX", "GLD", "HD", "INTC", "JD", "L", "MCD", "MSFX", "ORCL", "ORCX", "SPY", "TECS", "THD", "TNA", "UBRL", "VIGIX", "YINN", "BRK-B", "AMD", "BB"]
+
 mega_tickers0 = ["NVDA", "MSFT", "AAPL", "GOOG", "GOOGL", "AMZN", "META", "AVGO", "TSM", "BRK-A", "BRK-B", "TSLA", "JPM", "WMT", "LLY", "ORCL", "V", "MA", "NFLX", "XOM"]
 mega_tickers1 = ['COST', 'JNJ', 'HD', 'PLTR', 'PG', 'ABBV', 'BAC', 'SAP', 'CVX', 'KO', 'GE', 'AMD', 'ASML', 'TMUS', 'CSCO', 'BABA', 'PM', 'WFC', 'CRM', 'TM']
 mega_tickers2 = ['IBM', 'AZN', 'MS', 'ABT', 'NVS', 'GS', 'MCD', 'INTU', 'LIN', 'UNH', 'HSBC', 'SHEL', 'RTX', 'DIS', 'BX', 'AXP', 'CAT']
@@ -467,7 +471,8 @@ Buffet_real_estate_stocks = ["DHI", "GLD", "HD", "SOFI", "LEN", "LOW", "SHW"]
 
 
 
-Data_Center_REITs_stocks = ["EQIX", "DLR", "AMT", "IRM"]
+Data_Center_REITs_stocks = ["EQIX", "AMT", "DLR", "IRM"]
+
 
 Residential_REITs_stocks = ["AVB", "EQR", "MAA", "ESS", "UDR", "CPT", "INVH", "AMH"]
 
@@ -495,9 +500,6 @@ buffet_stocks = ["KO", "AXP", "MCO", "HSY", "UNP"]
 
 value_stocks = ["AAPL", "KO", "AXP", "MCO", "JNJ", "PG", "V", "MA", "VRSN"]
 
-ping_401k_stocks = ["AAPL", "AMZN", "AMZU", "ASAN", "AVGO", "CRDO", "CRWD", "FRMI", "INTC", "LRCX", "META", "MSFT", "MSTR", "NVDA", "PRCT", "QCOM", "QQQ", "QQQM", "SPMO", "SPY", "TECS", "TSLA", "V"]
-
-jue_401k_2025_stocks = ["AAOI", "AAPL", "AFRM", "AMGN", "ARMG", "AVGO", "AVL", "AVPT", "BABA", "BIDU", "BRKU", "CQQQ", "CRDO", "CRWD", "CRWL", "CRWV", "CRM", "DBC", "DOXGX", "EDMCQ", "FBL", "FNGU", "FSSNX", "FXAIX", "GLD", "HD", "INTC", "JD", "L", "MCD", "MSFX", "ORCL", "ORCX", "SPY", "TECS", "THD", "TNA", "UBRL", "VIGIX", "YINN", "BRK-B", "AMD", "BB"]
 
 
 
