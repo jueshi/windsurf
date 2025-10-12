@@ -1,23 +1,28 @@
 import json
-import os
-import webbrowser
 
-def generate_chart_html(tickers: list[str], columns: int, output_filename: str = "stock_charts.html"):
+def generate_chart_html(
+    tickers: list[str], 
+    columns: int, 
+    output_filename: str = "stock_charts.html",
+    time_frame: str = "d"
+):
     """
     Generates a self-contained HTML file to display a grid of stock charts.
 
     Args:
         tickers (list[str]): A list of stock ticker symbols.
         columns (int): The number of columns for the chart grid.
+        time_frame (str): The chart time frame. Valid options are:
+                          'd' (daily), 'w' (weekly), 'm' (monthly).
         output_filename (str): The name of the output HTML file.
     """
+    # --- Input Validation ---
+    valid_time_frames = ["d", "w", "m"]
+    if time_frame not in valid_time_frames:
+        raise ValueError(f"Invalid time_frame '{time_frame}'. Please use one of {valid_time_frames}")
 
-    # Safely format the Python list of tickers into a JavaScript array string.
-    # For example: ['AAPL', 'GOOG'] becomes '["AAPL", "GOOG"]'
     tickers_js_array = json.dumps(tickers)
 
-    # The HTML template is structured with f-strings to inject our dynamic values.
-    # The CSS and JavaScript are embedded directly into the template.
     html_template = f"""
 <!DOCTYPE html>
 <html lang="en">
@@ -62,15 +67,17 @@ def generate_chart_html(tickers: list[str], columns: int, output_filename: str =
             color: #34495e;
         }}
         img {{
-            max-width: 100%;
-            height: auto;
+            width: 100%;
+            height: 300px;
+            object-fit: contain;
             display: block;
+            background-color: #ffffff;
         }}
     </style>
 </head>
 <body>
     
-    <h1>Stock Charts</h1>
+    <h1>Stock Charts (Time Frame: {'Daily' if time_frame == 'd' else 'Weekly' if time_frame == 'w' else 'Monthly'})</h1>
 
     <div class="grid-container" id="chart-grid"></div>
 
@@ -78,20 +85,30 @@ def generate_chart_html(tickers: list[str], columns: int, output_filename: str =
         // --- Configuration injected by Python ---
         const tickers = {tickers_js_array};
         const columns = {columns};
+        const timeFrame = "{time_frame}"; // New variable for the time frame
 
         // --- Dynamic Chart Generation Logic ---
         const gridContainer = document.getElementById('chart-grid');
         const flexBasis = 100 / columns;
         
-        // Dynamically create and inject the style rule for the columns
         const style = document.createElement('style');
         style.innerHTML = `.chart-container {{ flex: 1 1 ${{flexBasis}}%; }}`;
         document.head.appendChild(style);
 
         let allChartsHTML = '';
         for (const ticker of tickers) {{
-            const chartUrl = `https://charts2-node.finviz.com/chart.ashx?cs=&t=${{ticker.toUpperCase()}}&tf=d&s=linear&pm=240&am=1200&ct=candle_stick&tm=d&o[0][ot]=sma&o[0][op]=50&o[0][oc]=FF8F33C6&o[1][ot]=sma&o[1][op]=200&o[1][oc]=DCB3326D&o[2][ot]=patterns&o[2][op]=&o[2][oc]=000`;
-            
+            // --- UPDATED LOGIC ---
+            // Determine the correct range parameter ('r') based on the time frame
+            let rangeParam = '';
+            if (timeFrame === 'w') {{
+                rangeParam = '&r=y2';
+            }} else if (timeFrame === 'm') {{
+                rangeParam = '&r=max';
+            }}
+
+            // Construct the final URL with the correct range parameter
+            const chartUrl = `https://charts2-node.finviz.com/chart.ashx?cs=&t=${{ticker.toUpperCase()}}&tf=${{timeFrame}}&s=linear&pm=240&am=1200&ct=candle_stick&tm=d${{rangeParam}}&o[0][ot]=sma&o[0][op]=50&o[0][oc]=FF8F33C6&o[1][ot]=sma&o[1][op]=200&o[1][oc]=DCB3326D&o[2][ot]=patterns&o[2][op]=&o[2][oc]=000`;
+                  
             allChartsHTML += `
                 <div class="chart-container">
                     <h2>${{ticker.toUpperCase()}}</h2>
@@ -99,7 +116,6 @@ def generate_chart_html(tickers: list[str], columns: int, output_filename: str =
                 </div>
             `;
         }}
-        // Insert the complete HTML string into the container at once for better performance
         gridContainer.innerHTML = allChartsHTML;
     </script>
 
@@ -107,29 +123,28 @@ def generate_chart_html(tickers: list[str], columns: int, output_filename: str =
 </html>
 """
 
-    # Write the generated HTML string to the specified file
     try:
         with open(output_filename, "w") as f:
             f.write(html_template)
-        print(f"✅ Successfully generated '{output_filename}'")
+        print(f"✅ Successfully generated '{output_filename}' with a {time_frame.upper()} time frame.")
     except IOError as e:
         print(f"❌ Error writing to file: {e}")
 
-
 # --- Main execution block ---
 if __name__ == "__main__":
-    # Define your list of tickers and desired number of columns here
     my_tickers = [
         'AAPL', 'MSFT', 'GOOG', 'AMZN', 'NVDA', 'TSLA', 'META', 'JPM',
         'V', 'JNJ', 'UNH', 'WMT', 'PG', 'MA'
     ]
     
     number_of_columns = 4
-
-    # Call the function to generate the HTML file
-    output_filename = "stock_charts.html"
-    generate_chart_html(my_tickers, number_of_columns, output_filename)
     
-    # Open the generated HTML in Chrome
-    webbrowser.register('chrome', None, webbrowser.BackgroundBrowser('C:/Program Files/Google/Chrome/Application/chrome.exe'))
-    webbrowser.get('chrome').open(os.path.abspath(output_filename))
+    # Customize your time frame here: 'd' for daily, 'w' for weekly, 'm' for monthly
+    time_frame_setting = "w"
+
+    # Call the function with the new time_frame argument
+    generate_chart_html(
+        tickers=my_tickers, 
+        columns=number_of_columns, 
+        time_frame=time_frame_setting
+    )

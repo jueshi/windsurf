@@ -43,6 +43,7 @@ import sec_api_wrapper
 import webbrowser
 import tempfile
 from live_chart_generator import generate_chart_html
+from multi_tf_charts import generate_multi_timeframe_chart_html
 from thread_safe_tkinter import (
     setup_thread_safe_tkinter,
     safe_update_text_widget,
@@ -443,7 +444,10 @@ class StockDataGUI:
 
         # Remove List button removes the currently selected list from ticker_lists.py
         ttk.Button(button_frame, text="Remove List", command=self._remove_current_list).pack(side=tk.LEFT)
-        ttk.Button(button_frame, text="Live Charts", command=self._open_live_charts_for_current_list).pack(side=tk.LEFT, padx=(5, 0))
+        ttk.Button(button_frame, text="Daily Gallery", command=lambda: self._open_live_charts_for_current_list(time_frame="d")).pack(side=tk.LEFT, padx=(5, 0))
+        ttk.Button(button_frame, text="Weekly", command=lambda: self._open_live_charts_for_current_list(time_frame="w")).pack(side=tk.LEFT, padx=(5, 0))
+        ttk.Button(button_frame, text="Monthly", command=lambda: self._open_live_charts_for_current_list(time_frame="m")).pack(side=tk.LEFT, padx=(5, 0))
+        ttk.Button(button_frame, text="Multi-TF Gallery", command=self._open_multi_timeframe_gallery_for_current_list).pack(side=tk.LEFT, padx=(5, 0))
 
         # Create a frame for the second row with Add Ticker and New List Name
         second_row_frame = ttk.Frame(top_frame)
@@ -1046,7 +1050,7 @@ class StockDataGUI:
         except Exception as e:
             logging.error(f"Error going to next list: {e}")
 
-    def _open_live_charts_for_current_list(self):
+    def _open_live_charts_for_current_list(self, time_frame="d"):
         try:
             selected_list = self.ticker_list_var.get()
             if not selected_list or selected_list not in self.ticker_lists:
@@ -1058,7 +1062,7 @@ class StockDataGUI:
                 return
             columns = 4
             output_path = os.path.join(tempfile.gettempdir(), f"{selected_list}_stock_charts.html")
-            generate_chart_html(tickers, columns, output_path)
+            generate_chart_html(tickers, columns, output_path, time_frame=time_frame)
             try:
                 webbrowser.register('edge', None, webbrowser.BackgroundBrowser(r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'))
                 webbrowser.get('edge').open(f"file:///{os.path.abspath(output_path)}")
@@ -1070,6 +1074,30 @@ class StockDataGUI:
         except Exception as e:
             messagebox.showerror("Error", f"Error generating live charts: {str(e)}")
             self.status_var.set("Error generating live charts")
+
+    def _open_multi_timeframe_gallery_for_current_list(self):
+        try:
+            selected_list = self.ticker_list_var.get()
+            if not selected_list or selected_list not in self.ticker_lists:
+                messagebox.showwarning("No List Selected", "Please select a ticker list first.")
+                return
+            tickers = [t for t in self.ticker_lists.get(selected_list, []) if isinstance(t, str) and t.strip()]
+            if not tickers:
+                messagebox.showwarning("Empty List", "The selected ticker list is empty.")
+                return
+            output_path = os.path.join(tempfile.gettempdir(), f"{selected_list}_multi_timeframe_charts.html")
+            generate_multi_timeframe_chart_html(tickers, output_filename=output_path)
+            try:
+                webbrowser.register('edge', None, webbrowser.BackgroundBrowser(r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'))
+                webbrowser.get('edge').open(f"file:///{os.path.abspath(output_path)}")
+                self.status_var.set(f"Multi-timeframe gallery for {selected_list} opened in Edge browser")
+            except Exception as browser_error:
+                logging.warning(f"Could not open Edge browser: {browser_error}. Using default browser.")
+                webbrowser.open(f"file:///{os.path.abspath(output_path)}")
+                self.status_var.set(f"Multi-timeframe gallery for {selected_list} opened in default browser")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error generating multi-timeframe gallery: {str(e)}")
+            self.status_var.set("Error generating multi-timeframe gallery")
 
     # def _refresh_ticker_lists(self):
     #     """Reload ticker lists from ticker_lists.py"""

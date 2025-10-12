@@ -636,6 +636,24 @@ high_profit_margin_stocks = ["NOW", "DDOG", "CRWD", "MPWR", "NVDA", "PANW"]
 ticker_1_brokerage_link_stocks = ["CQQQ", "FBL", "MSFX", "UBRL", "THD", "ORCX", "CRWL", "BRKU", "AVL", "ARMG"]
 
 
+buffet_stocks = ["KO", "AXP", "MCO", "HSY", "UNP"]
+
+
+value_stocks = ["AAPL", "KO", "AXP", "MCO", "JNJ", "PG", "V", "MA", "VRSN"]
+
+
+
+
+ping_401k_stocks = ["AAPL", "AMZN", "AMZU", "ASAN", "AVGO", "CRDO", "CRWD", "FRMI", "INTC", "LRCX", "META", "MSFT", "MSTR", "NVDA", "PRCT", "QCOM", "QQQ", "QQQM", "SPMO", "SPY", "TECS", "TSLA", "V"]
+
+
+jue_401k_2025_stocks = ["AAOI", "AAPL", "AFRM", "AMGN", "ARMG", "AVGO", "AVL", "AVPT", "BABA", "BIDU", "BRKU", "CQQQ", "CRDO", "CRWD", "CRWL", "CRWV", "CRM", "DBC", "DOXGX", "EDMCQ", "FBL", "FNGU", "FSSNX", "FXAIX", "GLD", "HD", "INTC", "JD", "L", "MCD", "MSFX", "ORCL", "ORCX", "SPY", "TECS", "THD", "TNA", "UBRL", "VIGIX", "YINN", "BRK-B", "AMD", "BB"]
+
+
+
+
+
+
 # Function to check if a ticker symbol is valid and suggest alternatives if not
 def validate_ticker(ticker):
     import yfinance as yf
