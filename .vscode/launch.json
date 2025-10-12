@@ -1,0 +1,41 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: stock_charts_refactored",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/stock_charts_refactored/main.py",
+      "cwd": "${workspaceFolder}/stock_charts_refactored",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONWARNINGS": "ignore::FutureWarning"
+      }
+    },
+    {
+      "name": "Python: stock_charts_10k10q",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/stock_charts_10k10q/main.py",
+      "cwd": "${workspaceFolder}/stock_charts_10k10q",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONWARNINGS": "ignore::FutureWarning"
+      }
+    },
+    {
+      "name": "Python: live_chart_generator",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/stock_charts_10k10q/live_chart_generator.py",
+      "cwd": "${workspaceFolder}/stock_charts_10k10q",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONWARNINGS": "ignore::FutureWarning"
+      }
+    }
+  ]
+}

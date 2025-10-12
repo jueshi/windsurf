@@ -1,0 +1,30 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Stock Data Manager (main.py)",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/stock_charts_10k10q/main.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "redirectOutput": true,
+      "env": {
+        "PYTHONWARNINGS": "ignore"
+      },
+      "python": "C:/Program Files/Python311/python.exe"
+    },
+    {
+      "name": "Run Live Chart Generator",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/stock_charts_10k10q/live_chart_generator.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "redirectOutput": true,
+      "python": "C:/Program Files/Python311/python.exe"
+    }
+  ]
+}

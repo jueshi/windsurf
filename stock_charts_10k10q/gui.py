@@ -513,6 +513,14 @@ class StockDataGUI:
         self.ticker_listbox.config(yscrollcommand=scrollbar.set)
         scrollbar.config(command=self.ticker_listbox.yview)
 
+        # Add buttons for reordering and sorting tickers
+        ticker_buttons_frame = ttk.Frame(left_frame)
+        ticker_buttons_frame.pack(fill=tk.X, pady=(5, 0))
+        
+        ttk.Button(ticker_buttons_frame, text="↑ Move Up", command=self._move_ticker_up, width=10).pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Button(ticker_buttons_frame, text="↓ Move Down", command=self._move_ticker_down, width=10).pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Button(ticker_buttons_frame, text="Sort A-Z", command=self._sort_tickers, width=10).pack(side=tk.LEFT)
+
         # --- Middle Pane: Watch List ---
         middle_pane_frame = ttk.Frame(self.paned_window, width=50)  # Set very narrow fixed width
         middle_pane_frame.pack_propagate(False)  # Prevent child widgets from changing frame size
@@ -1533,6 +1541,130 @@ class StockDataGUI:
             self.status_var.set(f"Removed {selected_tickers[0]} from available tickers")
         else:
             self.status_var.set(f"Removed {len(selected_tickers)} tickers from available tickers")
+
+    def _move_ticker_up(self):
+        """Move selected ticker up in the list"""
+        selected_indices = self.ticker_listbox.curselection()
+        if not selected_indices:
+            messagebox.showwarning("No Selection", "Please select a ticker to move.")
+            return
+        
+        # Only move the first selected ticker
+        index = selected_indices[0]
+        
+        # Can't move up if already at the top
+        if index == 0:
+            return
+        
+        # Get the ticker at the current position
+        ticker = self.ticker_listbox.get(index)
+        
+        # Remove from current position
+        self.ticker_listbox.delete(index)
+        self.current_tickers.pop(index)
+        
+        # Insert at new position (one up)
+        new_index = index - 1
+        self.ticker_listbox.insert(new_index, ticker)
+        self.current_tickers.insert(new_index, ticker)
+        
+        # Select the ticker at its new position
+        self.ticker_listbox.selection_set(new_index)
+        self.ticker_listbox.see(new_index)
+        
+        # Save the updated list
+        self._save_current_ticker_list_order()
+        
+    def _move_ticker_down(self):
+        """Move selected ticker down in the list"""
+        selected_indices = self.ticker_listbox.curselection()
+        if not selected_indices:
+            messagebox.showwarning("No Selection", "Please select a ticker to move.")
+            return
+        
+        # Only move the first selected ticker
+        index = selected_indices[0]
+        
+        # Can't move down if already at the bottom
+        if index >= self.ticker_listbox.size() - 1:
+            return
+        
+        # Get the ticker at the current position
+        ticker = self.ticker_listbox.get(index)
+        
+        # Remove from current position
+        self.ticker_listbox.delete(index)
+        self.current_tickers.pop(index)
+        
+        # Insert at new position (one down)
+        new_index = index + 1
+        self.ticker_listbox.insert(new_index, ticker)
+        self.current_tickers.insert(new_index, ticker)
+        
+        # Select the ticker at its new position
+        self.ticker_listbox.selection_set(new_index)
+        self.ticker_listbox.see(new_index)
+        
+        # Save the updated list
+        self._save_current_ticker_list_order()
+        
+    def _sort_tickers(self):
+        """Sort tickers alphabetically"""
+        if not self.current_tickers:
+            return
+        
+        # Sort the current tickers list
+        self.current_tickers.sort()
+        
+        # Clear and repopulate the listbox
+        self.ticker_listbox.delete(0, tk.END)
+        for ticker in self.current_tickers:
+            self.ticker_listbox.insert(tk.END, ticker)
+        
+        # Save the updated list
+        self._save_current_ticker_list_order()
+        
+        self.status_var.set(f"Sorted {len(self.current_tickers)} tickers alphabetically")
+        
+    def _save_current_ticker_list_order(self):
+        """Save the current ticker list order to ticker_lists.py"""
+        current_list_name = self.ticker_list_var.get()
+        
+        # Only save if it's a named list (not 'all_tickers')
+        if not current_list_name or current_list_name == 'all_tickers':
+            return
+        
+        try:
+            # Read the current content of ticker_lists.py
+            ticker_lists_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ticker_lists.py")
+            with open(ticker_lists_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            
+            # Create the updated list code
+            tickers_str = ", ".join([f"\"{ticker}\"" for ticker in self.current_tickers])
+            updated_list_code = f"{current_list_name} = [{tickers_str}]\n"
+            
+            # Find the existing list definition
+            list_pattern = re.compile(f"\n{current_list_name}\s*=\s*\[.*?\]", re.DOTALL)
+            match = list_pattern.search(content)
+            
+            if match:
+                # Replace the existing list
+                new_content = content[:match.start()] + f"\n{updated_list_code}" + content[match.end():]
+                
+                # Write the modified content back to the file
+                with open(ticker_lists_path, "w", encoding="utf-8") as f:
+                    f.write(new_content)
+                
+                # Update the ticker lists dictionary
+                self.ticker_lists[current_list_name] = self.current_tickers.copy()
+                
+                logging.info(f"Updated {current_list_name} order in ticker_lists.py")
+            else:
+                logging.warning(f"Could not find {current_list_name} in ticker_lists.py to update")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error updating ticker list: {str(e)}")
+            logging.error(f"Error updating ticker list: {e}")
 
     def _remove_current_list(self):
         """Remove the currently selected ticker list from ticker_lists.py"""

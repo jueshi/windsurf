@@ -15,20 +15,16 @@ index_tickers = ["SPX", "DJIA", "COMP", "RUT", "NYA", "INX", "DAX", "CAC", "^HSI
 # Stock Ticker Lists: use _stocks or _tickers to tell main program to process them
 tickers_comment_dict = {} #manually build a dictionary of tickers and comments
 
-
 # List of tickers to process
 Jues401k_stocks = ["ALAB", "QQQ", "IWM", "GLD", "AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "META", "NVDA", "BRK-B", "AVGO", "COST", "MCD", "BABA", "AMD", "NIO", "AFRM", "CQQQ", "SPYX", "SPYV", "SPYU", "CRM", "ADI", "TXN", "AAOI", "EWS", "NKE", "AMZA", "YINN", "JD", "BIDU", "TNA", "TECS", "TECL", "INTC", "TSM", "LRCX", "MRVL", "SPMO", "WDC", "PLTR", "SOFI"]
 
 
+# new_highs1 = ["CSCO", "V", "MA", "AXP", "SAP", "TSM", "AMZN", "JPM", "NFLX", "GOOGL", "GOOG", "META", "AAPL", "WMT", "BAC", "AVGO", "MCD", "PG", "IBM", "BRK-B"]
+# new_highs2 = ["MS", "NOW", "BRK-A", "NVDA", "COST", "ACN", "WFC", "CRM", "DIS", "MSFT", "TMUS", "HD", "CVX", "ABBV", "BX", "JNJ", "XOM", "KO", "ORCL", "PEP"]        
+# # Combine and remove duplicates
+# new_highs_stocks = list(set(new_highs1 + new_highs2))
 
- 
-
-new_highs1 = ["CSCO", "V", "MA", "AXP", "SAP", "TSM", "AMZN", "JPM", "NFLX", "GOOGL", "GOOG", "META", "AAPL", "WMT", "BAC", "AVGO", "MCD", "PG", "IBM", "BRK-B"]
-new_highs2 = ["MS", "NOW", "BRK-A", "NVDA", "COST", "ACN", "WFC", "CRM", "DIS", "MSFT", "TMUS", "HD", "CVX", "ABBV", "BX", "JNJ", "XOM", "KO", "ORCL", "PEP"]        
-# Combine and remove duplicates
-new_highs_stocks = list(set(new_highs1 + new_highs2))
-
-new_lows_stocks = ["RKLB", "AFRM", "SOFI", "HOOD", "NFLX", "TSLA", "COIN", "PTON", "DASH", "BYND"]
+# new_lows_stocks = ["RKLB", "AFRM", "SOFI", "HOOD", "NFLX", "TSLA", "COIN", "PTON", "DASH", "BYND"]
 
 # List of top-performing stocks by sector
 top_sectors_tickers = [
@@ -50,122 +46,122 @@ top_sectors_tickers = [
     "AVGO"   # Broadcom
 ]
 
-# List of stocks with recent analyst upgrades
-recent_analyst_upgrades_stocks = [
-    "SQ",     # Block (Upgraded by Raymond James)
-    "META",   # Meta Platforms (Upgraded by JPMorgan Chase)
-    "AMZN",   # Amazon (Upgraded by UBS, JMP Securities, Tigress Financial)
-    "GOOGL",  # Alphabet (Upgraded by JPMorgan Chase and Bank of America)
-    "EQT",    # EQT Corporation (Upgraded by JPMorgan Chase and Truist Financial)
-]
+# # List of stocks with recent analyst upgrades
+# recent_analyst_upgrades_stocks = [
+#     "SQ",     # Block (Upgraded by Raymond James)
+#     "META",   # Meta Platforms (Upgraded by JPMorgan Chase)
+#     "AMZN",   # Amazon (Upgraded by UBS, JMP Securities, Tigress Financial)
+#     "GOOGL",  # Alphabet (Upgraded by JPMorgan Chase and Bank of America)
+#     "EQT",    # EQT Corporation (Upgraded by JPMorgan Chase and Truist Financial)
+# ]
 
-# Complete list of IBD 50 stocks
-ibd_50_stocks = [
-    "RKLB",    # Rocket Lab USA, Inc.
-    "NTRA",    # Natera, Inc.
-    "AGX",     # Argan, Inc.
-    "ARIS",    # Aris Water Solutions, Inc.
-    "ALAB",    # Astera Labs, Inc.
-    "CLS",     # Celestica, Inc.
-    "AXON",    # Axon Enterprise, Inc.
-    "PLTR",    # Palantir Technologies Inc.
-    "DOCS",    # Doximity, Inc.
-    "HIMS",    # Hims & Hers Health, Inc.
-    "MRX",     # Marex Group plc
-    "LRN",     # Stride, Inc.
-    "MMYT",    # MakeMyTrip Limited
-    "NVDA",    # NVIDIA Corporation
-    "DAVE",    # Dave Inc.
-    "FTNT",    # Fortinet, Inc.
-    "HOOD",    # Robinhood Markets, Inc.
-    "LMND",    # Lemonade, Inc.
-    "ATAT",    # Atour Lifestyle Holdings Limited
-    "HUT",     # Hut 8 Corp. (TSX)
-    "RELY",    # Remitly Global, Inc.
-    "FOUR",    # Shift4 Payments, Inc.
-    "IBKR",    # Interactive Brokers Group, Inc.
-    "DECK",    # Deckers Outdoor Corporation
-    "ARGX",    # argenx SE
-    "SOFI",    # SoFi Technologies, Inc.
-    "ANET",    # Arista Networks Inc
-    "NFLX",    # Netflix, Inc.
-    "KVYO",    # Klaviyo, Inc.
-    "DUOL",    # Duolingo, Inc.
-    "TKO",     # TKO Group Holdings, Inc.
-    "WGS",     # GeneDx Holdings Corp.
-    "HWM",     # Howmet Aerospace Inc.
-    "TSM",     # Taiwan Semiconductor Manufacturing Company Limited
-    "RCL",     # Royal Caribbean Cruises Ltd.
-    "NOW",     # ServiceNow, Inc.
-    "TOST",    # Toast, Inc.
-    "AFRM",    # Affirm Holdings, Inc.
-    "ZK",     # ZEEKR Intelligent Technology Holding Limited
-    "RDDT",    # Reddit, Inc.
-    "VIST",    # Vista Energy, S.A.B. de C.V.
-    "GMED",    # Globus Medical, Inc.
-    "GLBE",    # Global-E Online Ltd.
-    "AVGO",    # Broadcom Limited
-    "ONON",    # On Holding AG
-    "EXLS",    # ExlService Holdings, Inc.
-    "OWL",     # Blue Owl Capital Inc.
-    "HUBS",    # HubSpot, Inc.
-    "BROS",    # Dutch Bros Inc.
-    "VITL"     # Vital Farms, Inc.
-]
+# # Complete list of IBD 50 stocks
+# ibd_50_stocks = [
+#     "RKLB",    # Rocket Lab USA, Inc.
+#     "NTRA",    # Natera, Inc.
+#     "AGX",     # Argan, Inc.
+#     "ARIS",    # Aris Water Solutions, Inc.
+#     "ALAB",    # Astera Labs, Inc.
+#     "CLS",     # Celestica, Inc.
+#     "AXON",    # Axon Enterprise, Inc.
+#     "PLTR",    # Palantir Technologies Inc.
+#     "DOCS",    # Doximity, Inc.
+#     "HIMS",    # Hims & Hers Health, Inc.
+#     "MRX",     # Marex Group plc
+#     "LRN",     # Stride, Inc.
+#     "MMYT",    # MakeMyTrip Limited
+#     "NVDA",    # NVIDIA Corporation
+#     "DAVE",    # Dave Inc.
+#     "FTNT",    # Fortinet, Inc.
+#     "HOOD",    # Robinhood Markets, Inc.
+#     "LMND",    # Lemonade, Inc.
+#     "ATAT",    # Atour Lifestyle Holdings Limited
+#     "HUT",     # Hut 8 Corp. (TSX)
+#     "RELY",    # Remitly Global, Inc.
+#     "FOUR",    # Shift4 Payments, Inc.
+#     "IBKR",    # Interactive Brokers Group, Inc.
+#     "DECK",    # Deckers Outdoor Corporation
+#     "ARGX",    # argenx SE
+#     "SOFI",    # SoFi Technologies, Inc.
+#     "ANET",    # Arista Networks Inc
+#     "NFLX",    # Netflix, Inc.
+#     "KVYO",    # Klaviyo, Inc.
+#     "DUOL",    # Duolingo, Inc.
+#     "TKO",     # TKO Group Holdings, Inc.
+#     "WGS",     # GeneDx Holdings Corp.
+#     "HWM",     # Howmet Aerospace Inc.
+#     "TSM",     # Taiwan Semiconductor Manufacturing Company Limited
+#     "RCL",     # Royal Caribbean Cruises Ltd.
+#     "NOW",     # ServiceNow, Inc.
+#     "TOST",    # Toast, Inc.
+#     "AFRM",    # Affirm Holdings, Inc.
+#     "ZK",     # ZEEKR Intelligent Technology Holding Limited
+#     "RDDT",    # Reddit, Inc.
+#     "VIST",    # Vista Energy, S.A.B. de C.V.
+#     "GMED",    # Globus Medical, Inc.
+#     "GLBE",    # Global-E Online Ltd.
+#     "AVGO",    # Broadcom Limited
+#     "ONON",    # On Holding AG
+#     "EXLS",    # ExlService Holdings, Inc.
+#     "OWL",     # Blue Owl Capital Inc.
+#     "HUBS",    # HubSpot, Inc.
+#     "BROS",    # Dutch Bros Inc.
+#     "VITL"     # Vital Farms, Inc.
+# ]
 
-# List of Zacks Rank #1 (Strong Buy) stocks
-zacks_rank_1_stocks = [
-    "AAL",   # American Airlines
-    "SKYW",  # SkyWest
-    "UAA",   # Under Armour
-    "BRBR",  # BellRing Brands
-    "RBA",   # RB Global
-    "SRDX",  # Surmodics
-    "CTRA",  # Coterra Energy
-    "ERIE",  # Erie Indemnity
-    "DUOL",  # Duolingo
-    "CART"   # Maplebear Inc.
-]
+# # List of Zacks Rank #1 (Strong Buy) stocks
+# zacks_rank_1_stocks = [
+#     "AAL",   # American Airlines
+#     "SKYW",  # SkyWest
+#     "UAA",   # Under Armour
+#     "BRBR",  # BellRing Brands
+#     "RBA",   # RB Global
+#     "SRDX",  # Surmodics
+#     "CTRA",  # Coterra Energy
+#     "ERIE",  # Erie Indemnity
+#     "DUOL",  # Duolingo
+#     "CART"   # Maplebear Inc.
+# ]
 
-# List of stocks with recent positive earnings surprises
-positive_earnings_surprise_stocks = [
-    "RBRK",  # Rubrik, Inc.
-    "PSTG",  # Pure Storage, Inc.
-    "HPE",   # Hewlett Packard Enterprise
-    "C",     # Citigroup
-    "JPM",   # JPMorgan Chase & Co.
-    "WFC",   # Wells Fargo & Co.
-    "META",  # Meta Platforms
-    "JLL",   # Jones Lang LaSalle
-    "RGA",   # Reinsurance Group of America
-    "EME",   # EMCOR Group
-    "COF",   # Capital One Financial
-    "UBER"   # Uber Technologies
-]
+# # List of stocks with recent positive earnings surprises
+# positive_earnings_surprise_stocks = [
+#     "RBRK",  # Rubrik, Inc.
+#     "PSTG",  # Pure Storage, Inc.
+#     "HPE",   # Hewlett Packard Enterprise
+#     "C",     # Citigroup
+#     "JPM",   # JPMorgan Chase & Co.
+#     "WFC",   # Wells Fargo & Co.
+#     "META",  # Meta Platforms
+#     "JLL",   # Jones Lang LaSalle
+#     "RGA",   # Reinsurance Group of America
+#     "EME",   # EMCOR Group
+#     "COF",   # Capital One Financial
+#     "UBER"   # Uber Technologies
+# ]
 
-bitcoin_tickers = ["btc-usd",'ETH-USD','XRP-USD','SOL-USD']
+# bitcoin_tickers = ["btc-usd",'ETH-USD','XRP-USD','SOL-USD']
 
-canslim_tickers = ["APP", "FIX", "HWM", "NVDA", "TSM", "VRT"]
+# canslim_tickers = ["APP", "FIX", "HWM", "NVDA", "TSM", "VRT"]
 
-finvize_tickers = [
-    "FCUV", "NITO", "CRNC", "KITT", "ACON", "TGL", "ATHE", "KLTR", "ATOM", "NVA", 
-    "MBOT", "MFI", "SCPX", "NYC", "PTLE", "CCM", "ALUR", "VRME", 
-    "DOGZ", "HOLO", "NUKK", "EZGO", "STAI", "SISI", "MMLP", "IIPR", 
-    "ACAD", "NTRA", "PSEC", "ZYME", "INTU", "IOT", "BUXX", "ARMP", "GBIL", 
-    "HSRT", "ARKG", "LJAN", "FLRN", "NVCT", "SGOV", "OCTZ", "FLJJ", "AORT", 
-    "BNIX", "YIBO", "GCI", "CLIP", "CLGN", "MXE", "SAGE", "CTEC", "JPMO", 
-    "ARTV", "LUX", "LSH", "EVSB", "TXSS", "PSFO", "PWP", "DWSH", "CCG", "FORD", 
-    "OPER", "LEA", "DINO", "MUR", "BOWN", "AVIE", "GJUN", "RKLB", "FTNT", 
-    "BUFD", "RM", "EXPI", "MFUT", "SUGP", "NOMD", "ELLO", "RES", "BVN", "PBT", 
-    "MED", "AMBI", "NSA", "LU", "IDEC", "ASPC", "INLF", "RAIN", "ONEG", "WLAC", 
-    "NTWO", "PHH", "HIT", "TDACU", "FACT", "RANGU", "TAVI", "YAAS", "GSRT", 
-    "LSE", "NCEW"
-]
+# finvize_tickers = [
+#     "FCUV", "NITO", "CRNC", "KITT", "ACON", "TGL", "ATHE", "KLTR", "ATOM", "NVA", 
+#     "MBOT", "MFI", "SCPX", "NYC", "PTLE", "CCM", "ALUR", "VRME", 
+#     "DOGZ", "HOLO", "NUKK", "EZGO", "STAI", "SISI", "MMLP", "IIPR", 
+#     "ACAD", "NTRA", "PSEC", "ZYME", "INTU", "IOT", "BUXX", "ARMP", "GBIL", 
+#     "HSRT", "ARKG", "LJAN", "FLRN", "NVCT", "SGOV", "OCTZ", "FLJJ", "AORT", 
+#     "BNIX", "YIBO", "GCI", "CLIP", "CLGN", "MXE", "SAGE", "CTEC", "JPMO", 
+#     "ARTV", "LUX", "LSH", "EVSB", "TXSS", "PSFO", "PWP", "DWSH", "CCG", "FORD", 
+#     "OPER", "LEA", "DINO", "MUR", "BOWN", "AVIE", "GJUN", "RKLB", "FTNT", 
+#     "BUFD", "RM", "EXPI", "MFUT", "SUGP", "NOMD", "ELLO", "RES", "BVN", "PBT", 
+#     "MED", "AMBI", "NSA", "LU", "IDEC", "ASPC", "INLF", "RAIN", "ONEG", "WLAC", 
+#     "NTWO", "PHH", "HIT", "TDACU", "FACT", "RANGU", "TAVI", "YAAS", "GSRT", 
+#     "LSE", "NCEW"
+# ]
 
-newHigh_stock_tickers = [
-    "FLJJ", "XMAR", "MAYW", "MARW", "DYCQ", "QCAP", "MLACU", "TJUL", "DFEB", "BALT",
-    "XDAP", "CPNJ", "PBP", "GMAR", "UMAY", "PMAY", "GAPR", "XBAP", "EMPB", "DAPR"
-]
+# newHigh_stock_tickers = [
+#     "FLJJ", "XMAR", "MAYW", "MARW", "DYCQ", "QCAP", "MLACU", "TJUL", "DFEB", "BALT",
+#     "XDAP", "CPNJ", "PBP", "GMAR", "UMAY", "PMAY", "GAPR", "XBAP", "EMPB", "DAPR"
+# ]
 
 # Temporarily commenting out this list to test dropdown refresh
 # newLow_tickers = ['KZIA', 'SID', 'SSTK', 'BF-A', 'ABEV', 'CCS', 'ADBE', 'BHP', 'BUD', 'KOF', 'ZROZ', 'AVY']
@@ -278,74 +274,7 @@ index_etfs = [
 eps_growth_stocks_2025_8_3 = ["NVDA", "AVGO", "AMD", "APH", "UBS", "NET", "CCJ", "GFI", "CLS", "ESLT", "KGC", "CELH", "EVR", "SRAD", "FYBR", "BE", "W", "LIF", "EGO", "OLO", "CDTX", "CCEC", "ATAI", "TBPH", "ISSC", "XGN", "ELTX", "ASMB"]
 canslim_8_3_2025_stocks = ["APP", "AVGO", "CLS", "EVR", "GFI", "HIMS", "HWM", "NVDA", "ATLC", "DRD", "FUTU", "RCL"]
 
-
-watch_list = ["XMAR", "AMZN", "0700.HK", "TSM", "BRK-B", "ALAB", "nvda", "SPY", "IWM", "QQQ", "DIA", "MU", "APH", "NFLX", "ESLT", "PLTR", "SOFI", "AVGO", "GS", "COST", "BYD", "BYDDY", "CQQQ", "YINN", "HOOD", "APP", "LRCX", "OPEN", "NTNX", "SPMO", "VGT", "TQQQ", "TECL", "VZ", "MO", "BEN", "OKE", "IPG", "CCI", "GIS", "TFC", "KIM", "CME", "KEY", "KMI", "MRVL", "OKTA", "QQQM", "VOO", "DBC", "GLD", "QCOM", "ASML", "JNJ", "CRDO", "CRCL", "WDC", "MAGS", "ORCX", "TSLL", "AVL", "ARMG", "FNGU", "FNGO", "UBRL", "MSFX", "BRKU", "FBL", "IONQ", "CRWV", "PATH"]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+watch_list = ["0700.HK", "ALAB", "AMZN", "APH", "APP", "ARMG", "ASML", "AVGO", "AVL", "BEN", "BRK-B", "BRKU", "BYD", "BYDDY", "CCI", "CME", "COST", "CQQQ", "CRCL", "CRDO", "CRWV", "DBC", "DIA", "ESLT", "FBL", "FNGO", "FNGU", "GIS", "GLD", "GS", "HOOD", "IONQ", "IPG", "IWM", "JNJ", "KEY", "KIM", "KMI", "LRCX", "MAGS", "MO", "MRVL", "MSFX", "MU", "NFLX", "NTNX", "NVDA", "OKE", "OKTA", "OPEN", "ORCX", "PATH", "PLTR", "QCOM", "QQQ", "QQQM", "SOFI", "SPMO", "SPY", "TECL", "TFC", "TQQQ", "TSLL", "TSM", "UBRL", "VGT", "VOO", "VZ", "WDC", "XMAR", "YINN"]
 
 
 
@@ -353,44 +282,6 @@ watch_list = ["XMAR", "AMZN", "0700.HK", "TSM", "BRK-B", "ALAB", "nvda", "SPY", 
 
 
 Jues401k_stocks_stocks = ["ALAB", "QQQ", "IWM", "GLD", "AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "META", "NVDA", "BRK-B", "AVGO", "COST", "BABA", "AMD", "NIO", "AFRM", "CQQQ", "SPYX", "SPYV", "SPYU", "CRM", "ADI", "AAOI", "EWS", "YINN", "JD", "BIDU", "TNA", "TECS", "TECL", "INTC", "TSM", "LRCX", "MRVL", "SPMO", "WDC", "GS", "PLTR", "ORCL", "IVV", "IEMG", "PG", "JNJ", "KO", "PEP", "MCD", "WMT", "VT", "TLT", "IEF", "DBC", "VTI", "VOO", "CRWD", "CRDO", "SNDK", "AKBA", "ASND", "DVAX", "PRCT", "SNPS", "MAGS", "V", "MA", "AVGX", "AVL", "TSLL", "ORCX", "FNGU", "ARMG", "APED", "GGLL", "FNGO", "UBRL", "CRWL", "MSFX", "FBL", "BRKU", "LABX", "ENOR"]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 nucleus_stock_stocks = ["BX", "CEG", "SMR", "NLR", "URA", "CCJ", "URNM", "URAN", "BWXT"]
@@ -566,86 +457,45 @@ us_crypto_futures_etfs = [
     "BTF",  # Valkyrie Bitcoin and Ether Strategy ETF
 ]
 
+Buffet_real_estate_stocks = ["DHI", "GLD", "HD", "SOFI", "LEN", "LOW", "SHW"]
 
 
 
 
 
 
-
-Buffet_real_estate_stocks = ["DHI", "LEN", "SHW", "HD", "LOW", "SOFI", "GLD"]
 
 
 
 Data_Center_REITs_stocks = ["EQIX", "DLR", "AMT", "IRM"]
 
-
-
-
 Residential_REITs_stocks = ["AVB", "EQR", "MAA", "ESS", "UDR", "CPT", "INVH", "AMH"]
-
 
 Industrial_REITs_stocks = ["PLD", "COLD", "STAG", "EGP", "FR"]
 
-
 REITs_Retail_stocks = ["SPG", "O", "KIM", "REG", "FRT", "NNN"]
-
 
 REITs_Healthcare_stocks = ["WELL", "VTR", "DOC"]
 
-
 REITs_Self_Storage_stocks = ["PSA", "EXR", "CUBE"]
-
-
-
 
 REITs_多户住宅_stocks = ["MAA", "EQR", "AVB", "CPT", "UDR", "ESS"]
 
-
 eps_growth_8_20_2025_stocks = ["BE", "WGS", "LIF", "FIGS", "AVGO", "AVAH", "PAY", "ROAD", "BTSG", "SRAD", "ASLE", "TBPH", "NVDA", "TAK", "ESLT", "NFLX", "APH", "ESE", "INFU", "EVR", "GFI", "UBS", "FTLF", "INTR", "CWK", "KGC", "EGO", "ATLC", "RM", "VRNS", "CDTX", "COGT", "W", "XGN", "Z", "ELTX", "YEXT", "VSTM", "FYBR", "DBD", "OLO", "AAPG"]
 
-
-
-
-TL_support_stocks = ["THM", "WPM", "ROL", "GNTY", "GPAT", "SD", "PLTR", "WDC", "SNDK", "INTC", "XMAR", "ALAB"]
-
-
-
-
-
-
-
-
-
-
-
-
+# TL_support_stocks = ["THM", "WPM", "ROL", "GNTY", "GPAT", "SD", "PLTR", "WDC", "SNDK", "INTC", "XMAR", "ALAB"]
 
 finviz_heat_map_stocks = ["MSFT", "ORCL", "PLTR", "RNRW", "SNPS", "CRWD", "FTNT", "NVDA", "AVGO", "AMD", "QCOM", "TXN", "INTC", "AAPL", "CRM", "NOW", "INTU", "UBER", "ADBE", "PAYX", "ADSK", "DOCU", "COMPUTE", "ANET", "CSCO", "IBM", "FIS", "ACN", "IT", "APH", "KLAC", "AMAT", "LRCX", "GPN", "TEL", "TRMB", "KFY", "FFIV", "DELL", "HPQ", "WDC", "STX", "AMZN", "EBAY", "GME", "TSLA", "GM", "F", "HD", "LOW", "MCD", "SBUX", "CMG", "YUM", "DRI", "TJX", "ROST", "AZO", "ORLY", "BKNG", "ABNB", "MAR", "HLT", "NKE", "LULU", "FSR", "RIVN", "LCID", "LVS", "LEN", "GOOG", "META", "NFLX", "DIS", "TKO", "FOXA", "TMUS", "T", "VZ", "CHTR", "BA", "LMT", "GE", "GD", "NOC", "RTX", "LHX", "TDG", "DE", "CAT", "PCAR", "UNP", "NSC", "CSX", "WM", "RSG", "DAL", "UAL", "LUV", "ITW", "CMI", "PH", "GWW", "OTIS", "IR", "HON", "IEX", "MMM", "URI", "EMR", "ETN", "ROK", "AME", "LLY", "JNJ", "ABT", "BSY", "DXCM", "GILD", "BMY", "AMGN", "MRK", "PFE", "ABBV", "UNH", "ELV", "CI", "HCA", "SYK", "MDT", "EW", "ISRG", "DHR", "TMO", "A", "VRTX", "REGN", "BIIB", "WMT", "COST", "TGT", "DG", "KO", "PEP", "K", "MDLZ", "GIS", "SYY", "PG", "EL", "CL", "MO", "PM", "JPM", "V", "BRK-B", "AXP", "BAC", "WFC", "C", "BK", "COF", "SYF", "BLK", "BX", "KKR", "STT", "MS", "GS", "SPGI", "ICE", "CME", "MCO", "CB", "ALL", "AIG", "TRV", "PGR", "MMC", "L", "MET", "PRU", "PNC", "USB", "TFC", "AON", "FITB", "RF", "AMT", "PLD", "CCI", "DLR", "IRM", "WY", "EQR", "O", "XOM", "CVX", "COP", "EOG", "OXY", "SLB", "EPD", "ET", "NEE", "DUK", "SO", "D", "ES", "AEP", "SRE", "FE", "ED", "LIN", "SHW", "LYB", "EMN", "ECL", "FCX", "NUE", "STLD", "VMC"]
 
-
 high_profit_margin_stocks = ["NOW", "DDOG", "CRWD", "MPWR", "NVDA", "PANW"]
-
-
-
-
-
-
-
 
 ticker_1_brokerage_link_stocks = ["CQQQ", "FBL", "MSFX", "UBRL", "THD", "ORCX", "CRWL", "BRKU", "AVL", "ARMG"]
 
-
 buffet_stocks = ["KO", "AXP", "MCO", "HSY", "UNP"]
-
 
 value_stocks = ["AAPL", "KO", "AXP", "MCO", "JNJ", "PG", "V", "MA", "VRSN"]
 
-
-
-
 ping_401k_stocks = ["AAPL", "AMZN", "AMZU", "ASAN", "AVGO", "CRDO", "CRWD", "FRMI", "INTC", "LRCX", "META", "MSFT", "MSTR", "NVDA", "PRCT", "QCOM", "QQQ", "QQQM", "SPMO", "SPY", "TECS", "TSLA", "V"]
-
 
 jue_401k_2025_stocks = ["AAOI", "AAPL", "AFRM", "AMGN", "ARMG", "AVGO", "AVL", "AVPT", "BABA", "BIDU", "BRKU", "CQQQ", "CRDO", "CRWD", "CRWL", "CRWV", "CRM", "DBC", "DOXGX", "EDMCQ", "FBL", "FNGU", "FSSNX", "FXAIX", "GLD", "HD", "INTC", "JD", "L", "MCD", "MSFX", "ORCL", "ORCX", "SPY", "TECS", "THD", "TNA", "UBRL", "VIGIX", "YINN", "BRK-B", "AMD", "BB"]
 
