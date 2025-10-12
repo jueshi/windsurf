@@ -44,6 +44,7 @@ import webbrowser
 import tempfile
 from live_chart_generator import generate_chart_html
 from multi_tf_charts import generate_multi_timeframe_chart_html
+from generate_stockcharts_gallery import generate_multi_timeframe_stockcharts_html
 from thread_safe_tkinter import (
     setup_thread_safe_tkinter,
     safe_update_text_widget,
@@ -451,6 +452,7 @@ class StockDataGUI:
         ttk.Button(button_frame, text="Weekly", command=lambda: self._open_live_charts_for_current_list(time_frame="w")).pack(side=tk.LEFT, padx=(5, 0))
         ttk.Button(button_frame, text="Monthly", command=lambda: self._open_live_charts_for_current_list(time_frame="m")).pack(side=tk.LEFT, padx=(5, 0))
         ttk.Button(button_frame, text="Multi-TF Gallery", command=self._open_multi_timeframe_gallery_for_current_list).pack(side=tk.LEFT, padx=(5, 0))
+        ttk.Button(button_frame, text="StockCharts Gallery", command=self._open_stockcharts_gallery_for_current_list).pack(side=tk.LEFT, padx=(5, 0))
 
         # Create a frame for the second row with Add Ticker and New List Name
         second_row_frame = ttk.Frame(top_frame)
@@ -1109,6 +1111,39 @@ class StockDataGUI:
         except Exception as e:
             messagebox.showerror("Error", f"Error generating multi-timeframe gallery: {str(e)}")
             self.status_var.set("Error generating multi-timeframe gallery")
+
+    def _open_stockcharts_gallery_for_current_list(self):
+        """Generate and open StockCharts.com gallery for the current ticker list"""
+        try:
+            selected_list = self.ticker_list_var.get()
+            if not selected_list or selected_list not in self.ticker_lists:
+                messagebox.showwarning("No List Selected", "Please select a ticker list first.")
+                return
+            
+            tickers = [t for t in self.ticker_lists.get(selected_list, []) if isinstance(t, str) and t.strip()]
+            if not tickers:
+                messagebox.showwarning("Empty List", "The selected ticker list is empty.")
+                return
+            
+            # Generate HTML file in temp directory
+            output_path = os.path.join(tempfile.gettempdir(), f"{selected_list}_stockcharts_gallery.html")
+            generate_multi_timeframe_stockcharts_html(tickers, output_filename=output_path)
+            
+            # Open in browser
+            try:
+                webbrowser.register('edge', None, webbrowser.BackgroundBrowser(r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'))
+                webbrowser.get('edge').open(f"file:///{os.path.abspath(output_path)}")
+                self.status_var.set(f"StockCharts gallery for {selected_list} ({len(tickers)} tickers) opened in Edge browser")
+            except Exception as browser_error:
+                logging.warning(f"Could not open Edge browser: {browser_error}. Using default browser.")
+                webbrowser.open(f"file:///{os.path.abspath(output_path)}")
+                self.status_var.set(f"StockCharts gallery for {selected_list} ({len(tickers)} tickers) opened in default browser")
+                
+            logging.info(f"Generated StockCharts gallery for {selected_list} with {len(tickers)} tickers")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error generating StockCharts gallery: {str(e)}")
+            self.status_var.set("Error generating StockCharts gallery")
+            logging.error(f"Error generating StockCharts gallery: {e}")
 
     # def _refresh_ticker_lists(self):
     #     """Reload ticker lists from ticker_lists.py"""
