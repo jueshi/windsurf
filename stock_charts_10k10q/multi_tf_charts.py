@@ -119,7 +119,7 @@ def generate_multi_timeframe_chart_html(
         const tickers = {tickers_js_array};
         const timeFrames = [ // Define all time frames to plot
             {{ tf: "d", label: "Daily", range: "" }},
-            {{ tf: "w", label: "Weekly", range: "&r=y2" }},
+            {{ tf: "w", label: "Weekly", range: "&r=y5" }},
             {{ tf: "m", label: "Monthly", range: "&r=max" }}
         ];
 

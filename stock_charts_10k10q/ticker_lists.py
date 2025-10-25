@@ -5,38 +5,16 @@
 
 import json
 
-A_ping_401k_ping_stocks = ["AAPL", "AMZN", "AMZU", "ASAN", "AVGO", "CRDO", "CRWD", "FRMI", "INTC", "LRCX", "META", "MSFT", "MSTR", "NVDA", "PRCT", "QCOM", "QQQ", "QQQM", "SPMO", "SPY", "TECS", "TSLA", "V"]
+A_ping_401k_ping = ["AAPL", "AMZN", "AMZU", "ASAN", "AVGO", "CRDO", "CRWD", "FRMI", "INTC", "LRCX", "META", "MSFT", "MSTR", "NVDA", "PRCT", "QCOM", "QQQ", "QQQM", "SPMO", "SPY", "TECS", "TSLA", "V", "APLD"]
 
-A_jue_401k_2025_stocks = ["AAOI", "AAPL", "AFRM", "AMD", "AMGN", "ARM", "ARMG", "AVGO", "AVL", "AVPT", "BABA", "BB", "BIDU", "BRK-B", "BRKU", "CQQQ", "CRDO", "CRM", "CRWD", "CRWL", "CRWV", "DBC", "DOXGX", "EDMCQ", "META", "FBL", "FNGO", "MAGS", "FNGU", "FSSNX", "FXAIX", "GLD", "HD", "INTC", "JD", "L", "MCD", "MSFT", "MSFX", "ORCL", "ORCX", "SPY", "TECS", "THD", "TNA", "UBER", "UBRL", "VIGIX", "YINN"]
-
-
+A_jue_401k_2025 = ["AAOI", "AAPL", "AFRM", "AMD", "AMGN", "ARM", "ARMG", "AVGO", "AVL", "AVPT", "BABA", "BB", "BIDU", "BRK-B", "BRKU", "CQQQ", "CRDO", "CRM", "CRWD", "CRWL", "CRWV", "DBC", "DOXGX", "EDMCQ", "META", "FBL", "FNGO", "MAGS", "FNGU", "FSSNX", "FXAIX", "GLD", "HD", "INTC", "JD", "L", "MCD", "MSFT", "MSFX", "ORCL", "ORCX", "SPY", "TECS", "THD", "TNA", "UBER", "UBRL", "VIGIX", "YINN"]
 
 
+A_magic_formula_12_22_25 = ["MO", "AMCX", "ATRA", "BTMD", "BBUC", "BMBL", "CRK", "CCSI", "CROX", "EGREF", "ESP", "EWCZ", "EVER", "FOXA", "FC", "GAMB", "GDEV", "GOT", "HRB", "HRMY", "HPQ", "IDT", "INVA", "IPG", "JILL", "LNTH", "LEVN", "NL", "OMC", "OMI", "MD", "PBI", "PLTK", "PTCT", "PRYI", "RCLD", "RIGL", "RMNI", "SBG", "SSTK", "SKYA", "SIRI", "TGNA", "AREN", "T2OO", "UIS", "WWW", "XPOF", "ANF"]
 
+A_BTC_etfs = ["ARKB", "BITB", "IBIT", "FBTC", "EZBC", "GBTC", "BTCO", "HODL", "BRRR", "BTCW"]
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+A_btc_related = ["V", "MA", "PYPL", "CRCL", "COIN", "MSTR"]
 
 mega_tickers0 = ["NVDA", "MSFT", "AAPL", "GOOG", "GOOGL", "AMZN", "META", "AVGO", "TSM", "BRK-A", "BRK-B", "TSLA", "JPM", "WMT", "LLY", "ORCL", "V", "MA", "NFLX", "XOM"]
 mega_tickers1 = ['COST', 'JNJ', 'HD', 'PLTR', 'PG', 'ABBV', 'BAC', 'SAP', 'CVX', 'KO', 'GE', 'AMD', 'ASML', 'TMUS', 'CSCO', 'BABA', 'PM', 'WFC', 'CRM', 'TM']
@@ -307,20 +285,7 @@ index_etfs = [
 eps_growth_stocks_2025_8_3 = ["NVDA", "AVGO", "AMD", "APH", "UBS", "NET", "CCJ", "GFI", "CLS", "ESLT", "KGC", "CELH", "EVR", "SRAD", "FYBR", "BE", "W", "LIF", "EGO", "OLO", "CDTX", "CCEC", "ATAI", "TBPH", "ISSC", "XGN", "ELTX", "ASMB"]
 canslim_8_3_2025_stocks = ["APP", "AVGO", "CLS", "EVR", "GFI", "HIMS", "HWM", "NVDA", "ATLC", "DRD", "FUTU", "RCL"]
 
-watch_list = ["0700.HK", "ALAB", "AMZN", "APH", "APP", "ARM", "ARMG", "ASML", "AVGO", "AVL", "BEN", "BRK-B", "BRKU", "BYD", "CCI", "CME", "COST", "CQQQ", "CRCL", "CRDO", "CRWV", "DBC", "DIA", "ESLT", "FBL", "FNGO", "FNGU", "GIS", "GLD", "GS", "HOOD", "IONQ", "IPG", "IWM", "JNJ", "KEY", "KIM", "KMI", "LRCX", "MAGS", "MO", "MRVL", "MSFX", "MU", "NFLX", "NTNX", "NVDA", "OKE", "OKTA", "OPEN", "ORCL", "ORCX", "PATH", "PLTR", "QCOM", "QQQ", "QQQM", "SOFI", "SPMO", "SPY", "TECL", "TFC", "TQQQ", "TSLL", "TSM", "UBER", "UBRL", "VGT", "VOO", "VZ", "WDC", "XMAR", "YINN"]
-
-
-
-
-
-
-
-
-
-
-
-
-
+watch_list = ["0700.HK", "ALAB", "AMZN", "APH", "APP", "ARM", "ARMG", "ASML", "AVGO", "AVL", "BEN", "BRK-B", "BRKU", "BYD", "CCI", "CME", "COST", "CQQQ", "CRCL", "CRDO", "CRWV", "DBC", "DIA", "ESLT", "FBL", "FNGO", "FNGU", "GIS", "GLD", "GS", "HOOD", "IONQ", "IPG", "IWM", "JNJ", "KEY", "KIM", "KMI", "LRCX", "MAGS", "MO", "MRVL", "MSFX", "MU", "NFLX", "NTNX", "NVDA", "OKE", "OKTA", "OPEN", "ORCL", "ORCX", "PATH", "PLTR", "QCOM", "QQQ", "QQQM", "SOFI", "SPMO", "SPY", "TECL", "TFC", "TQQQ", "TSLL", "TSM", "UBER", "UBRL", "VGT", "VOO", "VZ", "WDC", "XMAR", "YINN", "RDDT", "UAMY"]
 
 Jues401k_stocks_stocks = ["ALAB", "QQQ", "IWM", "GLD", "AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "META", "NVDA", "BRK-B", "AVGO", "COST", "BABA", "AMD", "NIO", "AFRM", "CQQQ", "SPYX", "SPYV", "SPYU", "CRM", "ADI", "AAOI", "EWS", "YINN", "JD", "BIDU", "TNA", "TECS", "TECL", "INTC", "TSM", "LRCX", "MRVL", "SPMO", "WDC", "GS", "PLTR", "ORCL", "IVV", "IEMG", "PG", "JNJ", "KO", "PEP", "MCD", "WMT", "VT", "TLT", "IEF", "DBC", "VTI", "VOO", "CRWD", "CRDO", "SNDK", "AKBA", "ASND", "DVAX", "PRCT", "SNPS", "MAGS", "V", "MA", "AVGX", "AVL", "TSLL", "ORCX", "FNGU", "ARMG", "APED", "GGLL", "FNGO", "UBRL", "CRWL", "MSFX", "FBL", "BRKU", "LABX", "ENOR"]
 
@@ -428,23 +393,8 @@ all_3x_etfs = bull_3x_etfs + bear_3x_etfs
 # --- 2x Leveraged BULL ETFs (Long Position) ---
 # These aim for 2x the DAILY return of their underlying index.
 
-bull_2x_etfs = [
-    # Broad Market
-    "SSO",   # ProShares Ultra S&P500
-    "QLD",   # ProShares Ultra QQQ (Nasdaq-100)
-    "DDM",   # ProShares Ultra Dow30
-    "UWM",   # ProShares Ultra Russell2000
+bull_2x_etfs = ["SSO", "QLD", "DDM", "UWM", "ROM", "USD", "FINU", "UGE", "URE", "DIG", "GUSH", "UBT", "AMDL"]
 
-    # Sectors
-    "ROM",   # ProShares Ultra Technology
-    "USD",   # ProShares Ultra Semiconductors
-    "FINU",  # ProShares UltraPro Financials (Note: This is a 3x ETF, a 2x equivalent is UGE)
-    "UGE",   # ProShares Ultra Financials
-    "URE",   # ProShares Ultra Real Estate
-    "DIG",   # ProShares Ultra Oil & Gas
-    "GUSH",  # Direxion Daily S&P Oil & Gas Exp. & Prod. Bull 2X Shares
-    "UBT",   # ProShares Ultra 20+ Year Treasury (Bond Market)
-]
 
 
 # --- 2x Leveraged BEAR ETFs (Short Position) ---
@@ -500,14 +450,6 @@ us_crypto_futures_etfs = [
 
 Buffet_real_estate_stocks = ["DHI", "GLD", "HD", "SOFI", "LEN", "LOW", "SHW"]
 
-
-
-
-
-
-
-
-
 Data_Center_REITs_stocks = ["EQIX", "AMT", "DLR", "IRM"]
 
 
@@ -531,16 +473,17 @@ finviz_heat_map_stocks = ["MSFT", "ORCL", "PLTR", "RNRW", "SNPS", "CRWD", "FTNT"
 
 high_profit_margin_stocks = ["NOW", "DDOG", "CRWD", "MPWR", "NVDA", "PANW"]
 
-ticker_1_brokerage_link_stocks = ["CQQQ", "FBL", "MSFX", "UBRL", "THD", "ORCX", "CRWL", "BRKU", "AVL", "ARMG"]
+ticker_1_brokerage_link_stocks = ["AMZN", "AMZU", "ARMG", "AVL", "BRKU", "CQQQ", "CRM", "CRMG", "CRWL", "FBL", "MSFX", "ORCX", "THD", "UBRL"]
 
 buffet_stocks = ["KO", "AXP", "MCO", "HSY", "UNP"]
 
 value_stocks = ["AAPL", "KO", "AXP", "MCO", "JNJ", "PG", "V", "MA", "VRSN"]
 
+mags_stocks = ["AAPL", "ALAB", "AMZN", "APLD", "AVGO", "CRDO", "DUST", "FNGO", "FNGU", "GLD", "GOOG", "META", "MRVL", "MSFT", "NUGT", "NVDA", "ORCL", "PLTR", "QQQ", "TSLA"]
 
+long_10_13_25_stocks = ["PG", "CVX", "PM", "CRM", "ABT", "MCD", "DIS", "BX", "AXP", "GOOG", "TSM", "WMT", "KO", "V", "MA", "NFLX", "NFXL", "YEXT", "CCEC", "MCB", "ENVA", "SOFI"]
 
-
-
+eps_growth_10_13_25_stocks = ["LSCC", "LIF", "PRVA", "FIGS", "CELH", "AMD", "AVAH", "BTSG", "MAMA", "AVGO", "WPM", "TBPH", "ESLT", "CLS", "NVDA", "OIS", "FNV", "NFLX", "APH", "AGI", "STRL", "TATT", "TSM", "RGLD", "PIPR", "SVM", "CTRE", "BANC", "MU", "SCHW", "ASX", "FTLF", "UBS", "GFI", "DRD", "KGC", "INTR", "FSM", "EGO", "NESR", "UVE", "MCB", "CCEC", "YEXT", "TGB", "EVLV", "FYBR", "ONDS", "COGT", "EBC", "CDTX", "COHR", "UNFI", "EXK", "XGN", "JMIA", "IRD"]
 
 
 # Function to check if a ticker symbol is valid and suggest alternatives if not

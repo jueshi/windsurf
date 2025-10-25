@@ -45,6 +45,7 @@ import tempfile
 from live_chart_generator import generate_chart_html
 from multi_tf_charts import generate_multi_timeframe_chart_html
 from generate_stockcharts_gallery import generate_multi_timeframe_stockcharts_html
+import subprocess
 from thread_safe_tkinter import (
     setup_thread_safe_tkinter,
     safe_update_text_widget,
@@ -73,6 +74,7 @@ class StockDataGUI:
         self.year_selection_vars = {}  # For multi-select year checkbuttons
         self.seasonality_year_menubutton = None # The new menubutton for year selection
         self.year_menu = None # A direct reference to the year selection menu
+        # https://stockcharts.com/freecharts/seasonality.php?symbol=OKTA&compare=SPY
         self.fundamental_data_cache = [] # Cache for fundamental data
         self.fundamental_filter_var = tk.StringVar() # Filter for fundamental data
         self.business_analysis_filter_var = tk.StringVar() # Filter for business analysis data
@@ -284,6 +286,65 @@ class StockDataGUI:
             logging.error(f"Error refreshing ticker lists: {str(e)}")
             messagebox.showerror("Error", f"Failed to refresh ticker lists: {str(e)}")
 
+    def _open_ticker_list_in_notepadpp(self):
+        """Open ticker_lists.py in Notepad++ if available; otherwise offer default editor."""
+        try:
+            ticker_lists_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ticker_lists.py")
+            if not os.path.exists(ticker_lists_path):
+                messagebox.showerror("File Not Found", f"Could not find ticker list file at:\n{ticker_lists_path}")
+                return
+
+            candidates = [
+                r"C:\\Program Files\\Notepad++\\notepad++.exe",
+                r"C:\\Program Files (x86)\\Notepad++\\notepad++.exe",
+            ]
+
+            launched = False
+            for exe in candidates:
+                if os.path.isfile(exe):
+                    subprocess.Popen([exe, ticker_lists_path])
+                    launched = True
+                    break
+
+            if not launched:
+                try:
+                    subprocess.Popen(["notepad++", ticker_lists_path])
+                    launched = True
+                except FileNotFoundError:
+                    launched = False
+
+            if not launched:
+                if messagebox.askyesno("Notepad++ Not Found", "Notepad++ was not found. Open with the default editor instead?"):
+                    try:
+                        os.startfile(ticker_lists_path)
+                    except Exception as e:
+                        messagebox.showerror("Open Failed", f"Failed to open file: {e}")
+            else:
+                self.status_var.set("Opened ticker_lists.py in Notepad++")
+        except Exception as e:
+            logging.error(f"Error opening ticker list in Notepad++: {e}")
+            messagebox.showerror("Error", f"Failed to open ticker list: {e}")
+
+    def _copy_current_list_to_clipboard(self):
+        """Copy all current tickers to the clipboard, one per line."""
+        try:
+            if not self.current_tickers:
+                messagebox.showinfo("No Tickers", "There are no tickers in the current list to copy.")
+                return
+            text = "\n".join(self.current_tickers)
+            try:
+                self.root.clipboard_clear()
+                self.root.clipboard_append(text)
+                self.root.update_idletasks()
+            except Exception:
+                # Fallback using Tk's clipboard methods
+                self.root.clipboard_clear()
+                self.root.clipboard_append(text)
+            self.status_var.set(f"Copied {len(self.current_tickers)} tickers to clipboard")
+        except Exception as e:
+            logging.error(f"Error copying tickers to clipboard: {e}")
+            messagebox.showerror("Error", f"Failed to copy to clipboard: {e}")
+
     def _display_plotly_chart(self, fig, tab="individual"):
         """Display a Plotly chart in the specified tab
         
@@ -453,6 +514,8 @@ class StockDataGUI:
         ttk.Button(button_frame, text="Monthly", command=lambda: self._open_live_charts_for_current_list(time_frame="m")).pack(side=tk.LEFT, padx=(5, 0))
         ttk.Button(button_frame, text="Multi-TF Gallery", command=self._open_multi_timeframe_gallery_for_current_list).pack(side=tk.LEFT, padx=(5, 0))
         ttk.Button(button_frame, text="StockCharts Gallery", command=self._open_stockcharts_gallery_for_current_list).pack(side=tk.LEFT, padx=(5, 0))
+        ttk.Button(button_frame, text="Open Ticker File (Notepad++)", command=self._open_ticker_list_in_notepadpp).pack(side=tk.LEFT, padx=(5, 0))
+        ttk.Button(button_frame, text="Copy Current List", command=self._copy_current_list_to_clipboard).pack(side=tk.LEFT, padx=(5, 0))
 
         # Create a frame for the second row with Add Ticker and New List Name
         second_row_frame = ttk.Frame(top_frame)

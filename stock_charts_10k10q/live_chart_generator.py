@@ -101,7 +101,7 @@ def generate_chart_html(
             // Determine the correct range parameter ('r') based on the time frame
             let rangeParam = '';
             if (timeFrame === 'w') {{
-                rangeParam = '&r=y2';
+                rangeParam = '&r=y5';
             }} else if (timeFrame === 'm') {{
                 rangeParam = '&r=max';
             }}
