@@ -703,6 +703,8 @@ class StockDataGUI:
         self._bc_base_image = None   # PIL.Image for original chart
         self._bc_zoom_scale = 0.5    # current zoom scale
         self._bc_user_zoomed = False # whether user has manually zoomed
+        self._bc_last_ticker = None
+        self._bc_last_explanation = ""
         # Refit image to container when layout changes, unless user has zoomed
         def _bc_on_container_resize(event=None):
             try:
@@ -2296,10 +2298,19 @@ class StockDataGUI:
 
             current_tab_index = self.chart_notebook.index("current")
 
-            # If Buffett & CANSLIM tab is active, run analysis and return
+            # If Buffett & CANSLIM tab is active, use cache if available; do not auto re-run
             if hasattr(self, 'buffett_canslim_frame') and str(self.chart_notebook.select()) == str(self.buffett_canslim_frame):
                 if selected_tickers:
-                    self._analyze_buffett_canslim_current()
+                    ticker = selected_tickers[0]
+                    if self._bc_base_image is not None and self._bc_last_ticker == ticker:
+                        try:
+                            self._show_cached_buffett_canslim()
+                        except Exception:
+                            pass
+                    else:
+                        self.bc_text.delete("1.0", tk.END)
+                        self.bc_text.insert(tk.END, f"Ready to analyze {ticker}. Click Analyze Selected.")
+                        self.bc_status_var.set("Idle. Not re-running automatically.")
                 return
 
             # Tab indices are: 0: Individual, 1: Comparison, 2: Seasonality, 3: Fundamental, 4: Business Analysis
@@ -2533,12 +2544,18 @@ class StockDataGUI:
                             self._bc_sash_initialized = True
                 except Exception:
                     pass
-                if selected_tickers:
-                    self._analyze_buffett_canslim_current()
-                else:
+                if selected_tickers and self._bc_base_image is not None and \
+                   self._bc_last_ticker == selected_tickers[0]:
+                    try:
+                        self._show_cached_buffett_canslim()
+                    except Exception:
+                        pass
+                elif not selected_tickers:
                     self.bc_text.delete("1.0", tk.END)
                     self.bc_text.insert(tk.END, "Select a ticker to analyze.")
                     self.bc_status_var.set("Waiting for ticker selection")
+                else:
+                    self.bc_status_var.set(f"Cached chart available for {self._bc_last_ticker}" if self._bc_base_image is not None else "Select Analyze to run study")
             elif selected_tickers: # For other tabs, only update if there is a selection
                 if self.active_tab == "comparison":
                     self._compare_percentage_performance(tickers=selected_tickers)
@@ -2581,6 +2598,10 @@ class StockDataGUI:
                         result['canslim_total'],
                         history_df=None,
                     )
+                    try:
+                        buffett_canslim.save_study_markdown(ticker, result, fig)
+                    except Exception:
+                        pass
                     # Render to PNG in-memory (PIL only; do not create Tk objects in worker thread)
                     buf = io.BytesIO()
                     fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
@@ -2596,6 +2617,9 @@ class StockDataGUI:
                         # Ensure text widget exists
                         if not hasattr(self, 'bc_text') or not self.bc_text.winfo_exists():
                             return
+                        # Cache last analysis state
+                        self._bc_last_ticker = ticker
+                        self._bc_last_explanation = msg or ""
                         # Store base image and initial zoom
                         self._bc_base_image = img
                         # Start with fit-to-container scale and allow user zoom later
@@ -2689,6 +2713,32 @@ class StockDataGUI:
             self.bc_chart_label.configure(image=self._bc_chart_photo)
         except Exception as e:
             logging.error(f"Error updating BC chart image: {e}")
+
+    def _show_cached_buffett_canslim(self):
+        """Show cached Buffett & CANSLIM chart and explanation without re-running analysis."""
+        try:
+            if not hasattr(self, 'bc_chart_label') or not self.bc_chart_label.winfo_exists():
+                return
+            if self._bc_base_image is None:
+                return
+            # Maintain current zoom; just redraw
+            self._update_bc_chart_image()
+            # Update explanation text
+            if hasattr(self, 'bc_text') and self.bc_text.winfo_exists():
+                try:
+                    self.bc_text.configure(state='normal')
+                except Exception:
+                    pass
+                self.bc_text.delete('1.0', tk.END)
+                self.bc_text.insert(tk.END, self._bc_last_explanation or "")
+                try:
+                    self.bc_text.see('1.0')
+                except Exception:
+                    pass
+            if hasattr(self, 'bc_status_var'):
+                self.bc_status_var.set(f"Showing cached analysis for {self._bc_last_ticker}")
+        except Exception as e:
+            logging.error(f"Error showing cached Buffett & CANSLIM view: {e}")
 
     def _zoom_chart_in(self, event=None):
         """Zoom in the Buffett & CANSLIM chart."""

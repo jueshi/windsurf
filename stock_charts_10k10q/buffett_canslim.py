@@ -132,3 +132,31 @@ def build_analysis_figure(
 
     plt.tight_layout()
     return fig
+
+
+def save_study_markdown(ticker: str, result: Dict[str, object], figure=None, base_dir: Optional[str] = None) -> Tuple[str, Optional[str]]:
+    if base_dir is None:
+        base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'output', 'buffett_canslim')
+    os.makedirs(base_dir, exist_ok=True)
+    ts = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    img_path = None
+    if figure is not None:
+        img_path = os.path.join(base_dir, f"{ticker}_{ts}.png")
+        try:
+            figure.savefig(img_path, dpi=150, bbox_inches='tight')
+        except Exception:
+            img_path = None
+    md_path = os.path.join(base_dir, f"{ticker}.md")
+    with open(md_path, 'a', encoding='utf-8') as f:
+        f.write(f"\n\n## {ticker} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(f"\n- Buffett total: {result.get('buffett_total', 0)}\n")
+        f.write(f"\n- CANSLIM total: {result.get('canslim_total', 0)}\n")
+        f.write(f"\n- Investor type: {result.get('investor_type', '')}\n")
+        f.write(f"\n- Buffett scores: {result.get('buffett_scores', [])}\n")
+        f.write(f"\n- CANSLIM scores: {result.get('canslim_scores', [])}\n")
+        if img_path:
+            f.write(f"\n![{ticker} analysis]({os.path.basename(img_path)})\n")
+        raw = result.get('raw_text', '')
+        if raw:
+            f.write(f"\n\n{raw}\n")
+    return md_path, img_path

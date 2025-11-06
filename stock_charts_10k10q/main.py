@@ -66,8 +66,8 @@ def suppress_tkinter_exit_errors():
             # Store the main thread ID for comparison
             main_thread_id = threading.current_thread().ident
             
-            # Patch the _tkinter.tkapp.call method to handle async thread issues
-            original_tkapp_call = tk.Tk.call
+            # Patch the tk 'call' method on the base Mix-in (Misc) to handle async thread issues
+            original_tkapp_call = tk.Misc.call
             
             def safe_tkapp_call(self, *args, **kwargs):
                 try:
@@ -82,8 +82,8 @@ def suppress_tkinter_exit_errors():
                     print(f"Tkinter thread error suppressed: {e}")
                     return None
             
-            # Apply the patch
-            tk.Tk.call = safe_tkapp_call
+            # Apply the patch to Misc so it affects all Tk widgets/instances
+            tk.Misc.call = safe_tkapp_call
             
             # Also patch the async_hook if available
             original_tcl_async_hook = None
