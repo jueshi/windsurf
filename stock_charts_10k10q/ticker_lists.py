@@ -9,7 +9,27 @@ A_ping_401k_ping = ["AAPL", "AMD", "AMZN", "AMZU", "APP", "ASAN", "AVGO", "CRDO"
 
 
 
-A_jue_401k_2025 = ["AAOI", "AAPL", "ABBV", "ADI", "AFRM", "AMCR", "AMGN", "AMZU", "ARMG", "ATO", "AVPT", "AVL", "AZN", "BABX", "BEN", "BIDU", "BRKB", "BRKU", "CELT", "CQQQ", "CRCG", "CRDO", "CRMG", "CRM", "CRWD", "CRWL", "CRWV", "CTAS", "DBC", "DIS", "DOV", "DOXGX", "ED", "EDMCQ", "ESS", "FBL", "FNGU", "FSSNX", "FXAIX", "GLD", "GS", "GSX", "GWW", "HD", "INTC", "JD", "JNJ", "MA", "MCD", "MSFX", "MSTX", "NFXL", "ORCL", "ORCX", "PG", "SPY", "TECS", "THD", "TMO", "TNA", "TSLL", "UBRL", "VIGIX", "YINN"]
+A_jue_401k_2025 = ["AAOI", "AAPL", "ABBV", "ADI", "AFRM", "ALAB", "AMCR", "AMGN", "AMZU", "APP", "APPX", "ARMG", "ATO", "AVGO", "AVL", "AVPT", "AZN", "BABX", "BEN", "BIDU", "BRKB", "BRKU", "CELH", "CELT", "CQQQ", "CRCG", "CRDO", "CRDU", "CRM", "CRMG", "CRWD", "CRWL", "CRWV", "CTAS", "DBC", "DIS", "DOV", "DOXGX", "ED", "EDMCQ", "ESS", "FBL", "FBTC", "FIG", "FIGR", "FNGU", "FSSNX", "FXAIX", "GLD", "GS", "GSX", "GWW", "HD", "INTC", "JD", "JNJ", "LABX", "MA", "MCD", "MSFX", "MSTX", "NFXL", "ORCL", "ORCX", "PG", "PLTG", "PLTR", "PLTU", "SPY", "TECS", "THD", "TMO", "TNA", "TSLL", "UBRL", "VIGIX", "YINN", "VGT", "QQQ"]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -535,7 +555,9 @@ SP500_Dividend_Aristocrats_stocks = ["ABBV", "ABT", "ADM", "ADP", "AFL", "ALB", 
 
 
 
-hot_stocks = ["ALAB", "APP", "PLTR", "CRDO", "MU", "SNDK", "WDC", "NVDA", "AVGO", "LRCX", "AMAT", "IREN"]
+hot_stocks = ["ALAB", "APP", "PLTR", "CRDO", "MU", "SNDK", "WDC", "NVDA", "AVGO", "LRCX", "AMAT", "IREN", "PG", "KO"]
+
+
 
 
 
@@ -550,6 +572,11 @@ competitors_IREN_stocks = ["IREN", "MARA", "RIOT", "CLSK", "HUT"]
 
 
 half_year_stars_stocks = ["IREN", "BE", "SNDK", "BMNR", "QBTS", "OKLO", "QS", "NBIS", "RGTI", "CLS", "WDC", "CRDO", "LITE", "SYM", "W", "SATS", "STX", "MU", "HOOD", "ASTS", "INSM", "CIEN", "RNA", "WBD", "LUMN", "ALAB", "NXT", "AMD", "RKLB", "TER", "GH", "JOBY", "FN", "SOFI", "STRL", "FIX", "SMR", "IONS", "UI", "LRCX", "AVAV", "KTOS", "FSLR", "RMBS", "CRWV", "KRMN", "U", "PSTG", "APP", "MDB", "VRT", "MEDP", "GLW", "COHR", "CCJ", "IONQ", "NIO", "INTC", "GOOGL", "NET", "NVT", "GOOG", "RDDT", "FUTU", "BWXT", "ROIV", "ELAN", "CAT", "INCY", "KLAC", "ROKU", "AVGO", "BBIO", "CHRW", "TLN", "ASX", "SHOP", "FLEX", "APH", "NVMI", "PLTR", "B", "TSM", "ORCL", "CELH", "TSLA", "NVDA", "TEL", "GFI", "MRVL", "ALB", "IVZ", "COIN", "ANET", "CW", "WCC", "KEP", "ILMN", "CX", "IBKR", "MDGL", "DELL", "LVS", "RVMD", "TME", "ALNY", "MPWR", "SCCO", "EME", "BBD", "SNOW", "AMAT", "KGC", "EL", "XYZ", "AU", "LOGI", "GM", "NEM", "CRS", "MGA", "ASML", "WYNN", "SPXC", "FERG", "IDXX", "FTAI", "CMI", "DD", "MLI", "TPR", "RCI", "DDOG", "EVR", "NRG", "UTHR", "SHG", "VLO", "FTI", "GE", "RBLX", "AYI", "C", "WF", "BBVA", "GS", "EBR", "HPE", "JBL", "SAN", "BLD", "BIDU", "APTV", "GMAB", "CVE", "RKT", "CYBR", "PWR", "TEM", "HAL", "TEVA", "TMO", "AFRM", "ENSG", "ZS", "MS", "ONC", "ATI", "SYF", "AAPL", "GEV", "EMBJ", "PAAS", "IQV", "MTZ", "THC", "CCL", "DB", "A", "RTX", "AEM", "LTM", "VST", "MFG", "CEG", "NOK", "CFG", "WWD", "BABA", "JCI", "DASH", "SF", "HOLX", "AMX", "ARGX", "TLK", "VALE", "BCS", "ITT", "HII", "TIMB", "WST", "ULTA", "VIK", "SNX", "HUBB", "MTD", "AMZN", "AXP", "MTSI", "RL", "LHX", "SGI", "HWM", "HCA", "BIIB", "NTRS", "J", "BNS", "DCI", "NU", "EXAS", "FER", "NTES", "TOL", "CM", "PSKY", "CG", "ACM", "IMO", "SNN", "URI", "BKR", "BK", "SMCI", "PUK", "BAP", "DAL", "EA", "ON", "ARM", "KB", "PSX", "MPC", "EXPE", "UAL", "CAH", "BAC", "PEGA", "JBHT", "ROK", "VIV", "E", "TD", "STT", "EXPD", "NSC", "ETN", "F", "FOXA", "GD", "TWLO", "SBS", "BP", "ING", "WDS", "NMR", "MCHP", "NBIX", "CRWD", "XPO", "RYAAY", "WSM", "NUE", "LDOS", "JLL", "RBC", "HSBC", "CRH", "BG", "DAY", "LECO", "APG", "GSK", "BMO", "MT", "HAS", "VTRS", "JPM", "NTRA", "PDD", "QCOM", "CSX", "XYL", "NTAP", "KEYS", "PH", "UBS", "DLTR", "CACI", "GILD", "VEEV", "BNT", "AER", "QXO", "IX", "RPRX", "FOX", "NDSN", "BN", "WELL", "MUFG", "ALLY", "ASND", "TECK", "ITUB", "ULS", "YPF", "UHS", "NEE", "BSBR", "SRE", "TS", "LYG", "TRMB", "SU", "RIVN", "BTI", "RY", "NWG", "WMS", "IBM", "CSCO", "STN", "OHI", "EMR", "CBRE", "VOD", "EC", "CVNA", "LLY", "BSAC", "PODD", "WFC", "FDX", "HEI", "COF", "MMM", "DHI", "BBY", "JNJ", "ALLE", "SWK", "ADI", "PTC", "RTO", "STLD", "PHM", "ICLR", "PLD", "CVS", "PNR", "ADM", "PHG", "AGNC", "NOC", "RF", "AS", "ES", "PHYS", "BCH", "MSFT", "MCK", "HEI-A", "AME", "BLK", "ERIC", "GRAB", "DKS", "COR", "EBAY", "AMGN", "AZN", "FITB", "FHN", "PKX", "ABBV", "EWBC", "TPG", "PFGC", "SMFG", "SONY", "RIO", "KEY", "REGN", "L", "BHP", "SHEL", "TXT", "HTHT", "ETR", "MLM", "AGI", "CR", "CTRA", "TFC", "XEL", "WPM", "CPNG", "XPEV", "PCAR", "VTR", "TCOM", "NLY", "ROST", "PANW", "USB", "ENTG", "COKE", "CASY", "NXPI", "TTWO", "RCL", "CVX", "LEN", "NVS", "SPG", "PNC", "ESLT", "MNST", "TROW", "LPLA", "AEG", "PBR-A", "SSNC", "TJX", "SCHW", "BNTX", "AEP", "H", "RJF", "BEN", "BURL", "HST", "PCOR", "UBER", "AFG", "CNQ", "PBR", "AIZ", "SE", "JEF", "PKG", "MAR", "GL", "EW", "TKO", "FNV", "EVRG", "CINF", "DHR", "GEHC", "SWKS", "TOST", "EXEL", "DOCS", "HLT", "BIP", "HLI", "GRMN", "IHG", "SLB", "DIS", "DTM", "FCX", "SNA", "NDAQ", "MDT", "YMM", "XOM", "WAB", "STLA", "FWONA", "FWONK", "DG", "BXP", "PEP", "D", "LNT", "STE", "PFE", "WPC", "RNR", "WAT", "Z", "SAIL", "GPC", "CBOE", "VMC", "SCI", "USFD", "TT", "ORI", "DVN", "EMA", "MRK", "META", "TTE", "BA", "TDY", "SN", "WES", "FE", "MKL", "ZM", "AXON", "CDNS", "ADSK", "FAST", "MFC", "ATO", "BX", "FANG", "NKE", "NI", "TSCO", "WTW", "ZG", "BDX", "MTB", "TM", "CF", "BCE", "BLDR", "MAS", "LOW", "ROL", "BSY", "DOV", "MPLX", "HUM", "PFG", "LUV", "STM", "EQNR", "AFL", "VLTO", "MCO", "UMC", "NGG", "SYY", "EQT", "SUI", "DOC", "ZBRA", "MSCI", "APO", "SOLV", "ORLY", "GWRE", "IRM", "PRU", "HD", "HPQ", "WRB", "TRV", "SUZ", "WMT", "MET", "TRGP", "ISRG", "KKR", "SEIC", "INTU", "HBAN", "WEC", "PR", "SLF", "ITW", "LH", "CTVA", "OXY", "EIX", "ECL", "CNM", "MELI", "PAG", "AEE", "AVY", "UNP", "HMC", "CCK", "FTS", "NVR", "EPD", "RVTY", "YUMC", "GFS", "DGX", "DUK", "K", "HSY", "IR", "EXE", "LYV", "GPN", "LMT", "FCNCA", "HIG", "GGG", "DE", "RMD", "SBUX", "ET", "PPL", "PEG", "LAMR", "ZTO", "COP", "YUM", "ENB", "DLR", "EXC", "CNP", "ABNB", "TXN", "SO", "RDY", "WMG", "PYPL", "DT", "KIM", "O", "UPS", "QSR", "HDB", "TRP", "RPM", "SPGI", "EHC", "CHT", "CMS", "ARCC", "FTV", "MANH", "PAA", "TDG", "AZO", "MA", "WMB", "BMY", "CB", "HON", "EOG", "TU", "V", "CCEP", "GLPI", "ABEV", "TXRH", "WTRG", "OMC", "BAM", "DTE", "CRBG", "BALL", "REG", "TGT", "CNI", "MCD", "BUD", "VRTX", "PBA", "CTSH", "UL", "SHW", "AMP", "RBA", "PAGP", "RBRK", "ALL", "NTR", "UNM", "CP", "VICI", "NFLX", "MSI", "TSN", "AON", "RGLD", "JD", "KO", "BRK-A", "PCG", "NTNX", "ARES", "BKNG", "ACGL", "BSX", "SPOT", "BRK-B", "ELS", "PNW", "EQIX", "CHD", "PINS", "EG", "CME", "RGA", "VNOM", "KMI", "MO", "SJM", "OTIS", "SNY", "CSGP", "IEX", "AIG", "TRU", "FMX", "SYK", "JKHY", "RS", "LIN", "ZBH", "PSA", "ABT", "CLH", "COST", "GEN", "INFY", "WDAY", "BR", "CNA", "IOT", "GWW", "FFIV", "PG", "ESS", "NWSA", "DRI", "CRM", "WIT", "JBS", "ODFL", "VZ", "EXR", "TAK", "PPG", "SW", "IBN", "SNAP", "APD", "NOW", "AR", "NWS", "FLUT", "BMRN", "EQH", "AMCR", "CHKP", "AWK", "AKAM", "CQP", "SAP", "T", "MBLY", "KR", "ADBE", "WY", "IFF", "OWL", "ED", "HLN", "CTAS", "LII", "CHWY", "DOCU", "MKC", "LNG", "VG", "FMS", "CNH", "CCI", "FIS", "FNF", "CSL", "GFL", "CPT", "KHC", "AVB", "RACE", "GIS", "WM", "SNPS", "ADP", "VRSN", "COO", "EQR", "CL", "PM", "GIB", "TTD", "DPZ", "UNH", "WCN", "MDLZ", "CDW", "ICE", "AMH", "TYL", "OKE", "IP", "RSG", "TEF", "AMT", "TMUS", "SBAC", "INVH", "RELX", "CMCSA", "CARR", "DEO", "KSPI", "ACN", "BEKE", "FTNT", "DKNG", "UDR", "PAYC", "CPAY", "DOW", "CLX", "JHX", "ERIE", "LYB", "BF-B", "KDP", "TEAM", "MMC", "RYAN", "MAA", "EFX", "FICO", "BF-A", "ROP", "CI", "PAYX", "ALC", "ZTS", "TRI", "LI", "ELV", "WSO", "BJ", "KMB", "SMMT", "ONON", "HRL", "OKTA", "AJG", "PGR", "GDDY", "TW", "HUBS", "NVO", "MMYT", "DXCM", "BAH", "KVUE", "BRO", "VRSK", "STZ", "CPRT", "TPL", "DECK", "MSTR", "CMG", "LULU", "CNC", "CHTR", "IT", "DUOL", "FI", "CRCL", "HONIV", "FIG", "KLAR", "AMRZ", "FRMI", "STRC", "Q"]
+
+
+earnings_11_6_stocks = []
+
+earnings_ww_11_17_25_stocks = ["NVDA", "PANW", "BIDU", "BULL", "KC", "INTU", "VEEV", "WIX", "WMT", "TGT", "HD", "LOW", "TJX"]
 
 
 # Function to check if a ticker symbol is valid and suggest alternatives if not

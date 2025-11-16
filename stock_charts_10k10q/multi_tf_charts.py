@@ -161,6 +161,162 @@ def generate_multi_timeframe_chart_html(
     except IOError as e:
         print(f"❌ Error writing to file: {e}")
 
+
+def generate_multi_timeframe_linechart_html(
+    tickers: list[str], 
+    output_filename: str = "multi_timeframe_linecharts.html"
+):
+    """
+    Generates a self-contained HTML file to display Daily, Weekly, and Monthly 
+    Finviz line charts (ct=line_chart) for each stock, with each stock's charts
+    on one row.
+
+    Args:
+        tickers (list[str]): A list of stock ticker symbols.
+        output_filename (str): The name of the output HTML file.
+    """
+
+    tickers_js_array = json.dumps(tickers)
+
+    html_template = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Timeframe Finviz Line Chart Gallery</title>
+    <style>
+        * {{
+            box-sizing: border-box;
+        }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }}
+        h1 {{
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 0;
+            padding: 15px;
+        }}
+        .stock-row {{
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 10px;
+            border: 1px solid #e0e0e0;
+            background-color: #ffffff;
+            border-radius: 5px;
+            overflow: hidden;
+        }}
+        .stock-row h2.stock-ticker-header {{
+            width: 100%;
+            text-align: center;
+            margin: 10px 0 0px 0;
+            font-size: 1.5em;
+            color: #2c3e50;
+            background-color: #f8f8f8;
+            padding: 5px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }}
+        .chart-container {{
+            flex: 1 1 calc(100% / 3);
+            background-color: #ffffff;
+            padding: 0;
+            text-align: center;
+            border-right: 1px solid #f0f0f0;
+            min-width: 320px;
+        }}
+        .chart-container:last-child {{
+            border-right: none;
+        }}
+        .chart-container h3 {{
+            margin: 5px 0 5px 0;
+            font-size: 1.0em;
+            color: #34495e;
+        }}
+        img {{
+            width: 100%;
+            height: 300px;
+            object-fit: contain;
+            display: block;
+            background-color: #ffffff;
+        }}
+        @media (max-width: 960px) {{
+            .chart-container {{
+                flex: 1 1 50%;
+            }}
+            .stock-row h2.stock-ticker-header {{
+                font-size: 1.3em;
+            }}
+        }}
+        @media (max-width: 640px) {{
+            .chart-container {{
+                flex: 1 1 100%;
+                border-right: none;
+                border-bottom: 1px solid #f0f0f0;
+            }}
+            .chart-container:last-child {{
+                border-bottom: none;
+            }}
+        }}
+    </style>
+</head>
+<body>
+    
+    <h1>Multi-Timeframe Finviz Line Chart Gallery</h1>
+
+    <div class="grid-container" id="chart-grid"></div>
+
+    <script>
+        const tickers = {tickers_js_array};
+        const timeFrames = [
+            {{ tf: "d", label: "Daily", range: "" }},
+            {{ tf: "w", label: "Weekly", range: "&r=y5" }},
+            {{ tf: "m", label: "Monthly", range: "&r=max" }}
+        ];
+
+        const gridContainer = document.getElementById('chart-grid');
+        
+        let allContentHTML = '';
+
+        for (const ticker of tickers) {{
+            allContentHTML += `
+                <div class="stock-row">
+                    <h2 class="stock-ticker-header">${{ticker.toUpperCase()}}</h2>
+            `;
+            
+            for (const tfConfig of timeFrames) {{
+                const chartUrl = `https://charts2-node.finviz.com/chart.ashx?cs=&t=${{ticker.toUpperCase()}}&tf=${{tfConfig.tf}}&s=linear&pm=240&am=1200&ct=line_chart&tm=d${{tfConfig.range}}&o[0][ot]=sma&o[0][op]=50&o[0][oc]=FF8F33C6&o[1][ot]=sma&o[1][op]=200&o[1][oc]=DCB3326D&o[2][ot]=patterns&o[2][op]=&o[2][oc]=000`;
+                
+                allContentHTML += `
+                    <div class="chart-container">
+                        <h3>${{tfConfig.label}}</h3>
+                        <img src="${{chartUrl}}" alt="${{ticker.toUpperCase()}} ${{tfConfig.label}} Line Chart">
+                    </div>
+                `;
+            }}
+            
+            allContentHTML += `</div>`;
+        }}
+        gridContainer.innerHTML = allContentHTML;
+    </script>
+
+</body>
+</html>
+"""
+
+    try:
+        with open(output_filename, "w") as f:
+            f.write(html_template)
+        print(f"✅ Successfully generated '{output_filename}' with Finviz line charts.")
+    except IOError as e:
+        print(f"❌ Error writing to file: {e}")
+
+
 # --- Main execution block ---
 if __name__ == "__main__":
     my_tickers = [
