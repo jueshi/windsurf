@@ -518,10 +518,23 @@ class StockDataGUI:
         ttk.Button(button_frame, text="Multi-TF", command=self._open_multi_timeframe_gallery_for_current_list).pack(side=tk.LEFT, padx=(5, 0))
         ttk.Button(button_frame, text="LineCharts", command=self._open_linecharts_gallery_for_current_list).pack(side=tk.LEFT, padx=(5, 0))
         ttk.Button(button_frame, text="StockCharts", command=self._open_stockcharts_gallery_for_current_list).pack(side=tk.LEFT, padx=(5, 0))
+
+        # StockCharts line style ID entry (for SC-Line gallery)
+        self.stockcharts_line_style_var = tk.StringVar(value="t3327397499c")
+
+        # Clickable label that opens the StockCharts style page in the browser
+        sc_style_label = ttk.Label(button_frame, text="SC style id:", foreground="blue", cursor="hand2")
+        sc_style_label.pack(side=tk.LEFT, padx=(10, 2))
+        sc_style_label.bind(
+            "<Button-1>",
+            lambda e: webbrowser.open("https://stockcharts.com/sc3/ui/?s=ALAB"),
+        )
+
+        ttk.Entry(button_frame, textvariable=self.stockcharts_line_style_var, width=14).pack(side=tk.LEFT, padx=(0, 5))
         ttk.Button(button_frame, text="SC-Line", command=self._open_stockcharts_line_gallery_for_current_list).pack(side=tk.LEFT, padx=(5, 0))
-        
-        ttk.Button(button_frame, text="Open Ticker File (Notepad++)", command=self._open_ticker_list_in_notepadpp).pack(side=tk.LEFT, padx=(5, 0))
-        ttk.Button(button_frame, text="Copy Current List", command=self._copy_current_list_to_clipboard).pack(side=tk.LEFT, padx=(5, 0))
+
+        ttk.Button(button_frame, text="Open Ticker", command=self._open_ticker_list_in_notepadpp).pack(side=tk.LEFT, padx=(5, 0))
+        ttk.Button(button_frame, text="Copy List", command=self._copy_current_list_to_clipboard).pack(side=tk.LEFT, padx=(5, 0))
 
         # Create a frame for the second row with Add Ticker and New List Name
         second_row_frame = ttk.Frame(top_frame)
@@ -1231,7 +1244,18 @@ class StockDataGUI:
 
             # Generate HTML file in temp directory
             output_path = os.path.join(tempfile.gettempdir(), f"{selected_list}_stockcharts_line_gallery.html")
-            generate_multi_timeframe_stockcharts_line_html(tickers, output_filename=output_path)
+
+            # Use the current StockCharts style ID from the GUI entry (fallback to default if empty)
+            style_id = getattr(self, "stockcharts_line_style_var", None)
+            style_id_value = style_id.get().strip() if style_id is not None else "t3327397499c"
+            if not style_id_value:
+                style_id_value = "t3327397499c"
+
+            generate_multi_timeframe_stockcharts_line_html(
+                tickers,
+                output_filename=output_path,
+                style_id=style_id_value,
+            )
 
             # Open in browser
             try:

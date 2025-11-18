@@ -192,6 +192,7 @@ def generate_multi_timeframe_stockcharts_html(
 def generate_multi_timeframe_stockcharts_line_html(
     tickers: list[str],
     output_filename: str = "multi_timeframe_stockcharts_line.html",
+    style_id: str = "t3327397499c",
 ):
     """Generate multi-timeframe StockCharts gallery using a line-chart style.
 
@@ -324,11 +325,12 @@ def generate_multi_timeframe_stockcharts_line_html(
         const tickers = {tickers_js_array};
 
         // Use the same D/W/M timeframes but a line-chart style template id (from the
-        // provided daily line URL). Reuse it across timeframes.
+        // provided daily line URL). Reuse it across timeframes. The style_id is
+        // injected from Python so it can be adjusted in the GUI.
         const timeFrames = [
-            {{ p: "D", label: "Daily (1yr)",   yr: 1,  mn: 0, dy: 0, i: "t3101262626c" }},
-            {{ p: "W", label: "Weekly (5yr)", yr: 5,  mn: 0, dy: 0, i: "t3101262626c" }},
-            {{ p: "M", label: "Monthly (Max)", yr: 99, mn: 0, dy: 0, i: "t3101262626c" }}
+            {{ p: "D", label: "Daily (1yr)",   yr: 1,  mn: 0, dy: 0, i: "{style_id}" }},
+            {{ p: "W", label: "Weekly (5yr)", yr: 5,  mn: 0, dy: 0, i: "{style_id}" }},
+            {{ p: "M", label: "Monthly (Max)", yr: 99, mn: 0, dy: 0, i: "{style_id}" }}
         ];
 
         const gridContainer = document.getElementById('chart-grid');
