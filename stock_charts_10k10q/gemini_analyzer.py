@@ -300,7 +300,7 @@ def analyze_ticker(ticker, company_info):
     4.  **增长前景:** 这家公司潜在的增长动力是什么？
     5.  **潜在风险:** 与这家公司相关的主要风险是什么？
 
-    请用English提供结构良好且详细的分析。
+    请用Chinese提供结构良好且详细的分析。Followed by an English version of the response in a separate paragraph as well.
     """
 
     try:

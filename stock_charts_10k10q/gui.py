@@ -900,12 +900,14 @@ class StockDataGUI:
         ba_button_frame.pack(fill=tk.X, pady=5)
 
         ttk.Button(ba_button_frame, text="Run BA", command=self._run_business_analysis).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(ba_button_frame, text="Conduct News Search", command=self._run_news_search).pack(side=tk.LEFT, padx=(0, 5))        
+        
         ttk.Button(ba_button_frame, text="10-Q Study", command=self._run_10q_study).pack(side=tk.LEFT, padx=(0, 5))
         ttk.Button(ba_button_frame, text="10K Study", command=self._run_10k_study).pack(side=tk.LEFT, padx=(0, 5))
         # SEC filing extraction buttons
         ttk.Button(ba_button_frame, text="Extract 10-K Tables", command=lambda: self._extract_sec_filing('10-K')).pack(side=tk.LEFT, padx=(0, 5))
         ttk.Button(ba_button_frame, text="Extract 10-Q Tables", command=lambda: self._extract_sec_filing('10-Q')).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(ba_button_frame, text="Conduct News Search", command=self._run_news_search).pack(side=tk.LEFT, padx=(0, 5))
+
 
         self.general_search_var = tk.StringVar()
         general_search_entry = ttk.Entry(ba_button_frame, textvariable=self.general_search_var, width=40)
@@ -955,11 +957,11 @@ class StockDataGUI:
         ba_text_frame.pack(fill=tk.BOTH, expand=True, pady=5)
 
         if sys.platform == "win32":
-            font_name = "Microsoft YaHei"
+            font_name = "Consolas"
         elif sys.platform == "darwin":
-            font_name = "PingFang SC"
+            font_name = "Menlo"
         else: # linux
-            font_name = "Noto Sans CJK SC"
+            font_name = "DejaVu Sans Mono"
 
         self.business_analysis_text = tk.Text(ba_text_frame, wrap=tk.WORD, height=20, width=80, font=(font_name, 12))
         self.business_analysis_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -4062,6 +4064,195 @@ class StockDataGUI:
         except Exception:
             return False
 
+    def _beautify_business_analysis(self, raw_text: str, ticker: str, company_info: Optional[Dict[str, Any]] = None) -> str:
+        """Transform Gemini output into a structured, infographic-style layout."""
+        if not raw_text or not raw_text.strip():
+            return raw_text
+
+        normalized_text = raw_text.replace("\r\n", "\n").strip()
+        lower_text = normalized_text.lower()
+
+        if lower_text.startswith("error") or lower_text.startswith("an error"):
+            return raw_text
+
+        # Skip if already formatted
+        if "BUSINESS SNAPSHOT" in raw_text and "BUSINESS ANALYSIS" in raw_text:
+            return raw_text
+
+        company_info = company_info or self.manager.get_fundamental_data(ticker)
+
+        sections = self._extract_ba_sections(normalized_text)
+        if not sections:
+            return raw_text
+
+        width = 82
+        banner_lines = self._build_ba_banner(ticker, company_info, width)
+        snapshot_lines = self._build_business_snapshot_panel(company_info, width)
+
+        icon_map = {
+            "BUSINESS MODEL": "🛡",
+            "REVENUE STREAMS": "💰",
+            "COMPETITIVE LANDSCAPE": "⚔️",
+            "FINANCIAL HEALTH": "📊",
+            "GROWTH PROSPECTS": "🚀",
+            "POTENTIAL RISKS": "⚠️",
+        }
+
+        formatted_lines = banner_lines
+        if snapshot_lines:
+            formatted_lines.extend(["", *snapshot_lines, ""])
+
+        for idx, section in enumerate(sections, 1):
+            title = self._normalize_section_title(section["title"])
+            icon = icon_map.get(title, "")
+            heading = f"{idx}. {title}" if title else f"Section {idx}"
+            if icon:
+                heading = f"{icon}  {heading}"
+
+            formatted_lines.append(heading)
+            formatted_lines.append("─" * min(len(heading) + 2, width))
+
+            for item_type, text in section["body"]:
+                if not text:
+                    continue
+                if item_type == "bullet":
+                    formatted_lines.append(f"   • {text}")
+                else:
+                    formatted_lines.append(f"   {text}")
+
+            formatted_lines.append("")
+
+        return "\n".join(line.rstrip() for line in formatted_lines).strip()
+
+    def _build_ba_banner(self, ticker: str, company_info: Optional[Dict[str, Any]], width: int) -> List[str]:
+        """Create a banner headline for the business analysis card."""
+        company_name = (company_info or {}).get('longName') or ticker.upper()
+        title = f"{company_name.upper()} ({ticker.upper()})"
+        subtitle = "BUSINESS ANALYSIS"
+
+        top = "╔" + "═" * (width - 2) + "╗"
+        bottom = "╚" + "═" * (width - 2) + "╝"
+        middle_title = f"║ {title.center(width - 4)} ║"
+        middle_subtitle = f"║ {subtitle.center(width - 4)} ║"
+
+        return [top, middle_title, middle_subtitle, bottom]
+
+    def _build_business_snapshot_panel(self, company_info: Optional[Dict[str, Any]], width: int) -> List[str]:
+        """Build a quick facts panel similar to an infographic callout."""
+        if not company_info:
+            return []
+
+        fields = [
+            ("Sector", company_info.get('sector')),
+            ("Industry", company_info.get('industry')),
+            ("Market Cap", company_info.get('marketCap')),
+            ("Trailing P/E", company_info.get('trailingPE')),
+            ("Forward P/E", company_info.get('forwardPE')),
+            ("Dividend Yield", company_info.get('dividendYield')),
+            ("Beta", company_info.get('beta')),
+            ("52W High", company_info.get('fiftyTwoWeekHigh')),
+            ("52W Low", company_info.get('fiftyTwoWeekLow')),
+        ]
+
+        panel_width = width - 2  # number of dashes between corners
+        inner_width = panel_width - 2  # available characters between vertical bars
+
+        lines = [
+            "┌" + "─" * panel_width + "┐",
+            f"│ { 'BUSINESS SNAPSHOT'.center(inner_width) } │",
+            "├" + "─" * panel_width + "┤",
+        ]
+
+        for label, value in fields:
+            display_value = self._format_snapshot_value(label, value)
+            content = f"{label:<15}: {display_value}"
+            truncated = content[:inner_width].ljust(inner_width)
+            lines.append(f"│ {truncated} │")
+
+        lines.append("└" + "─" * panel_width + "┘")
+        return lines
+
+    def _format_snapshot_value(self, label: str, value: Any) -> str:
+        """Format numeric snapshot values into human-friendly strings."""
+        if value in (None, "", "N/A"):
+            return "N/A"
+
+        if isinstance(value, (int, float)):
+            if "yield" in label.lower():
+                pct = value * 100 if abs(value) < 1 else value
+                return f"{pct:.2f}%"
+            if label.lower().startswith("beta"):
+                return f"{value:.2f}"
+            if "52w" in label.lower():
+                return f"{value:,.2f}"
+            return self._format_human_number(value)
+
+        return str(value)
+
+    def _format_human_number(self, value: Any) -> str:
+        """Convert large numbers into compact representations (e.g., 405B)."""
+        try:
+            num = float(value)
+        except (TypeError, ValueError):
+            return str(value)
+
+        abs_num = abs(num)
+        if abs_num >= 1e12:
+            return f"{num / 1e12:.2f}T"
+        if abs_num >= 1e9:
+            return f"{num / 1e9:.2f}B"
+        if abs_num >= 1e6:
+            return f"{num / 1e6:.2f}M"
+        if abs_num >= 1e3:
+            return f"{num:,.0f}"
+        return f"{num:.2f}"
+
+    def _extract_ba_sections(self, text: str) -> List[Dict[str, Any]]:
+        """Parse markdown-ish Gemini output into ordered sections."""
+        sections: List[Dict[str, Any]] = []
+        current_section: Optional[Dict[str, Any]] = None
+
+        for raw_line in text.split('\n'):
+            line = raw_line.strip()
+            if not line:
+                continue
+
+            if line.startswith('#'):
+                heading = line.lstrip('#').strip()
+                if not heading:
+                    continue
+                current_section = {"title": heading, "body": []}
+                sections.append(current_section)
+                continue
+
+            if current_section is None:
+                current_section = {"title": "Overview", "body": []}
+                sections.append(current_section)
+
+            if line[0] in {'*', '-', '•'}:
+                bullet_text = line.lstrip('*-•\t ').strip()
+                current_section["body"].append(("bullet", self._strip_markdown_emphasis(bullet_text)))
+            else:
+                current_section["body"].append(("text", self._strip_markdown_emphasis(line)))
+
+        return sections
+
+    def _normalize_section_title(self, title: str) -> str:
+        """Normalize headings to uppercase card titles."""
+        if not title:
+            return ""
+        cleaned = re.sub(r"^\d+[\.)]\s*", "", title).strip().rstrip(':')
+        return cleaned.upper()
+
+    def _strip_markdown_emphasis(self, text: str) -> str:
+        """Remove simple markdown emphasis markers for cleaner bullets."""
+        if not text:
+            return text
+        text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)
+        text = re.sub(r"__(.*?)__", r"\1", text)
+        text = text.replace('`', '')
+        return text.replace('**', '').strip()
+
     def _run_business_analysis(self):
         """Runs the business analysis for the selected ticker."""
         selected_tickers = self._get_selected_tickers(show_warning=True)
@@ -4080,10 +4271,11 @@ class StockDataGUI:
             if cache_file and os.path.exists(cache_file) and self._is_cache_fresh(cache_file, days=self.ba_freshness_days_var.get()):
                 with open(cache_file, "r", encoding="utf-8") as f:
                     cached_md = f.read()
-                self.business_analysis_original_text = cached_md
+                formatted_md = self._beautify_business_analysis(cached_md, ticker)
+                self.business_analysis_original_text = formatted_md
                 self.business_analysis_filter_var.set("")
                 safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
-                safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, cached_md)
+                safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, formatted_md)
                 safe_update_text_widget(self.business_analysis_text, 'see', "1.0")
                 # Append change-over-time section if enabled and history exists
                 if self.ba_show_change_var.get():
@@ -4110,9 +4302,10 @@ class StockDataGUI:
 
                 logging.info(f"Running analysis for {ticker}")
                 analysis_result = gemini_analyzer.analyze_ticker(ticker, company_info)
+                beautified_result = self._beautify_business_analysis(analysis_result, ticker, company_info)
                 
                 # Store the original text for filtering
-                self.business_analysis_original_text = analysis_result
+                self.business_analysis_original_text = beautified_result
                 
                 # Reset filter when loading new content
                 if threading.current_thread() is threading.main_thread():
@@ -4123,7 +4316,7 @@ class StockDataGUI:
                 
                 # Update UI with results using thread-safe methods
                 safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
-                safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, analysis_result)
+                safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, beautified_result)
                 safe_update_text_widget(self.business_analysis_text, 'see', "1.0")
                 # Append change-over-time section based on saved history if enabled
                 try:
@@ -4142,7 +4335,7 @@ class StockDataGUI:
                         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                         f.write(f"# Business Analysis: {ticker}\n\n")
                         f.write(f"_Generated: {timestamp}_\n\n")
-                        f.write(analysis_result)
+                        f.write(beautified_result)
                     safe_update_status(self.status_var, f"Saved Business Analysis markdown for {ticker}")
                 except Exception as e:
                     logging.error(f"Could not save analysis: {e}")
@@ -4222,16 +4415,17 @@ class StockDataGUI:
             if cache_file and os.path.exists(cache_file) and self._is_cache_fresh(cache_file, days=self.ba_freshness_days_var.get()):
                 with open(cache_file, "r", encoding="utf-8") as f:
                     analysis = f.read()
+                formatted_analysis = self._beautify_business_analysis(analysis, ticker)
                 
                 # Store the original text for filtering
-                self.business_analysis_original_text = analysis
+                self.business_analysis_original_text = formatted_analysis
                 
                 # Reset filter when loading new content
                 self.business_analysis_filter_var.set("")
                 
                 # Use thread-safe text widget updates
                 safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
-                safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, analysis)
+                safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, formatted_analysis)
                 # Append change-over-time section if enabled and history exists
                 if self.ba_show_change_var.get():
                     change_md = self._build_ba_change_over_time_section(ticker, max_items=self.ba_history_max_items_var.get())
@@ -4307,9 +4501,10 @@ class StockDataGUI:
             try:
                 logging.info(f"Running 10-K study for {ticker}")
                 analysis_result = gemini_analyzer.analyze_10k_report(ticker)
+                beautified_result = self._beautify_business_analysis(analysis_result, ticker)
                 
                 # Store the original text for filtering
-                self.business_analysis_original_text = analysis_result
+                self.business_analysis_original_text = beautified_result
                 
                 # Reset filter when loading new content
                 if threading.current_thread() is threading.main_thread():
@@ -4320,7 +4515,7 @@ class StockDataGUI:
                 
                 # Update UI with results using thread-safe methods
                 safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
-                safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, analysis_result)
+                safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, beautified_result)
                 safe_update_text_widget(self.business_analysis_text, 'see', "1.0")
                 
                 # Update status using thread-safe method
@@ -4417,9 +4612,10 @@ class StockDataGUI:
             try:
                 logging.info(f"Running 10-Q analysis for {ticker}")
                 analysis_result = gemini_analyzer.analyze_10q_report(ticker)
+                beautified_result = self._beautify_business_analysis(analysis_result, ticker)
                 
                 # Store the original text for filtering
-                self.business_analysis_original_text = analysis_result
+                self.business_analysis_original_text = beautified_result
                 
                 # Reset filter when loading new content
                 if threading.current_thread() is threading.main_thread():

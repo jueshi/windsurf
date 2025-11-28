@@ -39,3 +39,10 @@
   - Change: Added `_list_supported_gemini_models()` and enhanced `_format_gemini_error()` to call `genai.list_models()` and include accessible model names when we hit 404/unsupported responses.
   - Files: `stock_charts_10k10q/gemini_analyzer.py`.
   - Validation: Triggered the error path manually to confirm the returned message now lists available models when `genai.list_models()` succeeds, or advises running the command if listing fails.
+
+## 2025-11-28
+
+- **Beautified Business Analysis output to infographic-style layout**
+  - Added `_beautify_business_analysis` helper plus banner, snapshot, and section-parsing utilities to `gui.py`.
+  - Hooked beautifier into BA runs, cached loads, 10-K/10-Q studies, and markdown caching so the text widget shows a structured layout similar to the provided reference image.
+  - Updated WORKLOG per user request.
