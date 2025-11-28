@@ -15,6 +15,7 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any, Tuple
 import requests
 import numpy as np
+from bs4 import BeautifulSoup
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -82,6 +83,8 @@ class StockDataGUI:
         self.fundamental_filter_var = tk.StringVar() # Filter for fundamental data
         self.business_analysis_filter_var = tk.StringVar() # Filter for business analysis data
         self.business_analysis_original_text = "" # Store original text for filtering
+        self.market_news_original_text = ""  # Cache latest market news summary
+        self.stock_news_temp_tickers = []  # Temporary tickers detected from Finviz v=3
 
         # Load ticker lists from ticker_lists.py
         self.ticker_lists = {}
@@ -651,6 +654,10 @@ class StockDataGUI:
         # Create business analysis tab
         self.business_analysis_frame = ttk.Frame(self.chart_notebook)
         self.chart_notebook.add(self.business_analysis_frame, text="Business Analysis")
+
+        # Create Market News tab
+        self.market_news_frame = ttk.Frame(self.chart_notebook)
+        self.chart_notebook.add(self.market_news_frame, text="Market News Blog")
         
         # Create Buffett & CANSLIM tab
         self.buffett_canslim_frame = ttk.Frame(self.chart_notebook)
@@ -969,6 +976,30 @@ class StockDataGUI:
         ba_scrollbar = ttk.Scrollbar(ba_text_frame, command=self.business_analysis_text.yview)
         ba_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.business_analysis_text.config(yscrollcommand=ba_scrollbar.set)
+
+        # --- Market News Tab Widgets ---
+        mn_outer = ttk.Frame(self.market_news_frame, padding="10")
+        mn_outer.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(mn_outer, text="Latest Market News Blog", font=("Helvetica", 12, "bold"))\
+            .pack(anchor=tk.W, pady=(0, 5))
+
+        mn_text_frame = ttk.Frame(mn_outer)
+        mn_text_frame.pack(fill=tk.BOTH, expand=True)
+
+        if sys.platform == "win32":
+            mn_font = "Consolas"
+        elif sys.platform == "darwin":
+            mn_font = "Menlo"
+        else:
+            mn_font = "DejaVu Sans Mono"
+
+        self.market_news_text = tk.Text(mn_text_frame, wrap=tk.WORD, height=25, width=90, font=(mn_font, 11))
+        self.market_news_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        mn_scroll = ttk.Scrollbar(mn_text_frame, command=self.market_news_text.yview)
+        mn_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.market_news_text.config(yscrollcommand=mn_scroll.set)
         
         # Create a frame for year selection in seasonality tab
         self.seasonality_controls_frame = ttk.Frame(self.seasonality_chart_frame)
@@ -1061,6 +1092,8 @@ class StockDataGUI:
         ttk.Button(bottom_frame, text="Visualize Daily/Weekly/Monthly", command=self._visualize_all_timeframes).pack(side=tk.LEFT, padx=5)
         ttk.Button(bottom_frame, text="View HTML Report", command=self._view_html_report).pack(side=tk.LEFT, padx=5)
         ttk.Button(bottom_frame, text="Compare % Performance", command=self._compare_percentage_performance).pack(side=tk.LEFT, padx=5)
+        ttk.Button(bottom_frame, text="Summarize Market News", command=self._summarize_market_news).pack(side=tk.LEFT, padx=5)
+        ttk.Button(bottom_frame, text="Summarize Stock News", command=self._summarize_stock_news).pack(side=tk.LEFT, padx=5)
 
         # Status bar
         self.status_var = tk.StringVar()
@@ -4587,6 +4620,395 @@ class StockDataGUI:
         search_thread_obj = threading.Thread(target=search_thread, daemon=True)
         search_thread_obj.name = f"NewsSearch-{ticker}"
         search_thread_obj.start()
+
+    def _summarize_market_news(self):
+        """Summarize overall market news from Finviz using Gemini."""
+        # Switch to Market News tab for visibility
+        try:
+            self.chart_notebook.select(self.market_news_frame)
+        except Exception:
+            pass
+
+        safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
+        safe_update_text_widget(
+            self.market_news_text,
+            'insert',
+            tk.END,
+            "收集Finviz最新市场新闻并生成双语博客，请稍候...\nGathering Finviz market news and drafting a bilingual blog..."
+        )
+        self.root.update_idletasks()
+
+        def news_thread():
+            try:
+                articles = self._fetch_market_news_articles(limit=10)
+            except Exception as e:
+                logging.error(f"Error fetching market news: {e}")
+                safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
+                safe_update_text_widget(
+                    self.market_news_text,
+                    'insert',
+                    tk.END,
+                    f"无法获取市场新闻: {e}\nCould not fetch market news: {e}"
+                )
+                safe_show_message('error', "Market News", f"Could not fetch market news: {e}")
+                return
+
+            if not articles:
+                safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
+                safe_update_text_widget(
+                    self.market_news_text,
+                    'insert',
+                    tk.END,
+                    "未找到可用的市场新闻。\nNo market news was found."
+                )
+                safe_update_status(self.status_var, "No market news available")
+                return
+
+            safe_update_status(self.status_var, "Summarizing market news via Gemini...")
+
+            try:
+                summary = gemini_analyzer.summarize_market_news(articles)
+            except Exception as e:
+                logging.error(f"Error summarizing market news: {e}")
+                safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
+                safe_update_text_widget(
+                    self.market_news_text,
+                    'insert',
+                    tk.END,
+                    f"市场新闻总结失败: {e}\nFailed to summarize market news: {e}"
+                )
+                safe_show_message('error', "Market News", f"Failed to summarize market news: {e}")
+                return
+
+            formatted = summary or "Gemini did not return any content."
+            self.market_news_original_text = formatted
+
+            safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
+            safe_update_text_widget(self.market_news_text, 'insert', tk.END, formatted)
+            safe_update_text_widget(self.market_news_text, 'see', "1.0")
+            safe_update_status(self.status_var, "Market news blog ready")
+
+        threading.Thread(target=news_thread, daemon=True, name="FinvizNewsSummary").start()
+
+    def _summarize_stock_news(self):
+        """Summarize Finviz v=3 stock news feed without requiring ticker selection."""
+        try:
+            self.chart_notebook.select(self.market_news_frame)
+        except Exception:
+            pass
+
+        safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
+        safe_update_text_widget(
+            self.market_news_text,
+            'insert',
+            tk.END,
+            "正在收集 Finviz 股票新闻，请稍候...\nGathering Finviz stock news feed, please wait..."
+        )
+        self.root.update_idletasks()
+
+        def stock_news_thread():
+            try:
+                articles = self._fetch_stock_news_articles(limit=12)
+            except Exception as e:
+                logging.error(f"Error fetching stock news feed: {e}")
+                safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
+                safe_update_text_widget(
+                    self.market_news_text,
+                    'insert',
+                    tk.END,
+                    f"无法获取股票新闻：{e}\nCould not fetch stock news: {e}"
+                )
+                self._update_stock_news_temp_list([])
+                safe_show_message('error', "Stock News", f"Could not fetch Finviz stock news: {e}")
+                return
+
+            if not articles:
+                safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
+                safe_update_text_widget(
+                    self.market_news_text,
+                    'insert',
+                    tk.END,
+                    "未找到最新股票新闻。\nNo stock news items were found."
+                )
+                self._update_stock_news_temp_list([])
+                safe_update_status(self.status_var, "No stock news detected")
+                return
+
+            tickers = self._collect_unique_tickers(articles)
+            self._update_stock_news_temp_list(tickers)
+
+            safe_update_status(self.status_var, "Summarizing Finviz stock news via Gemini...")
+
+            try:
+                summary = gemini_analyzer.summarize_stock_news(articles, tickers)
+            except Exception as e:
+                logging.error(f"Error summarizing stock news feed: {e}")
+                safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
+                safe_update_text_widget(
+                    self.market_news_text,
+                    'insert',
+                    tk.END,
+                    f"总结股票新闻失败：{e}\nFailed to summarize stock news: {e}"
+                )
+                safe_show_message('error', "Stock News", f"Failed to summarize Finviz stock news: {e}")
+                return
+
+            formatted = summary or "Gemini did not return any content."
+            self.market_news_original_text = formatted
+
+            safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
+            safe_update_text_widget(self.market_news_text, 'insert', tk.END, formatted)
+            safe_update_text_widget(self.market_news_text, 'see', "1.0")
+            safe_update_status(self.status_var, "Stock news blog updated")
+
+        threading.Thread(target=stock_news_thread, daemon=True, name="FinvizStockNewsSummary").start()
+
+    def _fetch_market_news_articles(self, limit: int = 8) -> List[Dict[str, str]]:
+        """Fetch latest market news items from Finviz."""
+        url = "https://elite.finviz.com/news.ashx"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Referer": "https://elite.finviz.com/",
+        }
+        try:
+            response = requests.get(url, headers=headers, timeout=20)
+            response.raise_for_status()
+        except requests.RequestException as e:
+            raise RuntimeError(f"Error fetching Finviz news: {e}") from e
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        articles: List[Dict[str, str]] = []
+
+        def add_article(title: str, href: str, timestamp: str, snippet: str):
+            if not title or not href:
+                return
+            articles.append({
+                "title": title.strip(),
+                "url": href.strip(),
+                "timestamp": timestamp.strip(),
+                "snippet": snippet.strip(),
+            })
+
+        for table in soup.select("table.news-table"):
+            for row in table.find_all("tr"):
+                cells = row.find_all("td")
+                if len(cells) < 2:
+                    continue
+                link = cells[-1].find("a")
+                if not link:
+                    continue
+                title = link.get_text(strip=True)
+                href = link.get("href", "")
+                timestamp = cells[0].get_text(strip=True)
+                snippet = cells[-1].get_text(" ", strip=True)
+                add_article(title, href, timestamp, snippet)
+                if len(articles) >= limit:
+                    return articles
+
+    def _fetch_stock_news_articles(self, limit: int = 12) -> List[Dict[str, str]]:
+        """Fetch the latest stock-specific headlines from Finviz (v=3) without needing a ticker."""
+        url = "https://elite.finviz.com/news.ashx?v=3"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Referer": "https://elite.finviz.com/",
+        }
+        try:
+            response = requests.get(url, headers=headers, timeout=20)
+            response.raise_for_status()
+        except requests.RequestException as e:
+            raise RuntimeError(f"Error fetching Finviz stock news: {e}") from e
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        articles: List[Dict[str, str]] = []
+        ticker_pattern = re.compile(r"t=([A-Za-z0-9\.-]+)")
+
+        def extract_tickers(cell) -> List[str]:
+            tickers = set()
+            for link in cell.find_all("a"):
+                href = link.get("href", "")
+                match = ticker_pattern.search(href)
+                if match:
+                    tickers.add(match.group(1).upper())
+                    continue
+                text = (link.get_text(strip=True) or "")
+                if self._looks_like_ticker(text):
+                    tickers.add(text.upper())
+
+            cell_text = cell.get_text(" ", strip=True)
+            for match in re.findall(r"\(([A-Z]{1,5})\)", cell_text):
+                tickers.add(match.upper())
+
+            return sorted(tickers)
+
+        rows = soup.select("table.fullview-news-outer tr")
+        if not rows:
+            rows = soup.select("#news table.styled-table-new tr")
+        for row in rows:
+            cells = row.find_all("td")
+            if len(cells) < 2:
+                continue
+            link_cell = cells[1]
+            link = link_cell.find("a")
+            if not link:
+                continue
+            title = link.get_text(strip=True)
+            href = link.get("href", "")
+            if not title or not href:
+                continue
+            snippet = link_cell.get_text(" ", strip=True)
+            time_text = cells[0].get_text(strip=True)
+            article_tickers = extract_tickers(link_cell)
+            articles.append({
+                "title": title,
+                "url": href,
+                "timestamp": time_text,
+                "snippet": snippet,
+                "tickers": article_tickers,
+            })
+            if len(articles) >= limit:
+                break
+
+        if articles:
+            return articles
+
+        # Fallback: general anchors if expected table is missing
+        for link in soup.select("a"):
+            href = link.get("href", "")
+            if not href.startswith("http"):
+                continue
+            title = link.get_text(strip=True)
+            if not title:
+                continue
+            parent_text = link.parent.get_text(" ", strip=True) if link.parent else title
+            detected = []
+            match = ticker_pattern.search(href)
+            if match:
+                detected.append(match.group(1).upper())
+            articles.append({
+                "title": title,
+                "url": href,
+                "timestamp": "",
+                "snippet": parent_text,
+                "tickers": detected,
+            })
+            if len(articles) >= limit:
+                break
+
+        return articles
+
+    def _looks_like_ticker(self, text: str) -> bool:
+        if not text:
+            return False
+        return bool(re.fullmatch(r"[A-Z]{1,5}(?:\.[A-Z]{1,2})?", text.strip()))
+
+    def _collect_unique_tickers(self, articles: List[Dict[str, Any]]) -> List[str]:
+        seen = []
+        for article in articles:
+            for ticker in article.get("tickers", []) or []:
+                ticker = ticker.upper()
+                if ticker and ticker not in seen:
+                    seen.append(ticker)
+        return seen
+
+    def _save_temp_stock_list(self, tickers: List[str]):
+        """Persist detected Finviz tickers into ticker_lists.temp_stocks."""
+        try:
+            import ticker_lists
+            ticker_lists.temp_stocks = tickers.copy()
+            logging.info("Saved %d Finviz ticker(s) to temp_stocks list", len(tickers))
+        except Exception as e:
+            logging.error(f"Failed to update temp_stocks list: {e}")
+
+        self._persist_temp_stocks_to_file(tickers)
+
+        def _switch_to_temp_list():
+            try:
+                import ticker_lists
+                importlib.reload(ticker_lists)
+                refreshed = getattr(ticker_lists, "temp_stocks", tickers) or tickers
+                self.ticker_lists["temp_stocks"] = refreshed
+                if hasattr(self, "ticker_list_combo"):
+                    current_values = list(self.ticker_lists.keys())
+                    self.ticker_list_combo['values'] = current_values
+                self.ticker_list_var.set("temp_stocks")
+                self._load_ticker_list()
+                self.status_var.set(f"Switched to temp_stocks ({len(refreshed)} tickers)")
+            except Exception as e:
+                logging.error(f"Failed to reload temp_stocks list: {e}")
+
+        try:
+            self.root.after(0, _switch_to_temp_list)
+        except Exception:
+            _switch_to_temp_list()
+
+    def _persist_temp_stocks_to_file(self, tickers: List[str]):
+        ticker_lists_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ticker_lists.py")
+        try:
+            with open(ticker_lists_path, "r", encoding="utf-8") as f:
+                lines = f.read().splitlines()
+        except OSError as e:
+            logging.error(f"Could not read ticker_lists.py to persist temp_stocks: {e}")
+            return
+
+        new_lines = self._format_temp_stock_lines(tickers)
+
+        start_idx = end_idx = None
+        for idx, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped.startswith("temp_stocks") and "=" in stripped:
+                start_idx = idx
+                depth = line.count("[") - line.count("]")
+                end_idx = idx
+                while depth > 0 and end_idx + 1 < len(lines):
+                    end_idx += 1
+                    depth += lines[end_idx].count("[") - lines[end_idx].count("]")
+                break
+
+        if start_idx is not None and end_idx is not None:
+            lines[start_idx:end_idx + 1] = new_lines
+        else:
+            if lines and lines[-1].strip():
+                lines.append("")
+            lines.extend(new_lines)
+
+        new_content = "\n".join(lines) + "\n"
+
+        try:
+            with open(ticker_lists_path, "w", encoding="utf-8") as f:
+                f.write(new_content)
+            logging.info("Persisted %d Finviz ticker(s) to ticker_lists.py", len(tickers))
+        except OSError as e:
+            logging.error(f"Failed to write temp_stocks to ticker_lists.py: {e}")
+
+    def _format_temp_stock_lines(self, tickers: List[str]) -> List[str]:
+        tickers = tickers or []
+        if not tickers:
+            return ["temp_stocks = []"]
+
+        lines = ["temp_stocks = ["]
+        for idx, ticker in enumerate(tickers):
+            suffix = "," if idx < len(tickers) - 1 else ""
+            lines.append(f'    "{ticker}"{suffix}')
+        lines.append("]")
+        return lines
+
+    def _update_stock_news_temp_list(self, tickers: List[str]):
+        tickers = tickers or []
+        self.stock_news_temp_tickers = tickers
+        self._save_temp_stock_list(tickers)
+
+        if tickers:
+            status = f"Saved {len(tickers)} Finviz ticker(s) to 'temp_stocks'"
+        else:
+            status = "Cleared 'temp_stocks' (no Finviz tickers detected)"
+
+        def _apply():
+            safe_update_status(self.status_var, status)
+
+        try:
+            self.root.after(0, _apply)
+        except Exception:
+            _apply()
 
     def _run_10q_study(self):
         """

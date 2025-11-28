@@ -1331,6 +1331,126 @@ def general_search(ticker, company_info, query):
     except Exception as e:
         return f"An error occurred while communicating with the Gemini API: {e}"
 
+
+def summarize_market_news(articles):
+    """Use Gemini to convert market news articles into a bilingual blog post."""
+    if not articles:
+        return "未提供市场新闻数据。\nNo market news articles were provided."
+
+    load_dotenv()
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return "Error: GEMINI_API_KEY not found in environment variables."
+
+    genai.configure(api_key=api_key)
+    try:
+        model = _init_gemini_model_with_fallback()
+    except Exception as e:
+        return _format_gemini_error(e)
+
+    # Keep prompt concise by limiting number of articles
+    max_items = min(len(articles), 12)
+    bullet_lines = []
+    for idx, article in enumerate(articles[:max_items], 1):
+        title = article.get('title', 'Untitled')
+        timestamp = article.get('timestamp') or 'N/A'
+        snippet = article.get('snippet') or ''
+        url = article.get('url', '')
+        bullet_lines.append(
+            f"{idx}. 标题/Title: {title}\n   时间: {timestamp}\n   摘要: {snippet}\n   链接: {url}"
+        )
+
+    prompt = f"""
+你是一位资深华尔街财经专栏作家。请阅读以下来自 Finviz 的市场头条，撰写一篇具有博客风格的总结：
+
+新闻列表：
+{chr(10).join(bullet_lines)}
+
+写作要求：
+1. 先用中文撰写完整的市场回顾，包括总览、重要板块/行业动向、宏观数据或公司事件亮点，并给出要点列表。
+2. 紧接着提供一段英文版本，内容与中文段落保持一致。
+3. 采用资讯型博客语气，提炼主线逻辑并点出潜在影响。
+"""
+
+    rate_limiter = GeminiRateLimiter()
+
+    try:
+        def make_api_call():
+            return model.generate_content(prompt)
+
+        response = rate_limiter.make_api_call_with_retry(make_api_call)
+        return response.text
+    except Exception as e:
+        return _format_gemini_error(e)
+
+
+def _collect_article_tickers(articles):
+    unique = []
+    seen = set()
+    for article in articles or []:
+        for ticker in article.get("tickers", []) or []:
+            normalized = (ticker or "").strip().upper()
+            if normalized and normalized not in seen:
+                seen.add(normalized)
+                unique.append(normalized)
+    return unique
+
+
+def summarize_stock_news(articles, tickers=None):
+    """Summarize Finviz v=3 stock headlines (general feed) into a bilingual blog."""
+    if not articles:
+        return "未找到任何股票新闻。\nNo stock news items were provided."
+
+    load_dotenv()
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return "Error: GEMINI_API_KEY not found in environment variables."
+
+    genai.configure(api_key=api_key)
+    try:
+        model = _init_gemini_model_with_fallback()
+    except Exception as e:
+        return _format_gemini_error(e)
+
+    max_items = min(len(articles), 12)
+    bullet_lines = []
+    for idx, article in enumerate(articles[:max_items], 1):
+        title = article.get('title', 'Untitled')
+        timestamp = article.get('timestamp') or 'N/A'
+        snippet = article.get('snippet') or ''
+        url = article.get('url', '')
+        bullet_lines.append(
+            f"{idx}. 标题/Title: {title}\n   时间: {timestamp}\n   摘要: {snippet}\n   链接: {url}"
+        )
+
+    derived_tickers = tickers if tickers else _collect_article_tickers(articles)
+    ticker_highlights = "无" if not derived_tickers else ", ".join(derived_tickers[:20])
+
+    prompt = f"""
+你是一位资深华尔街分析师兼投资博客作者。请根据 Finviz v=3 股票新闻源撰写一篇双语博客：
+
+已提及股票：{ticker_highlights}
+
+新闻列表：
+{chr(10).join(bullet_lines)}
+
+写作要求：
+1. 先用中文写出结构化的市场/个股新闻综述，突出受影响的行业与公司、潜在驱动因素和投资含义，可使用要点列表。
+2. 紧接着提供一段英文版本，内容与中文段落保持一致。
+3. 语气需兼具专业与博客风格，让投资者快速抓住重点，可在结尾给出观察建议。
+"""
+
+    rate_limiter = GeminiRateLimiter()
+
+    try:
+        def make_api_call():
+            return model.generate_content(prompt)
+
+        response = rate_limiter.make_api_call_with_retry(make_api_call)
+        return response.text
+    except Exception as e:
+        return _format_gemini_error(e)
+
 def general_ai_search(query):
     """
     Performs a general AI search using Google Gemini API without requiring ticker information.
