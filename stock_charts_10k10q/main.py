@@ -111,8 +111,7 @@ def main():
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s: %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
-    )
-
+    ) 
     # Suppress tkinter cleanup exceptions on exit
     suppress_tkinter_exit_errors()
 
@@ -121,7 +120,7 @@ def main():
     warnings.filterwarnings("ignore", category=FutureWarning, module="yfinance")
 
     root = tk.Tk()
-    root.title("Stock Data Manager")
+    root.title("Personal AI Stock Assistant")
 
     # Maximize the window
     root.state('zoomed')  # Windows-specific command to maximize

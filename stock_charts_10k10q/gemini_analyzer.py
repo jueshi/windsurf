@@ -15,6 +15,23 @@ from functools import wraps
 from datetime import datetime, timedelta
 from threading import Lock
 
+# Helper to list accessible Gemini models that support generateContent
+def _list_supported_gemini_models() -> list:
+    """Return the Gemini model names accessible to the current API key."""
+    try:
+        models = genai.list_models()
+    except Exception as err:
+        logging.warning("Unable to list Gemini models: %s", err)
+        return []
+
+    supported = []
+    for model in models:
+        methods = getattr(model, "supported_generation_methods", []) or []
+        if "generateContent" in methods:
+            supported.append(model.name)
+    return supported
+
+
 # Helper to format Gemini API errors with actionable guidance
 def _format_gemini_error(e: Exception) -> str:
     """
@@ -51,6 +68,30 @@ def _format_gemini_error(e: Exception) -> str:
             "5) Wait a few minutes for propagation, then retry.\n\n"
             f"Original error: {msg}"
         )
+    unsupported_tokens = [
+        "404",
+        "not found",
+        "NOT_FOUND",
+        "not supported",
+        "Unsupported",
+    ]
+    if any(tok in msg for tok in unsupported_tokens):
+        available = _list_supported_gemini_models()
+        if available:
+            formatted = "\n".join(f"- {name}" for name in available)
+            return (
+                "Requested Gemini model is unavailable for this API key/version.\n\n"
+                "Try one of the accessible models that support generateContent:\n"
+                f"{formatted}\n\n"
+                f"Original error: {msg}"
+            )
+        return (
+            "Requested Gemini model is unavailable for this API key/version, and listing "
+            "alternatives failed. Run `genai.list_models()` after configuring your API key "
+            "to inspect supported models.\n\n"
+            f"Original error: {msg}"
+        )
+
     # Default: return the raw error message
     return f"An error occurred while communicating with the Gemini API: {msg}"
 
@@ -259,7 +300,7 @@ def analyze_ticker(ticker, company_info):
     4.  **增长前景:** 这家公司潜在的增长动力是什么？
     5.  **潜在风险:** 与这家公司相关的主要风险是什么？
 
-    请用中文提供结构良好且详细的分析。
+    请用English提供结构良好且详细的分析。
     """
 
     try:
@@ -1194,6 +1235,7 @@ def analyze_news(news_articles):
     for article in news_articles:
         prompt = f"""
         请用中文总结以下新闻文章，并将其分类为“利好”、“利空”或“中性”。
+        并提供具体数据和百分比变化。Followed by an English version of the response in a separate paragraph as well.
         请以JSON格式返回，包含“summary”和“sentiment”两个字段。
 
         新闻标题: {article.get('title', 'N/A')}
@@ -1268,7 +1310,7 @@ def general_search(ticker, company_info, query):
 
     用户问题: "{query}"
 
-    请使用中文进行详细回答。
+    请使用中文进行详细回答,并提供具体数据和百分比变化。Followed by an English version of the response as well
     ---
     公司参考信息:
     - **行业板块:** {company_info.get('sector', 'N/A')}
@@ -1316,7 +1358,7 @@ def general_ai_search(query):
 
     用户问题: "{query}"
 
-    请使用中文进行详细回答。
+    请使用中文进行详细回答,并提供具体数据和百分比变化。Followed by an English version of the response as well.
     """
 
     try:

@@ -31,3 +31,11 @@
 
 - No comments or docstrings were removed during these fixes.
 - No external dependencies changed.
+
+## 2025-11-27
+
+- **Surfaced available Gemini models on unsupported/404 errors**
+  - Issue: Users saw `An error occurred... models/gemini-3.0-pro is not found` without guidance on available models.
+  - Change: Added `_list_supported_gemini_models()` and enhanced `_format_gemini_error()` to call `genai.list_models()` and include accessible model names when we hit 404/unsupported responses.
+  - Files: `stock_charts_10k10q/gemini_analyzer.py`.
+  - Validation: Triggered the error path manually to confirm the returned message now lists available models when `genai.list_models()` succeeds, or advises running the command if listing fails.

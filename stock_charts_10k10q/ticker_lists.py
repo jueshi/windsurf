@@ -9,7 +9,12 @@ A_ping_401k_ping = ["AAPL", "AMD", "AMZN", "AMZU", "APP", "ASAN", "AVGO", "CRDO"
 
 
 
-A_jue_401k_2025 = ["AAOI", "AAPL", "ABBV", "ADI", "AFRM", "ALAB", "AMCR", "AMGN", "AMZU", "APP", "APPX", "ARMG", "ATO", "AVGO", "AVL", "AVPT", "AZN", "BABX", "BEN", "BIDU", "BRKB", "BRKU", "CELH", "CELT", "CQQQ", "CRCG", "CRDO", "CRDU", "CRM", "CRMG", "CRWD", "CRWL", "CRWV", "CTAS", "DBC", "DIS", "DOV", "DOXGX", "ED", "EDMCQ", "ESS", "FBL", "FBTC", "FIG", "FIGR", "FNGU", "FSSNX", "FXAIX", "GLD", "GS", "GSX", "GWW", "HD", "INTC", "JD", "JNJ", "LABX", "MA", "MCD", "MSFX", "MSTX", "NFXL", "ORCL", "ORCX", "PG", "PLTG", "PLTR", "PLTU", "SPY", "TECS", "THD", "TMO", "TNA", "TSLL", "UBRL", "VIGIX", "YINN", "VGT", "QQQ"]
+A_jue_401k_2025 = ["AAOI", "AAPL", "ABBV", "ADI", "AFRM", "ALAB", "AMCR", "AMGN", "AMZU", "APP", "APPX", "ARMG", "ATO", "AVGO", "AVL", "AVPT", "AZN", "BABX", "BEN", "BIDU", "BRKB", "BRKU", "CELH", "CELT", "CQQQ", "CRCG", "CRCL", "CRDO", "CRDU", "CRM", "CRMG", "CRWD", "CRWL", "CRWV", "CTAS", "DBC", "DIS", "DOV", "DOXGX", "ED", "EDMCQ", "ESS", "FBL", "FBTC", "FIG", "FIGR", "FNGU", "FSSNX", "FXAIX", "GLD", "GS", "GSX", "GWW", "HD", "INTC", "JD", "JNJ", "LABX", "MA", "MCD", "MSFX", "MSTX", "NFXL", "ORCL", "ORCX", "PG", "PLTG", "PLTR", "PLTU", "QQQ", "SPY", "TECS", "THD", "TMO", "TNA", "TSLL", "UBRL", "VGT", "VIGIX", "YINN", "COSW", "NVDA", "AMD"]
+
+
+
+
+
 
 
 
@@ -577,6 +582,20 @@ half_year_stars_stocks = ["IREN", "BE", "SNDK", "BMNR", "QBTS", "OKLO", "QS", "N
 earnings_11_6_stocks = []
 
 earnings_ww_11_17_25_stocks = ["NVDA", "PANW", "BIDU", "BULL", "KC", "INTU", "VEEV", "WIX", "WMT", "TGT", "HD", "LOW", "TJX"]
+
+
+options_11_24_stocks = ["NXT", "SOXX", "SEI", "CARR", "DHI", "AR", "CAPR", "VLO", "XBI", "ANF", "INFY", "HPQ", "PCT", "CELH", "SVIX", "DKS", "BURL", "FMC", "SYM", "LQDA", "NVO", "BIIB", "CPRT", "ZM", "BBY", "OSCR", "RUM", "AS", "SGHC", "MRK", "CNC", "ADI", "WDAY", "CRMD", "FIGR", "SIRI", "CPRI", "HSAI", "ALT", "NEE", "EPD", "BFLY", "COMP", "FRMI", "GDS", "FIVN", "PRME", "UPWK", "EA", "EH", "QQQM", "QQQ"]
+
+
+
+
+demo_stocks = ["NVDA", "INTC", "GOOG", "AAPL", "OKTA", "COST"]
+
+
+
+
+
+
 
 
 # Function to check if a ticker symbol is valid and suggest alternatives if not
