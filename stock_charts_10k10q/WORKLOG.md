@@ -60,3 +60,8 @@
   - Mirrored the stock/ETF flow for v=5 crypto headlines: button, threaded workflow, feed parser, and ticker persistence.
   - Implemented `summarize_crypto_news` in `gemini_analyzer.py` leveraging the existing Gemini pipeline.
   - Files: `stock_charts_10k10q/gui.py`, `stock_charts_10k10q/gemini_analyzer.py`.
+
+- **Built tooltip infrastructure and initial coverage**
+  - Added reusable `TooltipManager` module with hover delay control, Shift+F1 activation, and weakref registry cleanup.
+  - Integrated manager into `StockDataGUI`, added Show Tooltips toggle, and instrumented ticker list controls plus chart date range widgets with descriptive tooltips aligned to the new PRD.
+  - Files: `stock_charts_10k10q/tooltip_manager.py`, `stock_charts_10k10q/gui.py`.

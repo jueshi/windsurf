@@ -724,22 +724,16 @@ if __name__ == '__main__':
 
 
 temp_stocks = [
-    "AMZN",
-    "GOOG",
-    "GOOGL",
-    "META",
-    "EC",
-    "MAAS",
-    "BLRX",
-    "LULU",
-    "AAL",
-    "DAL",
-    "JBLU",
-    "UAL",
-    "NEWP",
-    "OMC",
-    "AEO",
-    "AMLX",
-    "DHR",
-    "ENVX"
+    "Q",
+    "CEVA",
+    "STM",
+    "POWI",
+    "SITM",
+    "ARM",
+    "ON",
+    "ALAB",
+    "AMD",
+    "NVDA",
+    "CRWD",
+    "CEG"
 ]
