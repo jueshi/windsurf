@@ -723,4 +723,26 @@ if __name__ == '__main__':
 
 
 
-temp_stocks = []
+temp_stocks = [
+    "BTC",
+    "STZ",
+    "LULU",
+    "BRK-A",
+    "BRK-B",
+    "POOL",
+    "ADBE",
+    "CRM",
+    "LUMN",
+    "AI",
+    "CRWV",
+    "NBIS",
+    "NVDA",
+    "AMZN",
+    "GOOG",
+    "GOOGL",
+    "META",
+    "NFLX",
+    "ABBV",
+    "HD",
+    "XOM"
+]
