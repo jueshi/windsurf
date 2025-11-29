@@ -46,3 +46,17 @@
   - Added `_beautify_business_analysis` helper plus banner, snapshot, and section-parsing utilities to `gui.py`.
   - Hooked beautifier into BA runs, cached loads, 10-K/10-Q studies, and markdown caching so the text widget shows a structured layout similar to the provided reference image.
   - Updated WORKLOG per user request.
+
+- **Reduced blank space under action buttons**
+  - Replaced the wrapper grid with a vertical `PanedWindow`, tightened the action pane padding, and bound sash initialization to `<Configure>` so the divider stays near the bottom yet remains draggable.
+  - File: `stock_charts_10k10q/gui.py`.
+
+- **Added Finviz ETF news summarizer**
+  - Replicated the stock-news workflow for ETFs: new GUI button, dedicated fetcher for the v=4 feed, shared ticker persistence, and Gemini summarization hook.
+  - Refactored Finviz parsing helpers for reuse and added `summarize_etf_news` in `gemini_analyzer.py`.
+  - Files: `stock_charts_10k10q/gui.py`, `stock_charts_10k10q/gemini_analyzer.py`.
+
+- **Added Finviz Crypto news summarizer**
+  - Mirrored the stock/ETF flow for v=5 crypto headlines: button, threaded workflow, feed parser, and ticker persistence.
+  - Implemented `summarize_crypto_news` in `gemini_analyzer.py` leveraging the existing Gemini pipeline.
+  - Files: `stock_charts_10k10q/gui.py`, `stock_charts_10k10q/gemini_analyzer.py`.

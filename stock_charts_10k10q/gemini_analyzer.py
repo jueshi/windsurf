@@ -1332,7 +1332,7 @@ def general_search(ticker, company_info, query):
         return f"An error occurred while communicating with the Gemini API: {e}"
 
 
-def summarize_market_news(articles):
+def summarize_market_news(articles, tickers=None):
     """Use Gemini to convert market news articles into a bilingual blog post."""
     if not articles:
         return "未提供市场新闻数据。\nNo market news articles were provided."
@@ -1360,8 +1360,13 @@ def summarize_market_news(articles):
             f"{idx}. 标题/Title: {title}\n   时间: {timestamp}\n   摘要: {snippet}\n   链接: {url}"
         )
 
+    derived_tickers = tickers if tickers else _collect_article_tickers(articles)
+    ticker_highlights = "无" if not derived_tickers else ", ".join(derived_tickers[:20])
+
     prompt = f"""
 你是一位资深华尔街财经专栏作家。请阅读以下来自 Finviz 的市场头条，撰写一篇具有博客风格的总结：
+
+市场焦点/Market Highlights：{ticker_highlights}
 
 新闻列表：
 {chr(10).join(bullet_lines)}
@@ -1370,6 +1375,118 @@ def summarize_market_news(articles):
 1. 先用中文撰写完整的市场回顾，包括总览、重要板块/行业动向、宏观数据或公司事件亮点，并给出要点列表。
 2. 紧接着提供一段英文版本，内容与中文段落保持一致。
 3. 采用资讯型博客语气，提炼主线逻辑并点出潜在影响。
+"""
+
+    rate_limiter = GeminiRateLimiter()
+
+    try:
+        def make_api_call():
+            return model.generate_content(prompt)
+
+        response = rate_limiter.make_api_call_with_retry(make_api_call)
+        return response.text
+    except Exception as e:
+        return _format_gemini_error(e)
+
+
+def summarize_crypto_news(articles, tickers=None):
+    """Summarize Finviz v=5 crypto headlines into a bilingual blog."""
+    if not articles:
+        return "未找到任何加密货币新闻。\nNo crypto news items were provided."
+
+    load_dotenv()
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return "Error: GEMINI_API_KEY not found in environment variables."
+
+    genai.configure(api_key=api_key)
+    try:
+        model = _init_gemini_model_with_fallback()
+    except Exception as e:
+        return _format_gemini_error(e)
+
+    max_items = min(len(articles), 12)
+    bullet_lines = []
+    for idx, article in enumerate(articles[:max_items], 1):
+        title = article.get('title', 'Untitled')
+        timestamp = article.get('timestamp') or 'N/A'
+        snippet = article.get('snippet') or ''
+        url = article.get('url', '')
+        bullet_lines.append(
+            f"{idx}. 标题/Title: {title}\n   时间: {timestamp}\n   摘要: {snippet}\n   链接: {url}"
+        )
+
+    derived_tickers = tickers if tickers else _collect_article_tickers(articles)
+    ticker_highlights = "无" if not derived_tickers else ", ".join(derived_tickers[:20])
+
+    prompt = f"""
+你是一位专注数字资产与链上资金流的加密市场策略师。请根据 Finviz v=5 Crypto 新闻流撰写一篇双语市场随笔：
+
+核心代币/主题：{ticker_highlights}
+
+新闻列表：
+{chr(10).join(bullet_lines)}
+
+写作要求：
+1. 先用中文分析整体市场情绪、链上/资金面动态、关键代币影响与潜在催化。
+2. 紧接着提供一段英文版本，信息需与中文一致，可给出交易/风险提示。
+3. 语气需兼顾专业与博客风格，可加入要点列表帮助投资者快速吸收。
+"""
+
+    rate_limiter = GeminiRateLimiter()
+
+    try:
+        def make_api_call():
+            return model.generate_content(prompt)
+
+        response = rate_limiter.make_api_call_with_retry(make_api_call)
+        return response.text
+    except Exception as e:
+        return _format_gemini_error(e)
+
+
+def summarize_etf_news(articles, tickers=None):
+    """Summarize Finviz v=4 ETF headlines into a bilingual insights blog."""
+    if not articles:
+        return "未找到任何ETF新闻。\nNo ETF news items were provided."
+
+    load_dotenv()
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return "Error: GEMINI_API_KEY not found in environment variables."
+
+    genai.configure(api_key=api_key)
+    try:
+        model = _init_gemini_model_with_fallback()
+    except Exception as e:
+        return _format_gemini_error(e)
+
+    max_items = min(len(articles), 12)
+    bullet_lines = []
+    for idx, article in enumerate(articles[:max_items], 1):
+        title = article.get('title', 'Untitled')
+        timestamp = article.get('timestamp') or 'N/A'
+        snippet = article.get('snippet') or ''
+        url = article.get('url', '')
+        bullet_lines.append(
+            f"{idx}. 标题/Title: {title}\n   时间: {timestamp}\n   摘要: {snippet}\n   链接: {url}"
+        )
+
+    derived_tickers = tickers if tickers else _collect_article_tickers(articles)
+    ticker_highlights = "无" if not derived_tickers else ", ".join(derived_tickers[:20])
+
+    prompt = f"""
+你是一位专注ETF与资产配置的华尔街策略师。请依据 Finviz v=4 ETF 新闻流撰写一篇双语市场随笔：
+
+聚焦ETF：{ticker_highlights}
+
+新闻列表：
+{chr(10).join(bullet_lines)}
+
+写作要求：
+1. 先以中文概述ETF/板块动态、资金流向、潜在驱动与交易启示，可结合要点列表。
+2. 紧接着提供一段英文版本，确保信息与中文一致。
+3. 语气保持专业且具有博客风格，在结尾附上对ETF投资者的观察建议。
 """
 
     rate_limiter = GeminiRateLimiter()

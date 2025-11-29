@@ -52,16 +52,17 @@ def apply_direct_chart_fix(app):
                 logging.warning(f"Cannot display chart for {ticker}: chart notebook widget no longer exists")
                 return
             
-            # Switch to the appropriate tab based on active_tab
+            # Only adjust notebook selection when the user is already in a chart tab
             try:
-                if self.active_tab == "individual":
-                    self.chart_notebook.select(0)  # Individual chart tab
-                elif self.active_tab == "comparison":
-                    self.chart_notebook.select(1)  # Comparison chart tab
-                elif self.active_tab == "seasonality":
-                    self.chart_notebook.select(2)  # Seasonality chart tab
-                    self._generate_seasonality_chart(ticker)
-                    return
+                if self.active_tab in {"individual", "comparison", "seasonality"}:
+                    if self.active_tab == "individual":
+                        self.chart_notebook.select(self.individual_chart_frame)
+                    elif self.active_tab == "comparison":
+                        self.chart_notebook.select(self.comparison_chart_frame)
+                    elif self.active_tab == "seasonality":
+                        self.chart_notebook.select(self.seasonality_chart_frame)
+                        self._generate_seasonality_chart(ticker)
+                        return
             except tk.TclError as e:
                 logging.error(f"TclError switching tabs for {ticker}: {str(e)}")
                 return

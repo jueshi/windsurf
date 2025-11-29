@@ -430,9 +430,46 @@ class StockDataGUI:
     
     def _create_widgets(self):
         """Create all GUI widgets"""
-        # Create main frame
-        main_frame = ttk.Frame(self.root, padding="10")
-        main_frame.pack(fill=tk.BOTH, expand=True)
+        # Create a vertical paned window so the action bar can be resized
+        self.layout_paned = ttk.PanedWindow(self.root, orient=tk.VERTICAL)
+        self.layout_paned.pack(fill=tk.BOTH, expand=True)
+
+        # Create main frame for the core content (top pane)
+        main_frame = ttk.Frame(self.layout_paned, padding="10")
+        self.layout_paned.add(main_frame, weight=1)
+
+        # Create bottom frame for actions (bottom pane) but populate later
+        bottom_frame = ttk.Frame(self.layout_paned, padding=(10, 2))
+        self.layout_paned.add(bottom_frame, weight=0)
+        try:
+            self.layout_paned.paneconfig(bottom_frame, minsize=55)
+        except Exception:
+            pass
+        self.bottom_frame = bottom_frame
+        self._bottom_sash_initialized = False
+
+        def _init_bottom_sash(event=None):
+            if self._bottom_sash_initialized:
+                return
+            paned = getattr(self, 'layout_paned', None)
+            if not paned:
+                return
+            bottom = getattr(self, 'bottom_frame', None)
+            if not bottom:
+                return
+            paned.update_idletasks()
+            height = paned.winfo_height()
+            bottom_height = bottom.winfo_reqheight()
+            if height <= 0:
+                return
+            try:
+                desired = max(height - bottom_height - 4, 0)
+                paned.sashpos(0, desired)
+                self._bottom_sash_initialized = True
+            except Exception:
+                pass
+
+        self.layout_paned.bind("<Configure>", _init_bottom_sash)
 
         # Create top frame for ticker list selection
         top_frame = ttk.Frame(main_frame, padding="10")
@@ -1068,6 +1105,7 @@ class StockDataGUI:
         
         # Set initial sash positions after a short delay to ensure the window is fully created
         self.root.after(100, self._set_initial_sash_positions)
+        self.root.after(150, self._ensure_bottom_frame_layout)
 
         # Bind right-click events
         self.ticker_listbox.bind("<Button-3>", self._show_ticker_context_menu)
@@ -1077,29 +1115,101 @@ class StockDataGUI:
         self.ticker_listbox.bind("<ButtonRelease-1>", self._on_ticker_selected)
         self.watch_listbox.bind("<ButtonRelease-1>", self._on_watch_ticker_selected)
 
-        # Create bottom frame for actions
-        bottom_frame = ttk.Frame(main_frame, padding="10")
-        bottom_frame.pack(fill=tk.X, pady=5)
+        # Bottom frame for actions (already added to vertical paned layout)
+        bottom_frame = self.bottom_frame
+
+        # Keep actions and status separated so the status text remains visible within the bottom pane
+        actions_frame = ttk.Frame(bottom_frame)
+        actions_frame.pack(side=tk.TOP, fill=tk.X)
 
         # Force download toggle
         self.force_download_var = tk.BooleanVar(value=False)
-        force_download_check = ttk.Checkbutton(bottom_frame, text="Force Download", variable=self.force_download_var)
+        force_download_check = ttk.Checkbutton(actions_frame, text="Force Download", variable=self.force_download_var)
         force_download_check.pack(side=tk.RIGHT, padx=5)
-        ttk.Label(bottom_frame, text="Options:").pack(side=tk.RIGHT, padx=5)
+        ttk.Label(actions_frame, text="Options:").pack(side=tk.RIGHT, padx=5)
 
         # Action buttons
-        ttk.Button(bottom_frame, text="Download/Update Data", command=self._download_data).pack(side=tk.LEFT, padx=5)
-        ttk.Button(bottom_frame, text="Visualize Daily/Weekly/Monthly", command=self._visualize_all_timeframes).pack(side=tk.LEFT, padx=5)
-        ttk.Button(bottom_frame, text="View HTML Report", command=self._view_html_report).pack(side=tk.LEFT, padx=5)
-        ttk.Button(bottom_frame, text="Compare % Performance", command=self._compare_percentage_performance).pack(side=tk.LEFT, padx=5)
-        ttk.Button(bottom_frame, text="Summarize Market News", command=self._summarize_market_news).pack(side=tk.LEFT, padx=5)
-        ttk.Button(bottom_frame, text="Summarize Stock News", command=self._summarize_stock_news).pack(side=tk.LEFT, padx=5)
+        ttk.Button(actions_frame, text="Download/Update Data", command=self._download_data).pack(side=tk.LEFT, padx=5)
+        ttk.Button(actions_frame, text="Visualize Daily/Weekly/Monthly", command=self._visualize_all_timeframes).pack(side=tk.LEFT, padx=5)
+        ttk.Button(actions_frame, text="View HTML Report", command=self._view_html_report).pack(side=tk.LEFT, padx=5)
+        ttk.Button(actions_frame, text="Compare % Performance", command=self._compare_percentage_performance).pack(side=tk.LEFT, padx=5)
+        ttk.Button(actions_frame, text="Summarize Market News", command=self._summarize_market_news).pack(side=tk.LEFT, padx=5)
+        ttk.Button(actions_frame, text="Summarize Stock News", command=self._summarize_stock_news).pack(side=tk.LEFT, padx=5)
+        ttk.Button(actions_frame, text="Summarize ETF News", command=self._summarize_etf_news).pack(side=tk.LEFT, padx=5)
+        ttk.Button(actions_frame, text="Summarize Crypto News", command=self._summarize_crypto_news).pack(side=tk.LEFT, padx=5)
 
-        # Status bar
-        self.status_var = tk.StringVar()
-        self.status_var.set("Ready")
-        status_bar = ttk.Label(self.root, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W)
-        status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+        # Status bar hosted inside the bottom pane to prevent it from being obscured
+        self.status_var = tk.StringVar(value="Ready")
+
+        status_style = ttk.Style()
+        status_style.configure(
+            "StatusBar.TLabel",
+            padding=(10, 3),
+            relief=tk.SUNKEN,
+            background="#f2f2f2",
+        )
+
+        status_frame = ttk.Frame(bottom_frame)
+        status_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(6, 0))
+        ttk.Separator(bottom_frame, orient=tk.HORIZONTAL).pack(side=tk.BOTTOM, fill=tk.X, pady=(4, 0))
+
+        status_bar = ttk.Label(
+            status_frame,
+            textvariable=self.status_var,
+            style="StatusBar.TLabel",
+            anchor=tk.W,
+        )
+        status_bar.pack(fill=tk.X)
+
+        # Sash initialization is handled via the <Configure> binding above so
+        # the action bar stays compact by default while remaining resizable.
+
+    def _ensure_bottom_frame_layout(self):
+        """Keep the bottom action bar attached to the vertical paned window."""
+        paned = getattr(self, "layout_paned", None)
+        bottom = getattr(self, "bottom_frame", None)
+        if not paned or not bottom:
+            return
+        if not paned.winfo_exists() or not bottom.winfo_exists():
+            return
+
+        parent_widget = None
+        try:
+            parent_name = bottom.winfo_parent()
+            if parent_name:
+                parent_widget = self.root.nametowidget(parent_name)
+        except Exception:
+            parent_widget = None
+
+        if parent_widget is not paned:
+            # Detach from whatever geometry manager was applied and re-add to the paned window
+            try:
+                bottom.pack_forget()
+            except Exception:
+                pass
+            try:
+                paned.add(bottom, weight=0)
+            except Exception:
+                try:
+                    paned.forget(bottom)
+                except Exception:
+                    pass
+                paned.add(bottom, weight=0)
+
+        try:
+            paned.paneconfig(bottom, minsize=55)
+        except Exception:
+            pass
+
+        try:
+            paned.update_idletasks()
+            total_height = paned.winfo_height()
+            bottom_height = bottom.winfo_reqheight() or 0
+            if total_height > 0:
+                desired = max(total_height - bottom_height - 4, 0)
+                paned.sashpos(0, desired)
+        except Exception as exc:
+            logging.debug("Bottom sash adjustment skipped: %s", exc)
 
     def _on_list_selected(self, event):
         """Handle ticker list selection and auto-load the selected list"""
@@ -2551,6 +2661,10 @@ class StockDataGUI:
                         selected_tab == str(self.sec_filings_frame):
                     self.active_tab = "sec_filings"
                     logging.info("Switched to SEC filings tab")
+                elif hasattr(self, 'market_news_frame') and self.market_news_frame.winfo_exists() and \
+                        selected_tab == str(self.market_news_frame):
+                    self.active_tab = "market_news"
+                    logging.info("Switched to market news tab")
             except tk.TclError as e:
                 logging.error(f"TclError in tab change handler: {str(e)}")
                 return
@@ -4622,8 +4736,7 @@ class StockDataGUI:
         search_thread_obj.start()
 
     def _summarize_market_news(self):
-        """Summarize overall market news from Finviz using Gemini."""
-        # Switch to Market News tab for visibility
+        """Summarize overall market news (base feed) using the Finviz blog workflow."""
         try:
             self.chart_notebook.select(self.market_news_frame)
         except Exception:
@@ -4634,13 +4747,13 @@ class StockDataGUI:
             self.market_news_text,
             'insert',
             tk.END,
-            "收集Finviz最新市场新闻并生成双语博客，请稍候...\nGathering Finviz market news and drafting a bilingual blog..."
+            "正在收集 Finviz 市场新闻，请稍候...\nGathering Finviz market news feed, please wait..."
         )
         self.root.update_idletasks()
 
         def news_thread():
             try:
-                articles = self._fetch_market_news_articles(limit=10)
+                articles = self._fetch_market_news_articles(limit=12)
             except Exception as e:
                 logging.error(f"Error fetching market news: {e}")
                 safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
@@ -4648,9 +4761,10 @@ class StockDataGUI:
                     self.market_news_text,
                     'insert',
                     tk.END,
-                    f"无法获取市场新闻: {e}\nCould not fetch market news: {e}"
+                    f"无法获取市场新闻：{e}\nCould not fetch market news: {e}"
                 )
-                safe_show_message('error', "Market News", f"Could not fetch market news: {e}")
+                self._update_news_temp_list([])
+                safe_show_message('error', "Market News", f"Could not fetch Finviz market news: {e}")
                 return
 
             if not articles:
@@ -4659,15 +4773,19 @@ class StockDataGUI:
                     self.market_news_text,
                     'insert',
                     tk.END,
-                    "未找到可用的市场新闻。\nNo market news was found."
+                    "未找到最新市场新闻。\nNo market news items were found."
                 )
-                safe_update_status(self.status_var, "No market news available")
+                self._update_news_temp_list([])
+                safe_update_status(self.status_var, "No market news detected")
                 return
 
-            safe_update_status(self.status_var, "Summarizing market news via Gemini...")
+            tickers = self._collect_unique_tickers(articles)
+            self._update_news_temp_list(tickers)
+
+            safe_update_status(self.status_var, "Summarizing Finviz market news via Gemini...")
 
             try:
-                summary = gemini_analyzer.summarize_market_news(articles)
+                summary = gemini_analyzer.summarize_market_news(articles, tickers)
             except Exception as e:
                 logging.error(f"Error summarizing market news: {e}")
                 safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
@@ -4675,9 +4793,9 @@ class StockDataGUI:
                     self.market_news_text,
                     'insert',
                     tk.END,
-                    f"市场新闻总结失败: {e}\nFailed to summarize market news: {e}"
+                    f"市场新闻总结失败：{e}\nFailed to summarize market news: {e}"
                 )
-                safe_show_message('error', "Market News", f"Failed to summarize market news: {e}")
+                safe_show_message('error', "Market News", f"Failed to summarize Finviz market news: {e}")
                 return
 
             formatted = summary or "Gemini did not return any content."
@@ -4686,9 +4804,9 @@ class StockDataGUI:
             safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
             safe_update_text_widget(self.market_news_text, 'insert', tk.END, formatted)
             safe_update_text_widget(self.market_news_text, 'see', "1.0")
-            safe_update_status(self.status_var, "Market news blog ready")
+            safe_update_status(self.status_var, "Market news blog updated")
 
-        threading.Thread(target=news_thread, daemon=True, name="FinvizNewsSummary").start()
+        threading.Thread(target=news_thread, daemon=True, name="FinvizMarketNewsSummary").start()
 
     def _summarize_stock_news(self):
         """Summarize Finviz v=3 stock news feed without requiring ticker selection."""
@@ -4718,7 +4836,7 @@ class StockDataGUI:
                     tk.END,
                     f"无法获取股票新闻：{e}\nCould not fetch stock news: {e}"
                 )
-                self._update_stock_news_temp_list([])
+                self._update_news_temp_list([])
                 safe_show_message('error', "Stock News", f"Could not fetch Finviz stock news: {e}")
                 return
 
@@ -4730,12 +4848,12 @@ class StockDataGUI:
                     tk.END,
                     "未找到最新股票新闻。\nNo stock news items were found."
                 )
-                self._update_stock_news_temp_list([])
+                self._update_news_temp_list([])
                 safe_update_status(self.status_var, "No stock news detected")
                 return
 
             tickers = self._collect_unique_tickers(articles)
-            self._update_stock_news_temp_list(tickers)
+            self._update_news_temp_list(tickers)
 
             safe_update_status(self.status_var, "Summarizing Finviz stock news via Gemini...")
 
@@ -4763,8 +4881,154 @@ class StockDataGUI:
 
         threading.Thread(target=stock_news_thread, daemon=True, name="FinvizStockNewsSummary").start()
 
-    def _fetch_market_news_articles(self, limit: int = 8) -> List[Dict[str, str]]:
-        """Fetch latest market news items from Finviz."""
+    def _summarize_etf_news(self):
+        """Summarize Finviz v=4 ETF news feed without requiring ticker selection."""
+        try:
+            self.chart_notebook.select(self.market_news_frame)
+        except Exception:
+            pass
+
+        safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
+        safe_update_text_widget(
+            self.market_news_text,
+            'insert',
+            tk.END,
+            "正在收集 Finviz ETF 新闻，请稍候...\nGathering Finviz ETF news feed, please wait..."
+        )
+        self.root.update_idletasks()
+
+        def etf_news_thread():
+            try:
+                articles = self._fetch_etf_news_articles(limit=12)
+            except Exception as e:
+                logging.error(f"Error fetching ETF news feed: {e}")
+                safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
+                safe_update_text_widget(
+                    self.market_news_text,
+                    'insert',
+                    tk.END,
+                    f"无法获取ETF新闻：{e}\nCould not fetch ETF news: {e}"
+                )
+                self._update_news_temp_list([])
+                safe_show_message('error', "ETF News", f"Could not fetch Finviz ETF news: {e}")
+                return
+
+            if not articles:
+                safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
+                safe_update_text_widget(
+                    self.market_news_text,
+                    'insert',
+                    tk.END,
+                    "未找到最新ETF新闻。\nNo ETF news items were found."
+                )
+                self._update_news_temp_list([])
+                safe_update_status(self.status_var, "No ETF news detected")
+                return
+
+            tickers = self._collect_unique_tickers(articles)
+            self._update_news_temp_list(tickers)
+
+            safe_update_status(self.status_var, "Summarizing Finviz ETF news via Gemini...")
+
+            try:
+                summary = gemini_analyzer.summarize_etf_news(articles, tickers)
+            except Exception as e:
+                logging.error(f"Error summarizing ETF news feed: {e}")
+                safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
+                safe_update_text_widget(
+                    self.market_news_text,
+                    'insert',
+                    tk.END,
+                    f"总结ETF新闻失败：{e}\nFailed to summarize ETF news: {e}"
+                )
+                safe_show_message('error', "ETF News", f"Failed to summarize Finviz ETF news: {e}")
+                return
+
+            formatted = summary or "Gemini did not return any content."
+            self.market_news_original_text = formatted
+
+            safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
+            safe_update_text_widget(self.market_news_text, 'insert', tk.END, formatted)
+            safe_update_text_widget(self.market_news_text, 'see', "1.0")
+            safe_update_status(self.status_var, "ETF news blog updated")
+
+        threading.Thread(target=etf_news_thread, daemon=True, name="FinvizEtfNewsSummary").start()
+
+    def _summarize_crypto_news(self):
+        """Summarize Finviz v=5 crypto news feed without requiring ticker selection."""
+        try:
+            self.chart_notebook.select(self.market_news_frame)
+        except Exception:
+            pass
+
+        safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
+        safe_update_text_widget(
+            self.market_news_text,
+            'insert',
+            tk.END,
+            "正在收集 Finviz 加密货币新闻，请稍候...\nGathering Finviz crypto news feed, please wait..."
+        )
+        self.root.update_idletasks()
+
+        def crypto_news_thread():
+            try:
+                articles = self._fetch_crypto_news_articles(limit=12)
+            except Exception as e:
+                logging.error(f"Error fetching crypto news feed: {e}")
+                safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
+                safe_update_text_widget(
+                    self.market_news_text,
+                    'insert',
+                    tk.END,
+                    f"无法获取加密货币新闻：{e}\nCould not fetch crypto news: {e}"
+                )
+                self._update_news_temp_list([])
+                safe_show_message('error', "Crypto News", f"Could not fetch Finviz crypto news: {e}")
+                return
+
+            if not articles:
+                safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
+                safe_update_text_widget(
+                    self.market_news_text,
+                    'insert',
+                    tk.END,
+                    "未找到最新加密货币新闻。\nNo crypto news items were found."
+                )
+                self._update_news_temp_list([])
+                safe_update_status(self.status_var, "No crypto news detected")
+                return
+
+            tickers = self._collect_unique_tickers(articles)
+            self._update_news_temp_list(tickers)
+
+            safe_update_status(self.status_var, "Summarizing Finviz crypto news via Gemini...")
+
+            try:
+                summary = gemini_analyzer.summarize_crypto_news(articles, tickers)
+            except Exception as e:
+                logging.error(f"Error summarizing crypto news feed: {e}")
+                safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
+                safe_update_text_widget(
+                    self.market_news_text,
+                    'insert',
+                    tk.END,
+                    f"总结加密货币新闻失败：{e}\nFailed to summarize crypto news: {e}"
+                )
+                safe_show_message('error', "Crypto News", f"Failed to summarize Finviz crypto news: {e}")
+                return
+
+            formatted = summary or "Gemini did not return any content."
+            self.market_news_original_text = formatted
+
+            safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
+            safe_update_text_widget(self.market_news_text, 'insert', tk.END, formatted)
+            safe_update_text_widget(self.market_news_text, 'see', "1.0")
+            safe_update_status(self.status_var, "Crypto news blog updated")
+
+        threading.Thread(target=crypto_news_thread, daemon=True, name="FinvizCryptoNewsSummary").start()
+
+    def _fetch_market_news_articles(self, limit: int = 12) -> List[Dict[str, str]]:
+        """Fetch latest market news items from the Finviz base feed."""
         url = "https://elite.finviz.com/news.ashx"
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -4777,33 +5041,7 @@ class StockDataGUI:
             raise RuntimeError(f"Error fetching Finviz news: {e}") from e
 
         soup = BeautifulSoup(response.text, "html.parser")
-        articles: List[Dict[str, str]] = []
-
-        def add_article(title: str, href: str, timestamp: str, snippet: str):
-            if not title or not href:
-                return
-            articles.append({
-                "title": title.strip(),
-                "url": href.strip(),
-                "timestamp": timestamp.strip(),
-                "snippet": snippet.strip(),
-            })
-
-        for table in soup.select("table.news-table"):
-            for row in table.find_all("tr"):
-                cells = row.find_all("td")
-                if len(cells) < 2:
-                    continue
-                link = cells[-1].find("a")
-                if not link:
-                    continue
-                title = link.get_text(strip=True)
-                href = link.get("href", "")
-                timestamp = cells[0].get_text(strip=True)
-                snippet = cells[-1].get_text(" ", strip=True)
-                add_article(title, href, timestamp, snippet)
-                if len(articles) >= limit:
-                    return articles
+        return self._parse_finviz_news_articles(soup, limit)
 
     def _fetch_stock_news_articles(self, limit: int = 12) -> List[Dict[str, str]]:
         """Fetch the latest stock-specific headlines from Finviz (v=3) without needing a ticker."""
@@ -4819,6 +5057,41 @@ class StockDataGUI:
             raise RuntimeError(f"Error fetching Finviz stock news: {e}") from e
 
         soup = BeautifulSoup(response.text, "html.parser")
+        return self._parse_finviz_news_articles(soup, limit)
+
+    def _fetch_etf_news_articles(self, limit: int = 12) -> List[Dict[str, str]]:
+        """Fetch the latest ETF-specific headlines from Finviz (v=4)."""
+        url = "https://elite.finviz.com/news.ashx?v=4"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Referer": "https://elite.finviz.com/",
+        }
+        try:
+            response = requests.get(url, headers=headers, timeout=20)
+            response.raise_for_status()
+        except requests.RequestException as e:
+            raise RuntimeError(f"Error fetching Finviz ETF news: {e}") from e
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        return self._parse_finviz_news_articles(soup, limit)
+
+    def _fetch_crypto_news_articles(self, limit: int = 12) -> List[Dict[str, str]]:
+        """Fetch the latest crypto-specific headlines from Finviz (v=5)."""
+        url = "https://elite.finviz.com/news.ashx?v=5"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Referer": "https://elite.finviz.com/",
+        }
+        try:
+            response = requests.get(url, headers=headers, timeout=20)
+            response.raise_for_status()
+        except requests.RequestException as e:
+            raise RuntimeError(f"Error fetching Finviz crypto news: {e}") from e
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        return self._parse_finviz_news_articles(soup, limit)
+
+    def _parse_finviz_news_articles(self, soup, limit: int) -> List[Dict[str, str]]:
         articles: List[Dict[str, str]] = []
         ticker_pattern = re.compile(r"t=([A-Za-z0-9\.-]+)")
 
@@ -4847,9 +5120,15 @@ class StockDataGUI:
             cells = row.find_all("td")
             if len(cells) < 2:
                 continue
-            link_cell = cells[1]
-            link = link_cell.find("a")
-            if not link:
+            link_cell = None
+            link = None
+            for cell in cells[1:]:
+                candidate = cell.find("a")
+                if candidate:
+                    link = candidate
+                    link_cell = cell
+                    break
+            if not link or not link_cell:
                 continue
             title = link.get_text(strip=True)
             href = link.get("href", "")
@@ -4992,7 +5271,7 @@ class StockDataGUI:
         lines.append("]")
         return lines
 
-    def _update_stock_news_temp_list(self, tickers: List[str]):
+    def _update_news_temp_list(self, tickers: List[str]):
         tickers = tickers or []
         self.stock_news_temp_tickers = tickers
         self._save_temp_stock_list(tickers)

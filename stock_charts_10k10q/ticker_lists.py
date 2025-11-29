@@ -490,44 +490,26 @@ eps_growth_10_13_25_stocks = ["LSCC", "LIF", "PRVA", "FIGS", "CELH", "AMD", "AVA
 ticker_0_buy_stocks = ["ABBV", "GS", "JPM", "GSX", "CRDO", "ALAB", "APH", "META", "MSTR", "CRM", "PLTR"]
 
 
-
-
-
-
-
-
-
-
 ticker_0_sell_stocks = ["BABA"]
 
-
-temp_stocks = [
-    "KO",
-    "KMX",
-    "AVAV",
-    "CNC",
-    "CVS",
-    "AVGO",
-    "GOOGL",
-    "NVDA",
-    "TLX",
+ETFs_divident_stocks = [
     "BRW",
     "SABA",
-    "MSTR",
-    "AI",
-    "MRVL",
-    "PSTG",
-    "SIG",
-    "VSCO",
-    "CRWV",
-    "GOOG"
+    "HYBI",
+    "QQQH",
+    "QQQI",
+    "NBXG",
+    "NML",
+    "NHS",
+    "NRO",
+    "XLRE",
+    "GHY",
+    "ISD",
+    "ASGI",
+    "THQ",
+    "AWF",
+    "XLV"
 ]
-
-
-
-
-
-
 
 
 SP500_Dividend_Aristocrats_stocks = ["ABBV", "ABT", "ADM", "ADP", "AFL", "ALB", "AMCR", "AOS", "APD", "ATO", "BDX", "BEN", "BF.B", "BRO", "CAH", "CAT", "CB", "CHD", "CHRW", "CINF", "CL", "CLX", "CTAS", "CVX", "DOV", "ECL", "ED", "EMR", "ERIE", "ES", "ESS", "EXPD", "FAST", "FDS", "FRT", "GD", "GPC", "GWW", "HRL", "IBM", "ITW", "JNJ", "KMB", "KO", "KVUE", "LIN", "LOW", "MCD", "MDT", "MKC", "NDSN", "NEE", "NOBL", "NUE", "O", "PEP", "PG", "PNR", "PPG", "ROP", "SHW", "SJM", "SPGI", "SWK", "SYY", "TGT", "TROW", "WMT", "WST", "XOM"]
@@ -566,18 +548,7 @@ earnings_ww_11_17_25_stocks = ["NVDA", "PANW", "BIDU", "BULL", "KC", "INTU", "VE
 
 options_11_24_stocks = ["NXT", "SOXX", "SEI", "CARR", "DHI", "AR", "CAPR", "VLO", "XBI", "ANF", "INFY", "HPQ", "PCT", "CELH", "SVIX", "DKS", "BURL", "FMC", "SYM", "LQDA", "NVO", "BIIB", "CPRT", "ZM", "BBY", "OSCR", "RUM", "AS", "SGHC", "MRK", "CNC", "ADI", "WDAY", "CRMD", "FIGR", "SIRI", "CPRI", "HSAI", "ALT", "NEE", "EPD", "BFLY", "COMP", "FRMI", "GDS", "FIVN", "PRME", "UPWK", "EA", "EH", "QQQM", "QQQ"]
 
-
-
-
 demo_stocks = ["NVDA", "INTC", "GOOG", "AAPL", "OKTA", "COST", "CRDO", "ALAB"]
-
-
-
-
-
-
-
-
 
 
 # Function to check if a ticker symbol is valid and suggest alternatives if not
@@ -752,3 +723,23 @@ if __name__ == '__main__':
 
 
 
+temp_stocks = [
+    "AMZN",
+    "GOOG",
+    "GOOGL",
+    "META",
+    "EC",
+    "MAAS",
+    "BLRX",
+    "LULU",
+    "AAL",
+    "DAL",
+    "JBLU",
+    "UAL",
+    "NEWP",
+    "OMC",
+    "AEO",
+    "AMLX",
+    "DHR",
+    "ENVX"
+]

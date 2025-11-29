@@ -41,22 +41,22 @@ def apply_individual_chart_fix(gui_instance):
             
             # After chart display, ensure bottom frame is visible
             if has_bottom_frame and hasattr(self, 'bottom_frame') and self.bottom_frame.winfo_exists():
-                # Force update and lift bottom frame to ensure it's visible
+                # Force update to ensure geometry info is current
                 self.bottom_frame.update_idletasks()
-                self.bottom_frame.lift()
-                
-                # Force the root window to update its layout
                 self.root.update_idletasks()
-                
-                # Ensure proper packing order - make sure bottom frame is at the bottom
-                if hasattr(self, 'chart_notebook') and self.chart_notebook.winfo_exists():
-                    self.chart_notebook.pack_forget()
-                    self.bottom_frame.pack_forget()
-                    
-                    # Re-pack in correct order
-                    self.chart_notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
-                    self.bottom_frame.pack(fill=tk.X, side=tk.BOTTOM, padx=10, pady=5)
-                
+
+                if hasattr(self, '_ensure_bottom_frame_layout'):
+                    try:
+                        self._ensure_bottom_frame_layout()
+                    except Exception as ensure_exc:
+                        logging.debug("Bottom frame layout helper failed: %s", ensure_exc)
+                else:
+                    # Fallback: lift the frame without re-packing (prevents layout drift)
+                    try:
+                        self.bottom_frame.lift()
+                    except Exception:
+                        pass
+
                 logging.info("Individual chart button visibility fix applied")
                 
         except Exception as e:
