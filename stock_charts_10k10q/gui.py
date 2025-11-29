@@ -498,291 +498,86 @@ class StockDataGUI:
 
         self.layout_paned.bind("<Configure>", _init_bottom_sash)
 
-        # Create top frame for ticker list selection
-        top_frame = ttk.Frame(main_frame, padding="10")
-        top_frame.pack(fill=tk.X, pady=5)
+        # =====================================================================
+        # COMPACT TOP TOOLBAR - Single row to maximize content area
+        # =====================================================================
+        top_frame = ttk.Frame(main_frame, padding="2")
+        top_frame.pack(fill=tk.X, pady=(0, 2))
 
-        # Ticker list selection with filter
-        ticker_list_label = ttk.Label(top_frame, text="Ticker List:")
-        ticker_list_label.grid(row=0, column=0, sticky=tk.W, padx=5, pady=5)
-        self._attach_tooltip(
-            ticker_list_label,
-            text="Select which saved ticker list (from ticker_lists.py) should populate the workspace.",
-            tooltip_id="ticker_list.label",
-        )
+        # --- Row 1: List selection, navigation, and chart generation ---
+        row1 = ttk.Frame(top_frame)
+        row1.pack(fill=tk.X, pady=1)
 
-        # Create a frame for the dropdown and its filter
-        dropdown_frame = ttk.Frame(top_frame)
-        dropdown_frame.grid(row=0, column=1, sticky=tk.W, padx=5, pady=5)
-
-        # Add filter entry for ticker list dropdown
+        # List filter and dropdown
+        ttk.Label(row1, text="List:").pack(side=tk.LEFT, padx=(0, 2))
         self.list_filter_var = tk.StringVar()
-        list_filter_entry = ttk.Entry(dropdown_frame, textvariable=self.list_filter_var, width=20)
-        list_filter_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        self._attach_tooltip(
-            list_filter_entry,
-            text="Type to filter saved list names. Supports partial matches and updates immediately.",
-            tooltip_id="ticker_list.filter",
-        )
+        list_filter_entry = ttk.Entry(row1, textvariable=self.list_filter_var, width=10)
+        list_filter_entry.pack(side=tk.LEFT, padx=(0, 2))
+        self._attach_tooltip(list_filter_entry, text="Filter saved list names.", tooltip_id="ticker_list.filter")
         list_filter_entry.bind("<KeyRelease>", self._filter_ticker_lists)
 
-        # Create the combobox for ticker lists
         self.ticker_list_var = tk.StringVar()
-        self.ticker_list_combo = ttk.Combobox(
-            dropdown_frame,
-            textvariable=self.ticker_list_var,
-            values=list(self.ticker_lists.keys()),
-            width=60,
-        )
-        self.ticker_list_combo.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
+        self.ticker_list_combo = ttk.Combobox(row1, textvariable=self.ticker_list_var, values=list(self.ticker_lists.keys()), width=30)
+        self.ticker_list_combo.pack(side=tk.LEFT, padx=(0, 3))
         self.ticker_list_combo.bind("<<ComboboxSelected>>", self._on_list_selected)
-        self._attach_tooltip(
-            self.ticker_list_combo,
-            text="Choose from discovered ticker lists. Selecting a list enables Load/Prev/Next actions.",
-            tooltip_id="ticker_list.combo",
-        )
+        self._attach_tooltip(self.ticker_list_combo, text="Choose from discovered ticker lists.", tooltip_id="ticker_list.combo")
 
-        # Create a frame for the buttons
-        button_frame = ttk.Frame(top_frame)
-        button_frame.grid(row=0, column=2, padx=5, pady=5)
+        # Navigation buttons (compact)
+        ttk.Button(row1, text="Load", command=self._load_ticker_list, width=5).pack(side=tk.LEFT, padx=1)
+        ttk.Button(row1, text="↻", command=self._refresh_ticker_lists, width=2).pack(side=tk.LEFT, padx=1)
+        ttk.Button(row1, text="◀", command=self._go_prev_list, width=2).pack(side=tk.LEFT, padx=1)
+        ttk.Button(row1, text="▶", command=self._go_next_list, width=2).pack(side=tk.LEFT, padx=1)
+        ttk.Button(row1, text="✕", command=self._remove_current_list, width=2).pack(side=tk.LEFT, padx=1)
 
-        tooltip_toggle = ttk.Checkbutton(
-            top_frame,
-            text="Show Tooltips",
-            variable=self.show_tooltips,
-        )
-        tooltip_toggle.grid(row=0, column=3, padx=5, pady=5, sticky=tk.W)
-        self._attach_tooltip(
-            tooltip_toggle,
-            text="Toggle inline guidance bubbles. Shift+F1 on any control also shows its tip.",
-            tooltip_id="settings.tooltips_toggle",
-        )
+        ttk.Separator(row1, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=4)
 
-        # Load List button loads the selected list
-        load_button = ttk.Button(button_frame, text="Load", command=self._load_ticker_list)
-        load_button.pack(side=tk.LEFT, padx=(0, 5))
-        self._attach_tooltip(
-            load_button,
-            text="Load the highlighted ticker list into the Available/Watch panes.",
-            tooltip_id="ticker_list.load",
-        )
+        # Chart timeframe buttons
+        ttk.Button(row1, text="D", command=lambda: self._open_live_charts_for_current_list(time_frame="d"), width=2).pack(side=tk.LEFT, padx=1)
+        ttk.Button(row1, text="W", command=lambda: self._open_live_charts_for_current_list(time_frame="w"), width=2).pack(side=tk.LEFT, padx=1)
+        ttk.Button(row1, text="M", command=lambda: self._open_live_charts_for_current_list(time_frame="m"), width=2).pack(side=tk.LEFT, padx=1)
 
-        refresh_button = ttk.Button(button_frame, text="Refresh", command=self._refresh_ticker_lists)
-        refresh_button.pack(side=tk.LEFT, padx=(0, 5))
-        self._attach_tooltip(
-            refresh_button,
-            text="Reload ticker_lists.py from disk to pick up edits or new watch lists.",
-            tooltip_id="ticker_list.refresh",
-        )
+        ttk.Separator(row1, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=4)
 
-        prev_button = ttk.Button(button_frame, text="Prev", command=self._go_prev_list)
-        prev_button.pack(side=tk.LEFT, padx=(0, 5))
-        self._attach_tooltip(
-            prev_button,
-            text="Jump to the previous list based on the combo ordering.",
-            tooltip_id="ticker_list.prev",
-        )
+        # Gallery buttons
+        ttk.Button(row1, text="Multi-TF", command=self._open_multi_timeframe_gallery_for_current_list, width=7).pack(side=tk.LEFT, padx=1)
+        ttk.Button(row1, text="Lines", command=self._open_linecharts_gallery_for_current_list, width=5).pack(side=tk.LEFT, padx=1)
+        ttk.Button(row1, text="SC", command=self._open_stockcharts_gallery_for_current_list, width=3).pack(side=tk.LEFT, padx=1)
 
-        next_button = ttk.Button(button_frame, text="Next", command=self._go_next_list)
-        next_button.pack(side=tk.LEFT, padx=(0, 5))
-        self._attach_tooltip(
-            next_button,
-            text="Jump forward to the next saved list without opening the dropdown.",
-            tooltip_id="ticker_list.next",
-        )
-
-        remove_button = ttk.Button(button_frame, text="Remove", command=self._remove_current_list)
-        remove_button.pack(side=tk.LEFT)
-        self._attach_tooltip(
-            remove_button,
-            text="Delete the selected list from ticker_lists.py (asks for confirmation).",
-            tooltip_id="ticker_list.remove",
-        )
-
-        daily_button = ttk.Button(
-            button_frame,
-            text="Daily charts",
-            command=lambda: self._open_live_charts_for_current_list(time_frame="d"),
-        )
-        daily_button.pack(side=tk.LEFT, padx=(5, 0))
-        self._attach_tooltip(
-            daily_button,
-            text="Launch browser charts for each ticker using daily candles.",
-            tooltip_id="ticker_list.daily",
-        )
-
-        weekly_button = ttk.Button(
-            button_frame,
-            text="Weekly",
-            command=lambda: self._open_live_charts_for_current_list(time_frame="w"),
-        )
-        weekly_button.pack(side=tk.LEFT, padx=(5, 0))
-        self._attach_tooltip(
-            weekly_button,
-            text="Open StockCharts multi-symbol layout with weekly timeframe.",
-            tooltip_id="ticker_list.weekly",
-        )
-
-        monthly_button = ttk.Button(
-            button_frame,
-            text="Monthly",
-            command=lambda: self._open_live_charts_for_current_list(time_frame="m"),
-        )
-        monthly_button.pack(side=tk.LEFT, padx=(5, 0))
-        self._attach_tooltip(
-            monthly_button,
-            text="Open monthly candle view for the active list.",
-            tooltip_id="ticker_list.monthly",
-        )
-
-        multi_tf_button = ttk.Button(
-            button_frame,
-            text="Multi-TF",
-            command=self._open_multi_timeframe_gallery_for_current_list,
-        )
-        multi_tf_button.pack(side=tk.LEFT, padx=(5, 0))
-        self._attach_tooltip(
-            multi_tf_button,
-            text="Generate StockCharts gallery with daily/weekly/monthly snapshots.",
-            tooltip_id="ticker_list.multi_tf",
-        )
-
-        linecharts_button = ttk.Button(
-            button_frame,
-            text="LineCharts",
-            command=self._open_linecharts_gallery_for_current_list,
-        )
-        linecharts_button.pack(side=tk.LEFT, padx=(5, 0))
-        self._attach_tooltip(
-            linecharts_button,
-            text="Render comparison-focused line chart gallery for the list.",
-            tooltip_id="ticker_list.linecharts",
-        )
-
-        stockcharts_button = ttk.Button(
-            button_frame,
-            text="StockCharts",
-            command=self._open_stockcharts_gallery_for_current_list,
-        )
-        stockcharts_button.pack(side=tk.LEFT, padx=(5, 0))
-        self._attach_tooltip(
-            stockcharts_button,
-            text="Open the traditional StockCharts gallery for this list.",
-            tooltip_id="ticker_list.stockcharts",
-        )
-
-        # StockCharts line style ID entry (for SC-Line gallery)
+        # SC-Line section
         self.stockcharts_line_style_var = tk.StringVar(value="t3327397499c")
+        sc_style_entry = ttk.Entry(row1, textvariable=self.stockcharts_line_style_var, width=12)
+        sc_style_entry.pack(side=tk.LEFT, padx=(3, 1))
+        self._attach_tooltip(sc_style_entry, text="StockCharts style ID for SC-Line gallery.", tooltip_id="ticker_list.sc_style_entry")
+        ttk.Button(row1, text="SC-Line", command=self._open_stockcharts_line_gallery_for_current_list, width=6).pack(side=tk.LEFT, padx=1)
 
-        # Clickable label that opens the StockCharts style page in the browser
-        sc_style_label = ttk.Label(button_frame, text="SC style id:", foreground="blue", cursor="hand2")
-        sc_style_label.pack(side=tk.LEFT, padx=(10, 2))
-        sc_style_label.bind(
-            "<Button-1>",
-            lambda e: webbrowser.open("https://stockcharts.com/sc3/ui/?s=ALAB"),
-        )
-        self._attach_tooltip(
-            sc_style_label,
-            text="Click to open StockCharts style builder in your browser.",
-            tooltip_id="ticker_list.sc_style_label",
-        )
+        ttk.Separator(row1, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=4)
 
-        sc_style_entry = ttk.Entry(button_frame, textvariable=self.stockcharts_line_style_var, width=14)
-        sc_style_entry.pack(side=tk.LEFT, padx=(0, 5))
-        self._attach_tooltip(
-            sc_style_entry,
-            text="Paste a StockCharts style ID (t###########c) used for SC-Line gallery requests.",
-            tooltip_id="ticker_list.sc_style_entry",
-        )
+        # Utility buttons
+        ttk.Button(row1, text="📝", command=self._open_ticker_list_in_notepadpp, width=2).pack(side=tk.LEFT, padx=1)
+        ttk.Button(row1, text="📋", command=self._copy_current_list_to_clipboard, width=2).pack(side=tk.LEFT, padx=1)
 
-        sc_line_button = ttk.Button(
-            button_frame,
-            text="SC-Line",
-            command=self._open_stockcharts_line_gallery_for_current_list,
-        )
-        sc_line_button.pack(side=tk.LEFT, padx=(5, 0))
-        self._attach_tooltip(
-            sc_line_button,
-            text="Generate SC-Line gallery with the supplied style ID.",
-            tooltip_id="ticker_list.sc_line",
-        )
+        # Tooltip toggle (right side)
+        tooltip_toggle = ttk.Checkbutton(row1, text="Tips", variable=self.show_tooltips)
+        tooltip_toggle.pack(side=tk.RIGHT, padx=2)
+        self._attach_tooltip(tooltip_toggle, text="Toggle tooltips.", tooltip_id="settings.tooltips_toggle")
 
-        open_ticker_button = ttk.Button(button_frame, text="Open Ticker", command=self._open_ticker_list_in_notepadpp)
-        open_ticker_button.pack(side=tk.LEFT, padx=(5, 0))
-        self._attach_tooltip(
-            open_ticker_button,
-            text="Open ticker_lists.py in Notepad++ (or default editor) for quick edits.",
-            tooltip_id="ticker_list.open_file",
-        )
+        # --- Row 2: Add ticker and create new list (compact) ---
+        row2 = ttk.Frame(top_frame)
+        row2.pack(fill=tk.X, pady=1)
 
-        copy_list_button = ttk.Button(button_frame, text="Copy List", command=self._copy_current_list_to_clipboard)
-        copy_list_button.pack(side=tk.LEFT, padx=(5, 0))
-        self._attach_tooltip(
-            copy_list_button,
-            text="Copy all tickers in the current list to clipboard, one per line.",
-            tooltip_id="ticker_list.copy",
-        )
-
-        # Create a frame for the second row with Add Ticker and New List Name
-        second_row_frame = ttk.Frame(top_frame)
-        second_row_frame.grid(row=1, column=0, columnspan=3, sticky=tk.W+tk.E, padx=5, pady=5)
-        
-        # Add manual ticker entry (left side of second row)
-        ticker_frame = ttk.Frame(second_row_frame)
-        ticker_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        
-        add_ticker_label = ttk.Label(ticker_frame, text="Add Ticker:")
-        add_ticker_label.pack(side=tk.LEFT, padx=(0, 5))
-        self._attach_tooltip(
-            add_ticker_label,
-            text="Manually append a symbol to the currently loaded list.",
-            tooltip_id="ticker_list.add_label",
-        )
+        ttk.Label(row2, text="Add:").pack(side=tk.LEFT, padx=(0, 2))
         self.manual_ticker_var = tk.StringVar()
-        manual_ticker_entry = ttk.Entry(ticker_frame, textvariable=self.manual_ticker_var, width=30)
-        manual_ticker_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-        self._attach_tooltip(
-            manual_ticker_entry,
-            text="Enter a ticker symbol (comma-separated for multiples) to append to the list.",
-            tooltip_id="ticker_list.manual_entry",
-        )
-        add_ticker_button = ttk.Button(ticker_frame, text="Add", command=self._add_manual_ticker)
-        add_ticker_button.pack(side=tk.LEFT)
-        self._attach_tooltip(
-            add_ticker_button,
-            text="Append the typed ticker(s) to the current list immediately.",
-            tooltip_id="ticker_list.manual_add",
-        )
-        
-        # Add separator
-        ttk.Separator(second_row_frame, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=10)
-        
-        # Add list name entry and save button (right side of second row)
-        list_frame = ttk.Frame(second_row_frame)
-        list_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        
-        new_list_label = ttk.Label(list_frame, text="New List Name:")
-        new_list_label.pack(side=tk.LEFT, padx=(0, 5))
-        self._attach_tooltip(
-            new_list_label,
-            text="Provide a Python-safe variable name for the list saved to ticker_lists.py.",
-            tooltip_id="ticker_list.new_label",
-        )
+        manual_ticker_entry = ttk.Entry(row2, textvariable=self.manual_ticker_var, width=15)
+        manual_ticker_entry.pack(side=tk.LEFT, padx=(0, 2))
+        self._attach_tooltip(manual_ticker_entry, text="Enter ticker(s) to add.", tooltip_id="ticker_list.manual_entry")
+        ttk.Button(row2, text="+", command=self._add_manual_ticker, width=2).pack(side=tk.LEFT, padx=(0, 8))
+
+        ttk.Label(row2, text="New List:").pack(side=tk.LEFT, padx=(0, 2))
         self.list_name_var = tk.StringVar()
-        list_name_entry = ttk.Entry(list_frame, textvariable=self.list_name_var, width=30)
-        list_name_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-        self._attach_tooltip(
-            list_name_entry,
-            text="Name used for the new ticker list variable. Avoid spaces or special characters.",
-            tooltip_id="ticker_list.new_entry",
-        )
-        create_list_button = ttk.Button(list_frame, text="Create List", command=self._save_ticker_list)
-        create_list_button.pack(side=tk.LEFT)
-        self._attach_tooltip(
-            create_list_button,
-            text="Persist the current set of tickers under the provided list name.",
-            tooltip_id="ticker_list.create",
-        )
+        list_name_entry = ttk.Entry(row2, textvariable=self.list_name_var, width=15)
+        list_name_entry.pack(side=tk.LEFT, padx=(0, 2))
+        self._attach_tooltip(list_name_entry, text="Name for new ticker list.", tooltip_id="ticker_list.new_entry")
+        ttk.Button(row2, text="Create", command=self._save_ticker_list, width=6).pack(side=tk.LEFT)
 
         # Create a PanedWindow for resizable sections
         self.paned_window = ttk.PanedWindow(main_frame, orient=tk.HORIZONTAL)
@@ -1388,59 +1183,39 @@ class StockDataGUI:
         self.ticker_listbox.bind("<ButtonRelease-1>", self._on_ticker_selected)
         self.watch_listbox.bind("<ButtonRelease-1>", self._on_watch_ticker_selected)
 
-        # Bottom frame for actions (already added to vertical paned layout)
+        # =====================================================================
+        # COMPACT BOTTOM ACTION BAR - Single row to maximize content area
+        # =====================================================================
         bottom_frame = self.bottom_frame
 
-        # Keep actions and status separated so the status text remains visible within the bottom pane
-        # Row 1: Data actions and options
-        actions_row1 = ttk.Frame(bottom_frame)
-        actions_row1.pack(side=tk.TOP, fill=tk.X, pady=(2, 0))
+        # Single row for all actions
+        actions_row = ttk.Frame(bottom_frame)
+        actions_row.pack(side=tk.TOP, fill=tk.X, pady=2)
 
-        # Force download toggle (right side of row 1)
+        # Data actions
+        ttk.Button(actions_row, text="⬇Download", command=self._download_data, width=10).pack(side=tk.LEFT, padx=2)
+        ttk.Button(actions_row, text="📊Visualize", command=self._visualize_all_timeframes, width=10).pack(side=tk.LEFT, padx=2)
+        ttk.Button(actions_row, text="📄Report", command=self._view_html_report, width=8).pack(side=tk.LEFT, padx=2)
+        ttk.Button(actions_row, text="📈Compare", command=self._compare_percentage_performance, width=9).pack(side=tk.LEFT, padx=2)
+
+        ttk.Separator(actions_row, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=5)
+
+        # News summarization
+        ttk.Label(actions_row, text="News:").pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Button(actions_row, text="Market", command=self._summarize_market_news, width=6).pack(side=tk.LEFT, padx=1)
+        ttk.Button(actions_row, text="Stock", command=self._summarize_stock_news, width=5).pack(side=tk.LEFT, padx=1)
+        ttk.Button(actions_row, text="ETF", command=self._summarize_etf_news, width=4).pack(side=tk.LEFT, padx=1)
+        ttk.Button(actions_row, text="Crypto", command=self._summarize_crypto_news, width=6).pack(side=tk.LEFT, padx=1)
+        ttk.Button(actions_row, text="📋", command=self._summarize_clipboard_content, width=2).pack(side=tk.LEFT, padx=1)
+
+        # Options (right side)
         self.force_download_var = tk.BooleanVar(value=False)
-        force_download_check = ttk.Checkbutton(actions_row1, text="Force Download", variable=self.force_download_var)
-        force_download_check.pack(side=tk.RIGHT, padx=5)
-        ttk.Label(actions_row1, text="Options:").pack(side=tk.RIGHT, padx=5)
+        ttk.Checkbutton(actions_row, text="Force DL", variable=self.force_download_var).pack(side=tk.RIGHT, padx=5)
 
-        # Data action buttons (left side of row 1)
-        ttk.Button(actions_row1, text="Download/Update Data", command=self._download_data).pack(side=tk.LEFT, padx=5)
-        ttk.Button(actions_row1, text="Visualize Daily/Weekly/Monthly", command=self._visualize_all_timeframes).pack(side=tk.LEFT, padx=5)
-        ttk.Button(actions_row1, text="View HTML Report", command=self._view_html_report).pack(side=tk.LEFT, padx=5)
-        ttk.Button(actions_row1, text="Compare % Performance", command=self._compare_percentage_performance).pack(side=tk.LEFT, padx=5)
-
-        # Row 2: News summarization buttons
-        actions_row2 = ttk.Frame(bottom_frame)
-        actions_row2.pack(side=tk.TOP, fill=tk.X, pady=(2, 0))
-
-        ttk.Label(actions_row2, text="Summarize:").pack(side=tk.LEFT, padx=(5, 2))
-        ttk.Button(actions_row2, text="Market News", command=self._summarize_market_news).pack(side=tk.LEFT, padx=3)
-        ttk.Button(actions_row2, text="Stock News", command=self._summarize_stock_news).pack(side=tk.LEFT, padx=3)
-        ttk.Button(actions_row2, text="ETF News", command=self._summarize_etf_news).pack(side=tk.LEFT, padx=3)
-        ttk.Button(actions_row2, text="Crypto News", command=self._summarize_crypto_news).pack(side=tk.LEFT, padx=3)
-        ttk.Button(actions_row2, text="📋 Clipboard", command=self._summarize_clipboard_content).pack(side=tk.LEFT, padx=3)
-
-        # Status bar hosted inside the bottom pane to prevent it from being obscured
+        # Status bar
         self.status_var = tk.StringVar(value="Ready")
-
-        status_style = ttk.Style()
-        status_style.configure(
-            "StatusBar.TLabel",
-            padding=(10, 3),
-            relief=tk.SUNKEN,
-            background="#f2f2f2",
-        )
-
-        status_frame = ttk.Frame(bottom_frame)
-        status_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(6, 0))
-        ttk.Separator(bottom_frame, orient=tk.HORIZONTAL).pack(side=tk.BOTTOM, fill=tk.X, pady=(4, 0))
-
-        status_bar = ttk.Label(
-            status_frame,
-            textvariable=self.status_var,
-            style="StatusBar.TLabel",
-            anchor=tk.W,
-        )
-        status_bar.pack(fill=tk.X)
+        status_bar = ttk.Label(bottom_frame, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W, padding=(5, 2))
+        status_bar.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Sash initialization is handled via the <Configure> binding above so
         # the action bar stays compact by default while remaining resizable.
