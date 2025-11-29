@@ -623,6 +623,39 @@ class StockDataGUI:
         create_btn.pack(side=tk.LEFT)
         self._attach_tooltip(create_btn, text="Create new list with current tickers and save to ticker_lists.py", tooltip_id="ticker_list.create_btn")
 
+        ttk.Separator(row2, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=8)
+
+        # URLs dropdown menu
+        urls_menubutton = ttk.Menubutton(row2, text="🔗 URLs ▾", width=8)
+        urls_menubutton.pack(side=tk.LEFT, padx=2)
+        self._attach_tooltip(urls_menubutton, text="Quick access to financial websites and tools", tooltip_id="urls.menu")
+
+        urls_menu = tk.Menu(urls_menubutton, tearoff=0)
+        urls_menubutton["menu"] = urls_menu
+
+        # Market Data section
+        urls_menu.add_command(label="📊 Finviz Screener", command=lambda: webbrowser.open("https://finviz.com/screener.ashx"))
+        urls_menu.add_command(label="📈 TradingView", command=lambda: webbrowser.open("https://www.tradingview.com/"))
+        urls_menu.add_command(label="📉 StockCharts", command=lambda: webbrowser.open("https://stockcharts.com/"))
+        urls_menu.add_command(label="🏦 Yahoo Finance", command=lambda: webbrowser.open("https://finance.yahoo.com/"))
+        urls_menu.add_separator()
+
+        # News section
+        urls_menu.add_command(label="📰 MarketWatch", command=lambda: webbrowser.open("https://www.marketwatch.com/"))
+        urls_menu.add_command(label="📰 Bloomberg", command=lambda: webbrowser.open("https://www.bloomberg.com/markets"))
+        urls_menu.add_command(label="📰 CNBC", command=lambda: webbrowser.open("https://www.cnbc.com/"))
+        urls_menu.add_command(label="📰 Reuters", command=lambda: webbrowser.open("https://www.reuters.com/markets/"))
+        urls_menu.add_separator()
+
+        # Research section
+        urls_menu.add_command(label="📋 SEC EDGAR", command=lambda: webbrowser.open("https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany"))
+        urls_menu.add_command(label="📊 Macrotrends", command=lambda: webbrowser.open("https://www.macrotrends.net/"))
+        urls_menu.add_command(label="📈 Barchart", command=lambda: webbrowser.open("https://www.barchart.com/"))
+        urls_menu.add_separator()
+
+        # Custom URL
+        urls_menu.add_command(label="🌐 Open Custom URL...", command=self._open_custom_url)
+
         # Create a PanedWindow for resizable sections
         self.paned_window = ttk.PanedWindow(main_frame, orient=tk.HORIZONTAL)
         self.paned_window.pack(fill=tk.BOTH, expand=True, pady=5)
@@ -1781,6 +1814,25 @@ class StockDataGUI:
         except Exception as e:
             messagebox.showerror("Error", f"Error creating ticker list: {str(e)}")
             logging.error(f"Error creating ticker list: {e}")
+
+    def _open_custom_url(self):
+        """Open a custom URL entered by the user"""
+        from tkinter import simpledialog
+        url = simpledialog.askstring(
+            "Open Custom URL",
+            "Enter URL to open:",
+            initialvalue="https://"
+        )
+        if url and url.strip():
+            url = url.strip()
+            # Add https:// if no protocol specified
+            if not url.startswith(("http://", "https://")):
+                url = "https://" + url
+            try:
+                webbrowser.open(url)
+                self.status_var.set(f"Opened: {url}")
+            except Exception as e:
+                messagebox.showerror("Error", f"Could not open URL: {e}")
 
     def _setup_ticker_context_menu(self):
         """Set up the context menu for the ticker listbox"""
