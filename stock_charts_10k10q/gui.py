@@ -1410,6 +1410,7 @@ class StockDataGUI:
         ttk.Button(actions_frame, text="Summarize Stock News", command=self._summarize_stock_news).pack(side=tk.LEFT, padx=5)
         ttk.Button(actions_frame, text="Summarize ETF News", command=self._summarize_etf_news).pack(side=tk.LEFT, padx=5)
         ttk.Button(actions_frame, text="Summarize Crypto News", command=self._summarize_crypto_news).pack(side=tk.LEFT, padx=5)
+        ttk.Button(actions_frame, text="Summarize Clipboard", command=self._summarize_clipboard_content).pack(side=tk.LEFT, padx=5)
 
         # Status bar hosted inside the bottom pane to prevent it from being obscured
         self.status_var = tk.StringVar(value="Ready")
@@ -5300,6 +5301,121 @@ class StockDataGUI:
 
         threading.Thread(target=crypto_news_thread, daemon=True, name="FinvizCryptoNewsSummary").start()
 
+    def _summarize_clipboard_content(self):
+        """Summarize content from clipboard which may contain URLs or direct text."""
+        try:
+            self.chart_notebook.select(self.market_news_frame)
+        except Exception:
+            pass
+
+        # Get clipboard content
+        try:
+            clipboard_content = self.root.clipboard_get()
+        except tk.TclError:
+            safe_show_message('warning', "Clipboard", "Clipboard is empty or contains non-text content.")
+            return
+
+        if not clipboard_content or not clipboard_content.strip():
+            safe_show_message('warning', "Clipboard", "Clipboard is empty.")
+            return
+
+        safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
+        safe_update_text_widget(
+            self.market_news_text,
+            'insert',
+            tk.END,
+            "正在处理剪贴板内容，请稍候...\nProcessing clipboard content, please wait..."
+        )
+        self.root.update_idletasks()
+
+        def clipboard_thread():
+            import re
+            # Detect URLs in clipboard content
+            url_pattern = r'https?://[^\s<>"\']+|www\.[^\s<>"\']+'
+            detected_urls = re.findall(url_pattern, clipboard_content)
+            
+            fetched_content = ""
+            valid_urls = []
+            
+            if detected_urls:
+                safe_update_status(self.status_var, f"Found {len(detected_urls)} URL(s), fetching content...")
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                }
+                
+                for url in detected_urls[:5]:  # Limit to 5 URLs
+                    try:
+                        # Ensure URL has scheme
+                        if url.startswith('www.'):
+                            url = 'https://' + url
+                        
+                        response = requests.get(url, headers=headers, timeout=15)
+                        response.raise_for_status()
+                        
+                        soup = BeautifulSoup(response.text, "html.parser")
+                        
+                        # Remove script and style elements
+                        for script in soup(["script", "style", "nav", "footer", "header"]):
+                            script.decompose()
+                        
+                        # Get text content
+                        text = soup.get_text(separator='\n', strip=True)
+                        
+                        # Clean up excessive whitespace
+                        lines = [line.strip() for line in text.splitlines() if line.strip()]
+                        text = '\n'.join(lines)
+                        
+                        if text:
+                            fetched_content += f"\n\n--- Content from {url} ---\n{text[:5000]}"
+                            valid_urls.append(url)
+                    except Exception as e:
+                        logging.warning(f"Could not fetch URL {url}: {e}")
+                        continue
+            
+            # Use fetched content if available, otherwise use raw clipboard content
+            content_to_summarize = fetched_content if fetched_content else clipboard_content
+            
+            # Extract stock tickers from both fetched content AND original clipboard content
+            all_tickers = []
+            # First extract from fetched URL content
+            if fetched_content:
+                url_tickers = self._extract_tickers_from_text(fetched_content)
+                all_tickers.extend(url_tickers)
+            # Also extract from original clipboard content (may contain tickers directly)
+            clipboard_tickers = self._extract_tickers_from_text(clipboard_content)
+            for t in clipboard_tickers:
+                if t not in all_tickers:
+                    all_tickers.append(t)
+            
+            self._update_news_temp_list(all_tickers)
+            logging.info(f"Extracted {len(all_tickers)} tickers from clipboard/URLs")
+            
+            safe_update_status(self.status_var, "Summarizing clipboard content via Gemini...")
+
+            try:
+                summary = gemini_analyzer.summarize_clipboard_content(content_to_summarize, valid_urls if valid_urls else None)
+            except Exception as e:
+                logging.error(f"Error summarizing clipboard content: {e}")
+                safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
+                safe_update_text_widget(
+                    self.market_news_text,
+                    'insert',
+                    tk.END,
+                    f"总结剪贴板内容失败：{e}\nFailed to summarize clipboard content: {e}"
+                )
+                safe_show_message('error', "Clipboard Summary", f"Failed to summarize clipboard content: {e}")
+                return
+
+            formatted = summary or "Gemini did not return any content."
+            self.market_news_original_text = formatted
+
+            safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
+            safe_update_text_widget(self.market_news_text, 'insert', tk.END, formatted)
+            safe_update_text_widget(self.market_news_text, 'see', "1.0")
+            safe_update_status(self.status_var, "Clipboard content summarized")
+
+        threading.Thread(target=clipboard_thread, daemon=True, name="ClipboardSummary").start()
+
     def _fetch_market_news_articles(self, limit: int = 12) -> List[Dict[str, str]]:
         """Fetch latest market news items from the Finviz base feed."""
         url = "https://elite.finviz.com/news.ashx"
@@ -5461,6 +5577,37 @@ class StockDataGUI:
                 if ticker and ticker not in seen:
                     seen.append(ticker)
         return seen
+
+    def _extract_tickers_from_text(self, text: str) -> List[str]:
+        """Extract potential stock tickers from raw text content."""
+        import re
+        # Common words that look like tickers but aren't
+        common_words = {
+            'A', 'I', 'AM', 'PM', 'AN', 'AS', 'AT', 'BE', 'BY', 'DO', 'GO', 'HE', 'IF', 'IN', 'IS', 'IT',
+            'ME', 'MY', 'NO', 'OF', 'OK', 'ON', 'OR', 'SO', 'TO', 'UP', 'US', 'WE', 'CEO', 'CFO', 'COO',
+            'CTO', 'IPO', 'ETF', 'SEC', 'FDA', 'FED', 'GDP', 'USA', 'USD', 'EUR', 'GBP', 'JPY', 'CNY',
+            'AI', 'API', 'CEO', 'CIO', 'COO', 'CTO', 'CFO', 'CMO', 'HR', 'IT', 'PR', 'VP', 'SVP', 'EVP',
+            'LLC', 'INC', 'LTD', 'PLC', 'AG', 'SA', 'NV', 'BV', 'AB', 'ASA', 'OYJ', 'SE', 'SPA', 'SARL',
+            'THE', 'AND', 'FOR', 'ARE', 'BUT', 'NOT', 'YOU', 'ALL', 'CAN', 'HAD', 'HER', 'WAS', 'ONE',
+            'OUR', 'OUT', 'DAY', 'GET', 'HAS', 'HIM', 'HIS', 'HOW', 'ITS', 'MAY', 'NEW', 'NOW', 'OLD',
+            'SEE', 'WAY', 'WHO', 'BOY', 'DID', 'OWN', 'SAY', 'SHE', 'TOO', 'USE', 'Q1', 'Q2', 'Q3', 'Q4',
+            'YOY', 'QOQ', 'MOM', 'YTD', 'MTD', 'WTD', 'EPS', 'P/E', 'PE', 'ROI', 'ROE', 'ROA', 'EBITDA',
+            'GAAP', 'NON', 'VS', 'EST', 'AVG', 'MAX', 'MIN', 'PCT', 'BPS', 'YEN', 'GBX', 'CHF',
+        }
+        
+        # Pattern: 1-5 uppercase letters, optionally followed by .A or .B (for share classes)
+        ticker_pattern = r'\b([A-Z]{1,5}(?:\.[A-Z]{1,2})?)\b'
+        
+        candidates = re.findall(ticker_pattern, text)
+        
+        seen = []
+        for ticker in candidates:
+            ticker = ticker.upper()
+            if ticker not in common_words and ticker not in seen and len(ticker) >= 2:
+                seen.append(ticker)
+        
+        # Limit to reasonable number of tickers
+        return seen[:50]
 
     def _save_temp_stock_list(self, tickers: List[str]):
         """Persist detected Finviz tickers into ticker_lists.temp_stocks."""

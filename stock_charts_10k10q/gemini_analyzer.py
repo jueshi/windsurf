@@ -1568,6 +1568,67 @@ def summarize_stock_news(articles, tickers=None):
     except Exception as e:
         return _format_gemini_error(e)
 
+def summarize_clipboard_content(content, urls=None):
+    """
+    Summarize content from clipboard which may contain URLs or direct text.
+    
+    Args:
+        content (str): The clipboard content (text or fetched webpage content).
+        urls (list): Optional list of URLs that were detected and fetched.
+    
+    Returns:
+        str: Bilingual summary of the content.
+    """
+    if not content or not content.strip():
+        return "剪贴板为空或无有效内容。\nClipboard is empty or contains no valid content."
+
+    load_dotenv()
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return "Error: GEMINI_API_KEY not found in environment variables."
+
+    genai.configure(api_key=api_key)
+    try:
+        model = _init_gemini_model_with_fallback()
+    except Exception as e:
+        return _format_gemini_error(e)
+
+    # Truncate content if too long (keep first ~15000 chars to stay within token limits)
+    max_content_len = 15000
+    truncated = content[:max_content_len] if len(content) > max_content_len else content
+    truncation_note = "\n[内容已截断 / Content truncated]" if len(content) > max_content_len else ""
+
+    url_info = ""
+    if urls:
+        url_info = f"\n来源链接 / Source URLs:\n" + "\n".join(f"- {u}" for u in urls[:5])
+
+    prompt = f"""
+你是一位资深华尔街分析师兼投资博客作者。请根据以下内容撰写一篇双语博客摘要：
+{url_info}
+
+内容：
+{truncated}{truncation_note}
+
+写作要求：
+1. 先用中文写出结构化的内容综述，识别关键主题、重要信息点和潜在投资含义（如适用），可使用要点列表。
+2. 如果内容涉及股票、公司或市场，请突出相关股票代码和行业影响。
+3. 紧接着提供一段英文版本，内容与中文段落保持一致。
+4. 语气需兼具专业与博客风格，让读者快速抓住重点。
+5. 如果内容不是财经相关，仍然提供有价值的摘要。
+"""
+
+    rate_limiter = GeminiRateLimiter()
+
+    try:
+        def make_api_call():
+            return model.generate_content(prompt)
+
+        response = rate_limiter.make_api_call_with_retry(make_api_call)
+        return response.text
+    except Exception as e:
+        return _format_gemini_error(e)
+
+
 def general_ai_search(query):
     """
     Performs a general AI search using Google Gemini API without requiring ticker information.

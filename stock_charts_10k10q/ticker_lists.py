@@ -724,16 +724,13 @@ if __name__ == '__main__':
 
 
 temp_stocks = [
-    "Q",
-    "CEVA",
-    "STM",
-    "POWI",
-    "SITM",
-    "ARM",
-    "ON",
-    "ALAB",
-    "AMD",
-    "NVDA",
-    "CRWD",
-    "CEG"
+    "CHA",
+    "NAT",
+    "ZOOZ",
+    "GLBS",
+    "ENLV",
+    "BGI",
+    "LEDS",
+    "ATON",
+    "CHEK"
 ]
