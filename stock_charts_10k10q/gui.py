@@ -655,6 +655,7 @@ class StockDataGUI:
 
         # Ticker-specific section (uses selected ticker)
         urls_menu.add_command(label="🔮 Stock Forecast (selected)", command=self._open_stock_forecast)
+        urls_menu.add_command(label="📉 StockCharts UI (selected)", command=self._open_stockcharts_ui)
         urls_menu.add_separator()
 
         # Custom URL
@@ -1847,6 +1848,15 @@ class StockDataGUI:
         url = f"https://stockanalysis.com/stocks/{ticker.lower()}/forecast/"
         webbrowser.open(url)
         self.status_var.set(f"Opened forecast for {ticker}")
+
+    def _open_stockcharts_ui(self):
+        """Open StockCharts UI for the currently selected ticker (or QQQ as default)"""
+        ticker = self._get_selected_ticker()
+        if not ticker:
+            ticker = "QQQ"  # Default to QQQ if no ticker selected
+        url = f"https://stockcharts.com/sc3/ui/?s={ticker.upper()}"
+        webbrowser.open(url)
+        self.status_var.set(f"Opened StockCharts UI for {ticker}")
 
     def _get_selected_ticker(self):
         """Get the currently selected ticker from either listbox"""
