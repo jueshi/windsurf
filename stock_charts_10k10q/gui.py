@@ -653,6 +653,10 @@ class StockDataGUI:
         urls_menu.add_command(label="📈 Barchart", command=lambda: webbrowser.open("https://www.barchart.com/"))
         urls_menu.add_separator()
 
+        # Ticker-specific section (uses selected ticker)
+        urls_menu.add_command(label="🔮 Stock Forecast (selected)", command=self._open_stock_forecast)
+        urls_menu.add_separator()
+
         # Custom URL
         urls_menu.add_command(label="🌐 Open Custom URL...", command=self._open_custom_url)
 
@@ -1833,6 +1837,28 @@ class StockDataGUI:
                 self.status_var.set(f"Opened: {url}")
             except Exception as e:
                 messagebox.showerror("Error", f"Could not open URL: {e}")
+
+    def _open_stock_forecast(self):
+        """Open Stock Analysis forecast page for the currently selected ticker"""
+        ticker = self._get_selected_ticker()
+        if not ticker:
+            messagebox.showwarning("No Ticker Selected", "Please select a ticker first.")
+            return
+        url = f"https://stockanalysis.com/stocks/{ticker.lower()}/forecast/"
+        webbrowser.open(url)
+        self.status_var.set(f"Opened forecast for {ticker}")
+
+    def _get_selected_ticker(self):
+        """Get the currently selected ticker from either listbox"""
+        # Check main ticker listbox first
+        selection = self.ticker_listbox.curselection()
+        if selection:
+            return self.ticker_listbox.get(selection[0])
+        # Check watch listbox
+        selection = self.watch_listbox.curselection()
+        if selection:
+            return self.watch_listbox.get(selection[0])
+        return None
 
     def _setup_ticker_context_menu(self):
         """Set up the context menu for the ticker listbox"""
