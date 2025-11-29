@@ -362,9 +362,13 @@ class StockDataManager:
                     logging.info(f"{ticker} has {data_span.days / 365:.1f} years of data, which meets the 3-year minimum requirement")
 
                     # Check if data is already up to date (within 1 day)
-                    if (datetime.now(timezone.utc).date() - latest_date.date()).days <= 1:
-                        logging.info(f"Data for {ticker} is up to date")
+                    # But don't skip if force_download is explicitly requested
+                    days_since_update = (datetime.now(timezone.utc).date() - latest_date.date()).days
+                    if days_since_update <= 1 and not force_download:
+                        logging.info(f"Data for {ticker} is up to date (last update: {latest_date.date()})")
                         return existing_data
+                    elif days_since_update <= 1:
+                        logging.info(f"Data for {ticker} appears up to date but force_download requested, will fetch latest")
                 else:
                     logging.info(f"{ticker} only has {data_span.days / 365:.1f} years of data, which is less than the 3-year minimum. Forcing full download.")
                     force_download = True
@@ -678,38 +682,46 @@ class StockDataManager:
                     else:
                         logging.warning("No Date column in new_data_processed, cannot determine latest entry")
                 
-                # Check if any of the key values have changed
-                values_changed = False
+                # Check if we have new data to save
+                should_save = False
                 
                 # Only proceed with comparison if we have both latest points
                 if latest_existing is not None and latest_new is not None:
-                    logging.info(f"Comparing latest existing data: {latest_existing['Date']} with latest new data: {latest_new['Date']}")
+                    existing_date = pd.to_datetime(latest_existing['Date']).date() if isinstance(latest_existing['Date'], str) else latest_existing['Date'].date()
+                    new_date = pd.to_datetime(latest_new['Date']).date() if isinstance(latest_new['Date'], str) else latest_new['Date'].date()
                     
-                    for col in ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']:
-                        if col in latest_existing and col in latest_new:
-                            try:
-                                # Convert values to float before comparison to handle potential string values
-                                existing_val = float(latest_existing[col])
-                                new_val = float(latest_new[col])
-                                if not np.isclose(existing_val, new_val, atol=0.0001):  # Small threshold for float comparison
-                                    values_changed = True
-                                    logging.info(f"Latest {col} value updated: {existing_val} -> {new_val}")
-                            except (ValueError, TypeError) as e:
-                                # Handle case where conversion to float fails
-                                logging.warning(f"Could not compare {col} values due to type mismatch: {e}")
-                                # If values are strings, compare them directly
-                                if str(latest_existing[col]) != str(latest_new[col]):
-                                    values_changed = True
-                                    logging.info(f"Latest {col} value updated: {latest_existing[col]} -> {latest_new[col]}")
-                            except Exception as e:
-                                logging.warning(f"Error comparing {col} values: {e}")
-                                # Skip to the next column
-                                continue
+                    logging.info(f"Comparing latest existing data: {existing_date} with latest new data: {new_date}")
+                    
+                    # If new data has a newer date, always save
+                    if new_date > existing_date:
+                        should_save = True
+                        logging.info(f"New data has newer date ({new_date} > {existing_date}), will save")
+                    else:
+                        # Same date - check if values have changed
+                        for col in ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']:
+                            if col in latest_existing and col in latest_new:
+                                try:
+                                    existing_val = float(latest_existing[col])
+                                    new_val = float(latest_new[col])
+                                    if not np.isclose(existing_val, new_val, atol=0.0001):
+                                        should_save = True
+                                        logging.info(f"Latest {col} value updated: {existing_val} -> {new_val}")
+                                except (ValueError, TypeError) as e:
+                                    logging.warning(f"Could not compare {col} values: {e}")
+                                    if str(latest_existing[col]) != str(latest_new[col]):
+                                        should_save = True
+                                except Exception as e:
+                                    logging.warning(f"Error comparing {col} values: {e}")
+                                    continue
+                elif latest_new is not None:
+                    # No existing data but we have new data
+                    should_save = True
+                    logging.info("No existing data found, will save new data")
 
-                if values_changed:
+                if should_save:
                     # Save the updated data with consistent formatting
                     self._save_data_with_consistent_format(combined_data, data_path)
-                    logging.info(f"Data for {ticker} updated with latest price corrections")
+                    logging.info(f"Data for {ticker} updated and saved")
                     return combined_data
                 else:
                     logging.info(f"No new data to update for {ticker}")

@@ -2441,6 +2441,15 @@ class StockDataGUI:
                 self.status_var.set(f"Visualizing all timeframes for {ticker}...")
                 self.root.update_idletasks()
 
+                # Force reload data from disk to ensure we have the latest
+                # This clears any potential caching and re-reads the TSV file
+                data = self.manager.load_data(ticker)
+                if data is None or data.empty:
+                    self.status_var.set(f"No data available for {ticker}, downloading...")
+                    self.root.update_idletasks()
+                    # Download fresh data if none exists
+                    self.manager.update_data(ticker, force_download=True)
+
                 # Generate the chart
                 self.manager.visualize_daily_vs_weekly(ticker)
 
