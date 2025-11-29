@@ -1605,9 +1605,29 @@ class StockDataManager:
 
                 # Add ticker to processed set
                 processed_tickers.add(ticker)
+                
+                # Get the latest data date for this ticker
+                latest_date_str = ""
+                try:
+                    data = self.load_data(ticker)
+                    if data is not None and not data.empty:
+                        if 'Date' in data.columns:
+                            latest_date = pd.to_datetime(data['Date']).max()
+                        elif data.index.name == 'Date' or isinstance(data.index, pd.DatetimeIndex):
+                            latest_date = data.index.max()
+                        else:
+                            latest_date = None
+                        if latest_date is not None:
+                            if hasattr(latest_date, 'strftime'):
+                                latest_date_str = f" (Data as of {latest_date.strftime('%Y-%m-%d')})"
+                            else:
+                                latest_date_str = f" (Data as of {str(latest_date)[:10]})"
+                except Exception as e:
+                    logging.warning(f"Could not get latest date for {ticker}: {e}")
+                
                 html_content += f"""
                     <div class="plot-item">
-                        <h2>{ticker} Stock Prices</h2>
+                        <h2>{ticker} Stock Prices{latest_date_str}</h2>
                         <img src="{os.path.basename(plot_file)}" alt="{ticker} Stock Price Plot">
                     </div>
                 """
