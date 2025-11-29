@@ -1261,8 +1261,18 @@ class StockDataManager:
             weekly_data.index = pd.to_datetime(weekly_data.index)
             monthly_data.index = pd.to_datetime(monthly_data.index)
 
+            # Get the latest data date for display
+            latest_data_date = daily_data.index.max()
+            if hasattr(latest_data_date, 'strftime'):
+                latest_date_str = latest_data_date.strftime('%Y-%m-%d')
+            else:
+                latest_date_str = str(latest_data_date)[:10]
+
             # Create figure with three subplots
             fig, (ax3, ax2, ax1) = plt.subplots(1, 3, figsize=(30, 7))
+            
+            # Add main title with latest data date
+            fig.suptitle(f'{ticker} Stock Price Charts (Data as of {latest_date_str})', fontsize=14, fontweight='bold', y=1.02)
 
             # Plot daily data for recent year
             if not daily_data.empty:
