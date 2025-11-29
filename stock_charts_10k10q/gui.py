@@ -1392,25 +1392,32 @@ class StockDataGUI:
         bottom_frame = self.bottom_frame
 
         # Keep actions and status separated so the status text remains visible within the bottom pane
-        actions_frame = ttk.Frame(bottom_frame)
-        actions_frame.pack(side=tk.TOP, fill=tk.X)
+        # Row 1: Data actions and options
+        actions_row1 = ttk.Frame(bottom_frame)
+        actions_row1.pack(side=tk.TOP, fill=tk.X, pady=(2, 0))
 
-        # Force download toggle
+        # Force download toggle (right side of row 1)
         self.force_download_var = tk.BooleanVar(value=False)
-        force_download_check = ttk.Checkbutton(actions_frame, text="Force Download", variable=self.force_download_var)
+        force_download_check = ttk.Checkbutton(actions_row1, text="Force Download", variable=self.force_download_var)
         force_download_check.pack(side=tk.RIGHT, padx=5)
-        ttk.Label(actions_frame, text="Options:").pack(side=tk.RIGHT, padx=5)
+        ttk.Label(actions_row1, text="Options:").pack(side=tk.RIGHT, padx=5)
 
-        # Action buttons
-        ttk.Button(actions_frame, text="Download/Update Data", command=self._download_data).pack(side=tk.LEFT, padx=5)
-        ttk.Button(actions_frame, text="Visualize Daily/Weekly/Monthly", command=self._visualize_all_timeframes).pack(side=tk.LEFT, padx=5)
-        ttk.Button(actions_frame, text="View HTML Report", command=self._view_html_report).pack(side=tk.LEFT, padx=5)
-        ttk.Button(actions_frame, text="Compare % Performance", command=self._compare_percentage_performance).pack(side=tk.LEFT, padx=5)
-        ttk.Button(actions_frame, text="Summarize Market News", command=self._summarize_market_news).pack(side=tk.LEFT, padx=5)
-        ttk.Button(actions_frame, text="Summarize Stock News", command=self._summarize_stock_news).pack(side=tk.LEFT, padx=5)
-        ttk.Button(actions_frame, text="Summarize ETF News", command=self._summarize_etf_news).pack(side=tk.LEFT, padx=5)
-        ttk.Button(actions_frame, text="Summarize Crypto News", command=self._summarize_crypto_news).pack(side=tk.LEFT, padx=5)
-        ttk.Button(actions_frame, text="Summarize Clipboard", command=self._summarize_clipboard_content).pack(side=tk.LEFT, padx=5)
+        # Data action buttons (left side of row 1)
+        ttk.Button(actions_row1, text="Download/Update Data", command=self._download_data).pack(side=tk.LEFT, padx=5)
+        ttk.Button(actions_row1, text="Visualize Daily/Weekly/Monthly", command=self._visualize_all_timeframes).pack(side=tk.LEFT, padx=5)
+        ttk.Button(actions_row1, text="View HTML Report", command=self._view_html_report).pack(side=tk.LEFT, padx=5)
+        ttk.Button(actions_row1, text="Compare % Performance", command=self._compare_percentage_performance).pack(side=tk.LEFT, padx=5)
+
+        # Row 2: News summarization buttons
+        actions_row2 = ttk.Frame(bottom_frame)
+        actions_row2.pack(side=tk.TOP, fill=tk.X, pady=(2, 0))
+
+        ttk.Label(actions_row2, text="Summarize:").pack(side=tk.LEFT, padx=(5, 2))
+        ttk.Button(actions_row2, text="Market News", command=self._summarize_market_news).pack(side=tk.LEFT, padx=3)
+        ttk.Button(actions_row2, text="Stock News", command=self._summarize_stock_news).pack(side=tk.LEFT, padx=3)
+        ttk.Button(actions_row2, text="ETF News", command=self._summarize_etf_news).pack(side=tk.LEFT, padx=3)
+        ttk.Button(actions_row2, text="Crypto News", command=self._summarize_crypto_news).pack(side=tk.LEFT, padx=3)
+        ttk.Button(actions_row2, text="📋 Clipboard", command=self._summarize_clipboard_content).pack(side=tk.LEFT, padx=3)
 
         # Status bar hosted inside the bottom pane to prevent it from being obscured
         self.status_var = tk.StringVar(value="Ready")
@@ -5329,7 +5336,6 @@ class StockDataGUI:
         self.root.update_idletasks()
 
         def clipboard_thread():
-            import re
             # Detect URLs in clipboard content
             url_pattern = r'https?://[^\s<>"\']+|www\.[^\s<>"\']+'
             detected_urls = re.findall(url_pattern, clipboard_content)
@@ -5580,19 +5586,27 @@ class StockDataGUI:
 
     def _extract_tickers_from_text(self, text: str) -> List[str]:
         """Extract potential stock tickers from raw text content."""
-        import re
-        # Common words that look like tickers but aren't
+        # Common words that look like tickers but aren't (deduplicated)
         common_words = {
+            # Single letters and pronouns
             'A', 'I', 'AM', 'PM', 'AN', 'AS', 'AT', 'BE', 'BY', 'DO', 'GO', 'HE', 'IF', 'IN', 'IS', 'IT',
-            'ME', 'MY', 'NO', 'OF', 'OK', 'ON', 'OR', 'SO', 'TO', 'UP', 'US', 'WE', 'CEO', 'CFO', 'COO',
-            'CTO', 'IPO', 'ETF', 'SEC', 'FDA', 'FED', 'GDP', 'USA', 'USD', 'EUR', 'GBP', 'JPY', 'CNY',
-            'AI', 'API', 'CEO', 'CIO', 'COO', 'CTO', 'CFO', 'CMO', 'HR', 'IT', 'PR', 'VP', 'SVP', 'EVP',
-            'LLC', 'INC', 'LTD', 'PLC', 'AG', 'SA', 'NV', 'BV', 'AB', 'ASA', 'OYJ', 'SE', 'SPA', 'SARL',
+            'ME', 'MY', 'NO', 'OF', 'OK', 'ON', 'OR', 'SO', 'TO', 'UP', 'US', 'WE',
+            # Common verbs and articles
             'THE', 'AND', 'FOR', 'ARE', 'BUT', 'NOT', 'YOU', 'ALL', 'CAN', 'HAD', 'HER', 'WAS', 'ONE',
             'OUR', 'OUT', 'DAY', 'GET', 'HAS', 'HIM', 'HIS', 'HOW', 'ITS', 'MAY', 'NEW', 'NOW', 'OLD',
-            'SEE', 'WAY', 'WHO', 'BOY', 'DID', 'OWN', 'SAY', 'SHE', 'TOO', 'USE', 'Q1', 'Q2', 'Q3', 'Q4',
-            'YOY', 'QOQ', 'MOM', 'YTD', 'MTD', 'WTD', 'EPS', 'P/E', 'PE', 'ROI', 'ROE', 'ROA', 'EBITDA',
-            'GAAP', 'NON', 'VS', 'EST', 'AVG', 'MAX', 'MIN', 'PCT', 'BPS', 'YEN', 'GBX', 'CHF',
+            'SEE', 'WAY', 'WHO', 'BOY', 'DID', 'OWN', 'SAY', 'SHE', 'TOO', 'USE',
+            # Business titles
+            'CEO', 'CFO', 'COO', 'CTO', 'CIO', 'CMO', 'HR', 'IT', 'PR', 'VP', 'SVP', 'EVP',
+            # Financial terms
+            'IPO', 'ETF', 'SEC', 'FDA', 'FED', 'GDP', 'AI', 'API',
+            'Q1', 'Q2', 'Q3', 'Q4', 'YOY', 'QOQ', 'MOM', 'YTD', 'MTD', 'WTD',
+            'EPS', 'PE', 'ROI', 'ROE', 'ROA', 'EBITDA', 'GAAP', 'NON', 'VS', 'EST', 'AVG', 'MAX', 'MIN', 'PCT', 'BPS',
+            # Currencies and countries
+            'USA', 'USD', 'EUR', 'GBP', 'JPY', 'CNY', 'YEN', 'GBX', 'CHF',
+            # Company suffixes
+            'LLC', 'INC', 'LTD', 'PLC', 'AG', 'SA', 'NV', 'BV', 'AB', 'ASA', 'OYJ', 'SE', 'SPA', 'SARL',
+            # HTML/Web terms often found in scraped content
+            'HTTP', 'HTTPS', 'HTML', 'CSS', 'JSON', 'XML', 'URL', 'WWW', 'COM', 'ORG', 'NET', 'EDU', 'GOV',
         }
         
         # Pattern: 1-5 uppercase letters, optionally followed by .A or .B (for share classes)

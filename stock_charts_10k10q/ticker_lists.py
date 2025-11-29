@@ -723,14 +723,4 @@ if __name__ == '__main__':
 
 
 
-temp_stocks = [
-    "CHA",
-    "NAT",
-    "ZOOZ",
-    "GLBS",
-    "ENLV",
-    "BGI",
-    "LEDS",
-    "ATON",
-    "CHEK"
-]
+temp_stocks = []
