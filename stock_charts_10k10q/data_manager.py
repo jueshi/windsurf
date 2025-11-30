@@ -1145,8 +1145,23 @@ class StockDataManager:
                 logging.warning(f"No valid data available for {ticker} after cleaning")
                 return None
 
-            # Resample data
-            resampled = data[column].resample(resample_freq).last()
+            # Resample data - handle pandas version compatibility
+            # Older pandas uses 'M' for month-end, newer uses 'ME'
+            try:
+                resampled = data[column].resample(resample_freq).last()
+            except ValueError as ve:
+                if 'ME' in resample_freq:
+                    # Try older pandas syntax
+                    old_freq = resample_freq.replace('ME', 'M')
+                    logging.info(f"Retrying resample with older pandas frequency: {old_freq}")
+                    resampled = data[column].resample(old_freq).last()
+                elif 'M' in resample_freq and 'ME' not in resample_freq:
+                    # Try newer pandas syntax
+                    new_freq = resample_freq.replace('M', 'ME')
+                    logging.info(f"Retrying resample with newer pandas frequency: {new_freq}")
+                    resampled = data[column].resample(new_freq).last()
+                else:
+                    raise ve
 
             # Drop NaN values from resampled data
             resampled = resampled.dropna()
@@ -1238,8 +1253,9 @@ class StockDataManager:
             daily_data = daily_data.dropna(subset=[column])
 
             # Get weekly and monthly data through resampling
+            # Use 'M' for pandas < 2.2, 'ME' for pandas >= 2.2
             weekly_data = self.resample_data(ticker, resample_freq='W', column=column)
-            monthly_data = self.resample_data(ticker, resample_freq='ME', column=column)
+            monthly_data = self.resample_data(ticker, resample_freq='M', column=column)
 
             if weekly_data is None or monthly_data is None:
                 logging.error(f"Could not generate weekly or monthly data for {ticker}")
