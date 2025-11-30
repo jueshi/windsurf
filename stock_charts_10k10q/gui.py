@@ -58,6 +58,8 @@ from thread_safe_tkinter import (
     thread_safe
 )
 from tooltip_manager import TooltipManager
+import gui_styles
+from gui_styles import Colors, Fonts, Spacing, configure_styles
 
 class StockDataGUI:
     """GUI for Stock Data Manager"""
@@ -68,6 +70,9 @@ class StockDataGUI:
         self.manager = manager
         self.current_tickers = []
         self.watch_list = []
+        
+        # Configure modern styles
+        self.style = configure_styles(root)
         
         # Set up thread-safe Tkinter updates
         setup_thread_safe_tkinter(root)
@@ -189,24 +194,35 @@ class StockDataGUI:
             messagebox.showerror("Error", f"Failed to load ticker lists: {e}")
 
     def _set_initial_sash_positions(self):
-        """Set the initial positions of the sashes to make list panes very narrow"""
+        """Set the initial position of the sash for the tabbed ticker panel"""
         try:
             # Get the total width of the paned window
             total_width = self.paned_window.winfo_width()
             
             if total_width > 0:
-                # Set first sash position (between left and middle panes)
-                self.paned_window.sashpos(0, 120)  # 120 pixels from left (doubled from 60)
-                
-                # Set second sash position (between middle and right panes)
-                self.paned_window.sashpos(1, 240)  # 240 pixels from left (doubled from 120)
-                
-                logging.info(f"Set initial sash positions: 120, 240 (total width: {total_width})")
+                # Set sash position (between ticker panel and chart display)
+                # Give ticker panel about 200 pixels
+                self.paned_window.sashpos(0, 200)
+                logging.info(f"Set initial sash position: 200 (total width: {total_width})")
             else:
                 # If window width is not yet available, try again after a delay
                 self.root.after(100, self._set_initial_sash_positions)
         except Exception as e:
             logging.error(f"Error setting sash positions: {e}")
+
+    def _update_ticker_tab_counts(self):
+        """Update the tab labels with current ticker counts"""
+        try:
+            if hasattr(self, 'ticker_notebook'):
+                # Update Available tab
+                available_count = len(self.current_tickers)
+                self.ticker_notebook.tab(0, text=f"📋 Available ({available_count})")
+                
+                # Update Watch tab
+                watch_count = len(self.watch_list)
+                self.ticker_notebook.tab(1, text=f"⭐ Watch ({watch_count})")
+        except Exception as e:
+            logging.debug(f"Error updating ticker tab counts: {e}")
     
     def _filter_ticker_lists(self, event=None):
         """Filter ticker lists dropdown based on filter text"""
@@ -719,201 +735,215 @@ class StockDataGUI:
         self.paned_window = ttk.PanedWindow(main_frame, orient=tk.HORIZONTAL)
         self.paned_window.pack(fill=tk.BOTH, expand=True, pady=5)
 
-        # --- Left Pane: Available Tickers ---
-        left_pane_frame = ttk.Frame(self.paned_window, width=50)  # Set very narrow fixed width
-        left_pane_frame.pack_propagate(False)  # Prevent child widgets from changing frame size
-        self.paned_window.add(left_pane_frame, weight=1) # Very minimal weight for ticker list
+        # =================================================================
+        # LEFT PANE: Combined Tabbed Ticker Panel (Available + Watch List)
+        # =================================================================
+        left_pane_frame = ttk.Frame(self.paned_window, width=180)
+        left_pane_frame.pack_propagate(False)
+        self.paned_window.add(left_pane_frame, weight=1)
 
-        left_frame = ttk.LabelFrame(left_pane_frame, text="Available Tickers", padding="5")
-        left_frame.pack(fill=tk.BOTH, expand=True)
+        # Create tabbed notebook for tickers
+        self.ticker_notebook = ttk.Notebook(left_pane_frame)
+        self.ticker_notebook.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
 
-        # Add filter entry for ticker list
-        filter_frame = ttk.Frame(left_frame)
-        filter_frame.pack(fill=tk.X, pady=(0, 5))
+        # --- Tab 1: Available Tickers ---
+        available_tab = ttk.Frame(self.ticker_notebook, padding=Spacing.SM)
+        self.ticker_notebook.add(available_tab, text=f"📋 Available ({len(self.current_tickers)})")
 
-        ttk.Label(filter_frame, text="Filter:").pack(side=tk.LEFT)
+        # Filter entry for available tickers
+        filter_frame = ttk.Frame(available_tab)
+        filter_frame.pack(fill=tk.X, pady=(0, Spacing.SM))
+
+        ttk.Label(filter_frame, text="🔍", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, 4))
         self.filter_var = tk.StringVar()
-        filter_entry = ttk.Entry(filter_frame, textvariable=self.filter_var, width=8)
+        filter_entry = ttk.Entry(filter_frame, textvariable=self.filter_var)
         filter_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
         self._attach_tooltip(filter_entry, text="Filter tickers by name. Type to search.", tooltip_id="available.filter")
-
-        # Bind filter entry to update the list as user types
         self.filter_var.trace_add("write", self._apply_ticker_filter)
 
-        # Create ticker listbox with scrollbar
-        ticker_frame = ttk.Frame(left_frame)
+        # Ticker listbox with scrollbar
+        ticker_frame = ttk.Frame(available_tab)
         ticker_frame.pack(fill=tk.BOTH, expand=True)
 
         scrollbar = ttk.Scrollbar(ticker_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        self.ticker_listbox = tk.Listbox(ticker_frame, selectmode=tk.EXTENDED, height=20, width=2)
+        self.ticker_listbox = tk.Listbox(
+            ticker_frame, 
+            selectmode=tk.EXTENDED, 
+            height=20,
+            font=Fonts.body(),
+            bg=Colors.SURFACE,
+            fg=Colors.TEXT_PRIMARY,
+            selectbackground=Colors.PRIMARY_LIGHT,
+            selectforeground=Colors.TEXT_INVERSE,
+            highlightthickness=0,
+            borderwidth=1,
+            relief="solid"
+        )
         self.ticker_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self._attach_tooltip(self.ticker_listbox, text="Available tickers from loaded list. Click to select, Ctrl+Click for multiple. Right-click for context menu.", tooltip_id="available.listbox")
 
         self.ticker_listbox.config(yscrollcommand=scrollbar.set)
         scrollbar.config(command=self.ticker_listbox.yview)
 
-        # Add buttons for reordering and sorting tickers
-        ticker_buttons_frame = ttk.Frame(left_frame)
-        ticker_buttons_frame.pack(fill=tk.X, pady=(5, 0))
+        # Action buttons for available tickers
+        ticker_buttons_frame = ttk.Frame(available_tab)
+        ticker_buttons_frame.pack(fill=tk.X, pady=(Spacing.SM, 0))
         
-        sort_btn = ttk.Button(ticker_buttons_frame, text="A-Z", command=self._sort_tickers, width=10)
-        sort_btn.pack(side=tk.LEFT)
+        sort_btn = ttk.Button(ticker_buttons_frame, text="Sort A-Z", command=self._sort_tickers, width=8)
+        sort_btn.pack(side=tk.LEFT, padx=(0, 2))
         self._attach_tooltip(sort_btn, text="Sort tickers alphabetically A-Z", tooltip_id="available.sort")
         
-        up_btn = ttk.Button(ticker_buttons_frame, text="↑", command=self._move_ticker_up, width=10)
+        up_btn = ttk.Button(ticker_buttons_frame, text="↑", command=self._move_ticker_up, width=3)
         up_btn.pack(side=tk.LEFT, padx=(0, 2))
         self._attach_tooltip(up_btn, text="Move selected ticker up in list", tooltip_id="available.up")
         
-        down_btn = ttk.Button(ticker_buttons_frame, text="↓", command=self._move_ticker_down, width=10)
-        down_btn.pack(side=tk.LEFT, padx=(0, 2))
+        down_btn = ttk.Button(ticker_buttons_frame, text="↓", command=self._move_ticker_down, width=3)
+        down_btn.pack(side=tk.LEFT)
         self._attach_tooltip(down_btn, text="Move selected ticker down in list", tooltip_id="available.down")
 
-        # --- Middle Pane: Watch List ---
-        middle_pane_frame = ttk.Frame(self.paned_window, width=50)  # Set very narrow fixed width
-        middle_pane_frame.pack_propagate(False)  # Prevent child widgets from changing frame size
-        self.paned_window.add(middle_pane_frame, weight=1) # Very minimal weight for watch list
+        # --- Tab 2: Watch List ---
+        watch_tab = ttk.Frame(self.ticker_notebook, padding=Spacing.SM)
+        self.ticker_notebook.add(watch_tab, text=f"⭐ Watch ({len(self.watch_list)})")
 
-        middle_list_frame = ttk.LabelFrame(middle_pane_frame, text="Watch List", padding="5")
-        middle_list_frame.pack(fill=tk.BOTH, expand=True)
-
-        # Create watch list listbox with scrollbar
-        watch_frame = ttk.Frame(middle_list_frame)
+        # Watch list listbox with scrollbar
+        watch_frame = ttk.Frame(watch_tab)
         watch_frame.pack(fill=tk.BOTH, expand=True)
 
         watch_scrollbar = ttk.Scrollbar(watch_frame)
         watch_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        self.watch_listbox = tk.Listbox(watch_frame, selectmode=tk.EXTENDED, height=20, width=2)
+        self.watch_listbox = tk.Listbox(
+            watch_frame, 
+            selectmode=tk.EXTENDED, 
+            height=20,
+            font=Fonts.body(),
+            bg=Colors.SURFACE,
+            fg=Colors.TEXT_PRIMARY,
+            selectbackground=Colors.PRIMARY_LIGHT,
+            selectforeground=Colors.TEXT_INVERSE,
+            highlightthickness=0,
+            borderwidth=1,
+            relief="solid"
+        )
         self.watch_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self._attach_tooltip(self.watch_listbox, text="Personal watch list. Right-click to add/remove tickers. Saved to ticker_lists.py.", tooltip_id="watch.listbox")
 
-        # --- Right Pane: Chart Display ---
-        right_pane_frame = ttk.Frame(self.paned_window)
-        self.paned_window.add(right_pane_frame, weight=20) # Greatly increased weight for chart display
-        
-        # Store references to pane frames for later use
+        # Store references for compatibility
         self.left_pane_frame = left_pane_frame
-        self.middle_pane_frame = middle_pane_frame
+        self.middle_pane_frame = None  # No longer separate
+        self.available_tab = available_tab
+        self.watch_tab = watch_tab
+
+        # =================================================================
+        # RIGHT PANE: Chart Display (now takes more space)
+        # =================================================================
+        right_pane_frame = ttk.Frame(self.paned_window)
+        self.paned_window.add(right_pane_frame, weight=20)
         self.right_pane_frame = right_pane_frame
 
-        self.chart_frame = ttk.LabelFrame(right_pane_frame, text="Chart Display", padding="5")
+        self.chart_frame = ttk.LabelFrame(right_pane_frame, text="📈 Chart Display", padding="5")
         self.chart_frame.pack(fill=tk.BOTH, expand=True)
 
-        # Add date range controls at the top of chart frame
-        date_range_frame = ttk.Frame(self.chart_frame, padding="5")
-        date_range_frame.pack(fill=tk.X, expand=False, pady=(0, 5))
+        # =================================================================
+        # TIMEFRAME CONTROL BAR - Cohesive date range controls
+        # =================================================================
+        timeframe_frame = ttk.LabelFrame(self.chart_frame, text="📅 Timeframe", padding=Spacing.SM)
+        timeframe_frame.pack(fill=tk.X, expand=False, pady=(0, Spacing.SM))
 
-        # Start date entry with calendar widget
-        start_label = ttk.Label(date_range_frame, text="Start Date:")
-        start_label.pack(side=tk.LEFT, padx=(0, 5))
-        self._attach_tooltip(
-            start_label,
-            text="Beginning of the date window applied to chart data.",
-            tooltip_id="charts.start_label",
-        )
+        # Date range row
+        date_row = ttk.Frame(timeframe_frame)
+        date_row.pack(fill=tk.X, pady=(0, Spacing.XS))
+
+        # Start date
+        ttk.Label(date_row, text="From:", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
         self.start_date_var = tk.StringVar()
-        self.start_date_entry = DateEntry(date_range_frame, textvariable=self.start_date_var, width=12,
-                                        date_pattern='yyyy-mm-dd', background='darkblue', foreground='white',
-                                      borderwidth=2, locale='en_US')
-        self.start_date_entry.pack(side=tk.LEFT, padx=(0, 10))
-        self._attach_tooltip(
-            self.start_date_entry,
-            text="Pick the earliest date for charts. Defaults to earliest available data.",
-            tooltip_id="charts.start_entry",
+        self.start_date_entry = DateEntry(
+            date_row, 
+            textvariable=self.start_date_var, 
+            width=12,
+            date_pattern='yyyy-mm-dd', 
+            background=Colors.PRIMARY,
+            foreground=Colors.TEXT_INVERSE,
+            borderwidth=1,
+            locale='en_US'
         )
+        self.start_date_entry.pack(side=tk.LEFT, padx=(0, Spacing.MD))
+        self._attach_tooltip(self.start_date_entry, text="Pick the earliest date for charts.", tooltip_id="charts.start_entry")
 
-        # End date entry with calendar widget
-        end_label = ttk.Label(date_range_frame, text="End Date:")
-        end_label.pack(side=tk.LEFT, padx=(0, 5))
-        self._attach_tooltip(
-            end_label,
-            text="Set the latest date to include in the chart window.",
-            tooltip_id="charts.end_label",
-        )
+        # End date
+        ttk.Label(date_row, text="To:", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
         self.end_date_var = tk.StringVar()
-        self.end_date_entry = DateEntry(date_range_frame, textvariable=self.end_date_var, width=12,
-                                      date_pattern='yyyy-mm-dd', background='darkblue', foreground='white',
-                                      borderwidth=2, locale='en_US')
-        self.end_date_entry.pack(side=tk.LEFT, padx=(0, 10))
-        self._attach_tooltip(
-            self.end_date_entry,
-            text="Choose the final date included in generated charts.",
-            tooltip_id="charts.end_entry",
+        self.end_date_entry = DateEntry(
+            date_row, 
+            textvariable=self.end_date_var, 
+            width=12,
+            date_pattern='yyyy-mm-dd', 
+            background=Colors.PRIMARY,
+            foreground=Colors.TEXT_INVERSE,
+            borderwidth=1,
+            locale='en_US'
         )
+        self.end_date_entry.pack(side=tk.LEFT, padx=(0, Spacing.MD))
+        self._attach_tooltip(self.end_date_entry, text="Choose the final date for charts.", tooltip_id="charts.end_entry")
 
-        apply_range_button = ttk.Button(date_range_frame, text="Apply Date Range", command=self._apply_date_range)
-        apply_range_button.pack(side=tk.LEFT)
-        self._attach_tooltip(
-            apply_range_button,
-            text="Rebuild charts using the specified start/end dates.",
-            tooltip_id="charts.apply_range",
-        )
+        # Apply and Reset buttons
+        apply_btn = ttk.Button(date_row, text="✓ Apply", command=self._apply_date_range, width=8)
+        apply_btn.pack(side=tk.LEFT, padx=(0, Spacing.XS))
+        self._attach_tooltip(apply_btn, text="Apply the date range to charts.", tooltip_id="charts.apply_range")
 
-        reset_range_button = ttk.Button(date_range_frame, text="Reset Date Range", command=self._reset_date_range)
-        reset_range_button.pack(side=tk.LEFT, padx=(10, 0))
-        self._attach_tooltip(
-            reset_range_button,
-            text="Clear manual bounds and show the full data history.",
-            tooltip_id="charts.reset_range",
-        )
+        reset_btn = ttk.Button(date_row, text="↺ Reset", command=self._reset_date_range, width=8)
+        reset_btn.pack(side=tk.LEFT, padx=(0, Spacing.MD))
+        self._attach_tooltip(reset_btn, text="Reset to show full data history.", tooltip_id="charts.reset_range")
 
-        quick_label = ttk.Label(date_range_frame, text="Quick:")
-        quick_label.pack(side=tk.LEFT, padx=(10, 5))
-        self._attach_tooltip(
-            quick_label,
-            text="Choose a predefined range shortcut.",
-            tooltip_id="charts.quick_label",
-        )
+        # Separator
+        ttk.Separator(date_row, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=Spacing.SM)
 
-        quick_6m = ttk.Button(date_range_frame, text="6M", width=4, command=lambda: self._set_quick_range(days=182))
-        quick_6m.pack(side=tk.LEFT)
-        self._attach_tooltip(quick_6m, text="Show the last six months of data.", tooltip_id="charts.quick_6m")
+        # Quick range buttons
+        ttk.Label(date_row, text="Quick:", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
+        
+        for label, days in [("6M", 182), ("1Y", 365), ("3Y", 365*3), ("5Y", 365*5), ("All", None)]:
+            if days is None:
+                btn = ttk.Button(date_row, text=label, width=4, command=self._reset_date_range)
+            else:
+                btn = ttk.Button(date_row, text=label, width=4, command=lambda d=days: self._set_quick_range(days=d))
+            btn.pack(side=tk.LEFT, padx=(0, 2))
+            self._attach_tooltip(btn, text=f"Show {label} of data" if days else "Show all available data", tooltip_id=f"charts.quick_{label.lower()}")
 
-        quick_1y = ttk.Button(date_range_frame, text="1Y", width=4, command=lambda: self._set_quick_range(days=365))
-        quick_1y.pack(side=tk.LEFT, padx=(5, 0))
-        self._attach_tooltip(quick_1y, text="Display trailing twelve months of history.", tooltip_id="charts.quick_1y")
-
-        quick_3y = ttk.Button(date_range_frame, text="3Y", width=4, command=lambda: self._set_quick_range(days=365*3))
-        quick_3y.pack(side=tk.LEFT, padx=(5, 0))
-        self._attach_tooltip(quick_3y, text="Limit view to the last three years.", tooltip_id="charts.quick_3y")
-
-        quick_5y = ttk.Button(date_range_frame, text="5Y", width=4, command=lambda: self._set_quick_range(days=365*5))
-        quick_5y.pack(side=tk.LEFT, padx=(5, 0))
-        self._attach_tooltip(quick_5y, text="Trim dataset to the past five years.", tooltip_id="charts.quick_5y")
-
-        # Create a notebook with tabs for individual, comparison, and seasonality charts
+        # =================================================================
+        # ANALYSIS TABS - With icons for quick recognition
+        # =================================================================
         self.chart_notebook = ttk.Notebook(self.chart_frame)
-        self.chart_notebook.pack(fill=tk.BOTH, expand=True, pady=(5, 0))
+        self.chart_notebook.pack(fill=tk.BOTH, expand=True, pady=(Spacing.XS, 0))
 
         # Create individual chart tab
         self.individual_chart_frame = ttk.Frame(self.chart_notebook)
-        self.chart_notebook.add(self.individual_chart_frame, text="Individual Chart")
+        self.chart_notebook.add(self.individual_chart_frame, text="📈 Chart")
 
         # Create comparison chart tab
         self.comparison_chart_frame = ttk.Frame(self.chart_notebook)
-        self.chart_notebook.add(self.comparison_chart_frame, text="Comparison Chart")
+        self.chart_notebook.add(self.comparison_chart_frame, text="📊 Compare")
         
         # Create seasonality chart tab
         self.seasonality_chart_frame = ttk.Frame(self.chart_notebook)
-        self.chart_notebook.add(self.seasonality_chart_frame, text="Seasonality Chart")
+        self.chart_notebook.add(self.seasonality_chart_frame, text="📆 Seasonal")
 
         # Create fundamental analysis tab
         self.fundamental_analysis_frame = ttk.Frame(self.chart_notebook)
-        self.chart_notebook.add(self.fundamental_analysis_frame, text="Fundamental Analysis")
+        self.chart_notebook.add(self.fundamental_analysis_frame, text="📋 Fundamentals")
 
         # Create business analysis tab
         self.business_analysis_frame = ttk.Frame(self.chart_notebook)
-        self.chart_notebook.add(self.business_analysis_frame, text="Business Analysis")
+        self.chart_notebook.add(self.business_analysis_frame, text="💼 Business")
 
         # Create Market News tab
         self.market_news_frame = ttk.Frame(self.chart_notebook)
-        self.chart_notebook.add(self.market_news_frame, text="Market News Blog")
+        self.chart_notebook.add(self.market_news_frame, text="📰 News")
         
         # Create Buffett & CANSLIM tab
         self.buffett_canslim_frame = ttk.Frame(self.chart_notebook)
-        self.chart_notebook.add(self.buffett_canslim_frame, text="Buffett & CANSLIM")
+        self.chart_notebook.add(self.buffett_canslim_frame, text="🎯 Analysis")
 
         # Layout for Buffett & CANSLIM tab
         bc_outer = ttk.Frame(self.buffett_canslim_frame, padding="10")
@@ -984,7 +1014,7 @@ class StockDataGUI:
 
         # Create SEC filings tab
         self.sec_filings_frame = ttk.Frame(self.chart_notebook)
-        self.chart_notebook.add(self.sec_filings_frame, text="SEC Filings")
+        self.chart_notebook.add(self.sec_filings_frame, text="📑 SEC")
         
         # Configure SEC filings tab
         sec_frame = ttk.Frame(self.sec_filings_frame, padding="10")
@@ -1723,6 +1753,9 @@ class StockDataGUI:
                     self.ticker_listbox.insert(tk.END, ticker)
 
             self.status_var.set(f"Loaded {len(tickers)} tickers from {selected_list}")
+            
+            # Update tab counts
+            self._update_ticker_tab_counts()
 
     def _add_manual_ticker(self):
         """Add manually entered ticker(s)"""
@@ -2208,6 +2241,9 @@ class StockDataGUI:
                 
         # Save updated watch list
         self._save_watch_list()
+        
+        # Update tab counts
+        self._update_ticker_tab_counts()
 
     def _get_selected_tickers(self, show_warning=True):
         """Get selected tickers preferring the main list; fall back to watch list if needed."""
@@ -2257,6 +2293,9 @@ class StockDataGUI:
         if added_count > 0:
             # Save the updated watch list to ticker_lists.py
             self._save_watch_list()
+            
+            # Update tab counts
+            self._update_ticker_tab_counts()
 
             if added_count == 1:
                 self.status_var.set(f"Added {selected_tickers[0]} to watch list and saved")
