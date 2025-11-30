@@ -739,9 +739,72 @@ class StockDataGUI:
         help_menu.add_command(label="📄 Local User Guide (Markdown)", 
                              command=self._open_local_user_guide)
 
+        # =================================================================
+        # WORKFLOW QUICK-ACCESS PANEL - Collapsible guide for 5-phase workflow
+        # =================================================================
+        self.workflow_panel_visible = tk.BooleanVar(value=False)
+        
+        # Toggle button for workflow panel
+        workflow_toggle = ttk.Checkbutton(
+            row2, 
+            text="📋 Workflow", 
+            variable=self.workflow_panel_visible,
+            command=self._toggle_workflow_panel
+        )
+        workflow_toggle.pack(side=tk.RIGHT, padx=Spacing.SM)
+        self._attach_tooltip(workflow_toggle, text="Show/hide research workflow quick-access panel", tooltip_id="workflow.toggle")
+
+        # Workflow panel frame (initially hidden)
+        self.workflow_frame = ttk.LabelFrame(main_frame, text="📋 Research Workflow - 5 Phase Guide", padding=Spacing.SM)
+        # Don't pack yet - will be shown/hidden by toggle
+        
+        # Phase buttons inside workflow panel
+        workflow_content = ttk.Frame(self.workflow_frame)
+        workflow_content.pack(fill=tk.X)
+        
+        # Phase 1: Discovery
+        phase1 = ttk.Frame(workflow_content)
+        phase1.pack(fill=tk.X, pady=2)
+        ttk.Label(phase1, text="1️⃣ Discovery:", font=Fonts.body_bold(), width=12).pack(side=tk.LEFT)
+        ttk.Button(phase1, text="Market News", command=self._summarize_market_news, width=11).pack(side=tk.LEFT, padx=1)
+        ttk.Button(phase1, text="Browse Lists", command=self._go_next_list, width=11).pack(side=tk.LEFT, padx=1)
+        ttk.Button(phase1, text="D Charts", command=lambda: self._open_live_charts_for_current_list(time_frame="d"), width=9).pack(side=tk.LEFT, padx=1)
+        
+        # Phase 2: Technical
+        phase2 = ttk.Frame(workflow_content)
+        phase2.pack(fill=tk.X, pady=2)
+        ttk.Label(phase2, text="2️⃣ Technical:", font=Fonts.body_bold(), width=12).pack(side=tk.LEFT)
+        ttk.Button(phase2, text="Multi-TF", command=self._open_multi_timeframe_gallery_for_current_list, width=11).pack(side=tk.LEFT, padx=1)
+        ttk.Button(phase2, text="SC Charts", command=self._open_stockcharts_gallery_for_current_list, width=11).pack(side=tk.LEFT, padx=1)
+        ttk.Button(phase2, text="Seasonality", command=lambda: self.chart_notebook.select(2), width=9).pack(side=tk.LEFT, padx=1)
+        
+        # Phase 3: Fundamental
+        phase3 = ttk.Frame(workflow_content)
+        phase3.pack(fill=tk.X, pady=2)
+        ttk.Label(phase3, text="3️⃣ Fundamental:", font=Fonts.body_bold(), width=12).pack(side=tk.LEFT)
+        ttk.Button(phase3, text="Run BA", command=self._run_business_analysis, width=11).pack(side=tk.LEFT, padx=1)
+        ttk.Button(phase3, text="Fundamentals", command=lambda: self.chart_notebook.select(3), width=11).pack(side=tk.LEFT, padx=1)
+        ttk.Button(phase3, text="Stock News", command=self._summarize_stock_news, width=9).pack(side=tk.LEFT, padx=1)
+        
+        # Phase 4: SEC Filing
+        phase4 = ttk.Frame(workflow_content)
+        phase4.pack(fill=tk.X, pady=2)
+        ttk.Label(phase4, text="4️⃣ SEC Filing:", font=Fonts.body_bold(), width=12).pack(side=tk.LEFT)
+        ttk.Button(phase4, text="10-K Study", command=lambda: self._extract_sec_filing("10-K"), width=11).pack(side=tk.LEFT, padx=1)
+        ttk.Button(phase4, text="10-Q Study", command=lambda: self._extract_sec_filing("10-Q"), width=11).pack(side=tk.LEFT, padx=1)
+        ttk.Button(phase4, text="SEC Tab", command=lambda: self.chart_notebook.select(7), width=9).pack(side=tk.LEFT, padx=1)
+        
+        # Phase 5: Decision
+        phase5 = ttk.Frame(workflow_content)
+        phase5.pack(fill=tk.X, pady=2)
+        ttk.Label(phase5, text="5️⃣ Decision:", font=Fonts.body_bold(), width=12).pack(side=tk.LEFT)
+        ttk.Button(phase5, text="Add to Watch", command=self._copy_to_watch_list, width=11).pack(side=tk.LEFT, padx=1)
+        ttk.Button(phase5, text="Compare", command=self._compare_percentage_performance, width=11).pack(side=tk.LEFT, padx=1)
+        ttk.Button(phase5, text="Visualize", command=self._visualize_all_timeframes, width=9).pack(side=tk.LEFT, padx=1)
+
         # Create a PanedWindow for resizable sections
         self.paned_window = ttk.PanedWindow(main_frame, orient=tk.HORIZONTAL)
-        self.paned_window.pack(fill=tk.BOTH, expand=True, pady=5)
+        self.paned_window.pack(fill=tk.BOTH, expand=True, pady=Spacing.XS)
 
         # =================================================================
         # LEFT PANE: Combined Tabbed Ticker Panel (Available + Watch List)
@@ -1141,10 +1204,48 @@ class StockDataGUI:
         style.configure("Custom.Treeview", font=('Helvetica', 12))  # Set font size to 12
         style.configure("Custom.Treeview.Heading", font=('Helvetica', 14, 'bold')) # Set heading font size
 
+        # =================================================================
+        # BUSINESS SNAPSHOT - Key metrics at a glance
+        # =================================================================
+        snapshot_frame = ttk.LabelFrame(self.fundamental_analysis_frame, text="📊 Business Snapshot", padding=Spacing.SM)
+        snapshot_frame.pack(fill=tk.X, padx=Spacing.SM, pady=(Spacing.SM, Spacing.XS))
+        
+        # Row 1: Company info
+        snapshot_row1 = ttk.Frame(snapshot_frame)
+        snapshot_row1.pack(fill=tk.X, pady=2)
+        
+        self.snapshot_name_var = tk.StringVar(value="Select a ticker")
+        ttk.Label(snapshot_row1, textvariable=self.snapshot_name_var, font=Fonts.h3()).pack(side=tk.LEFT)
+        
+        self.snapshot_sector_var = tk.StringVar(value="")
+        ttk.Label(snapshot_row1, textvariable=self.snapshot_sector_var, foreground=Colors.TEXT_SECONDARY).pack(side=tk.LEFT, padx=(Spacing.MD, 0))
+        
+        # Row 2: Key metrics grid
+        snapshot_row2 = ttk.Frame(snapshot_frame)
+        snapshot_row2.pack(fill=tk.X, pady=Spacing.XS)
+        
+        # Create metric labels with icons
+        metrics_data = [
+            ("💰 Market Cap:", "snapshot_mcap"),
+            ("📈 P/E Ratio:", "snapshot_pe"),
+            ("📊 Revenue:", "snapshot_revenue"),
+            ("💵 Dividend:", "snapshot_div"),
+            ("📉 52W Range:", "snapshot_52w"),
+            ("⚡ Beta:", "snapshot_beta"),
+        ]
+        
+        self.snapshot_vars = {}
+        for i, (label, var_name) in enumerate(metrics_data):
+            frame = ttk.Frame(snapshot_row2)
+            frame.pack(side=tk.LEFT, padx=(0, Spacing.LG))
+            ttk.Label(frame, text=label, font=Fonts.small(), foreground=Colors.TEXT_SECONDARY).pack(side=tk.LEFT)
+            self.snapshot_vars[var_name] = tk.StringVar(value="--")
+            ttk.Label(frame, textvariable=self.snapshot_vars[var_name], font=Fonts.body_bold()).pack(side=tk.LEFT, padx=(Spacing.XS, 0))
+
         # Create a frame for the filter widget
         fa_filter_frame = ttk.Frame(self.fundamental_analysis_frame)
         fa_filter_frame.pack(fill=tk.X, padx=5, pady=5)
-        ttk.Label(fa_filter_frame, text="Filter Metric:").pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(fa_filter_frame, text="🔍 Filter Metric:").pack(side=tk.LEFT, padx=(0, 5))
         fa_filter_entry = ttk.Entry(fa_filter_frame, textvariable=self.fundamental_filter_var)
         fa_filter_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
         fa_filter_entry.bind("<KeyRelease>", self._populate_fundamental_treeview)
@@ -1190,27 +1291,46 @@ class StockDataGUI:
         self.fundamental_data_tree.tag_configure("bold", font=("Helvetica", 10, "bold"))
 
         # --- Business Analysis Tab Widgets ---
-        ba_frame = ttk.Frame(self.business_analysis_frame, padding="10")
+        ba_frame = ttk.Frame(self.business_analysis_frame, padding=Spacing.SM)
         ba_frame.pack(fill=tk.BOTH, expand=True)
 
-        ba_button_frame = ttk.Frame(ba_frame)
-        ba_button_frame.pack(fill=tk.X, pady=5)
-
-        ttk.Button(ba_button_frame, text="Run BA", command=self._run_business_analysis).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(ba_button_frame, text="Conduct News Search", command=self._run_news_search).pack(side=tk.LEFT, padx=(0, 5))        
+        # =================================================================
+        # QUICK ACTIONS - Prominent buttons for common workflow tasks
+        # =================================================================
+        ba_quick_frame = ttk.LabelFrame(ba_frame, text="🚀 Quick Actions", padding=Spacing.SM)
+        ba_quick_frame.pack(fill=tk.X, pady=(0, Spacing.SM))
         
-        ttk.Button(ba_button_frame, text="10-Q Study", command=self._run_10q_study).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(ba_button_frame, text="10K Study", command=self._run_10k_study).pack(side=tk.LEFT, padx=(0, 5))
-        # SEC filing extraction buttons
-        ttk.Button(ba_button_frame, text="Extract 10-K Tables", command=lambda: self._extract_sec_filing('10-K')).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(ba_button_frame, text="Extract 10-Q Tables", command=lambda: self._extract_sec_filing('10-Q')).pack(side=tk.LEFT, padx=(0, 5))
+        # Row 1: Primary analysis actions
+        ba_row1 = ttk.Frame(ba_quick_frame)
+        ba_row1.pack(fill=tk.X, pady=2)
+        
+        # Make Run BA button prominent with larger width
+        run_ba_btn = ttk.Button(ba_row1, text="▶ Run Business Analysis", command=self._run_business_analysis, width=22)
+        run_ba_btn.pack(side=tk.LEFT, padx=(0, Spacing.SM))
+        self._attach_tooltip(run_ba_btn, text="Run comprehensive AI business analysis", tooltip_id="ba.run")
+        
+        ttk.Button(ba_row1, text="📰 News Search", command=self._run_news_search, width=14).pack(side=tk.LEFT, padx=(0, Spacing.XS))
+        
+        ttk.Separator(ba_row1, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=Spacing.SM)
+        
+        # SEC Filing buttons
+        ttk.Label(ba_row1, text="📑 SEC:", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
+        ttk.Button(ba_row1, text="10-K Study", command=self._run_10k_study, width=10).pack(side=tk.LEFT, padx=1)
+        ttk.Button(ba_row1, text="10-Q Study", command=self._run_10q_study, width=10).pack(side=tk.LEFT, padx=1)
+        ttk.Button(ba_row1, text="Extract 10-K", command=lambda: self._extract_sec_filing('10-K'), width=10).pack(side=tk.LEFT, padx=1)
+        ttk.Button(ba_row1, text="Extract 10-Q", command=lambda: self._extract_sec_filing('10-Q'), width=10).pack(side=tk.LEFT, padx=1)
 
-
+        # Row 2: AI Search
+        ba_row2 = ttk.Frame(ba_quick_frame)
+        ba_row2.pack(fill=tk.X, pady=(Spacing.XS, 0))
+        
+        ttk.Label(ba_row2, text="🤖 AI Search:", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
         self.general_search_var = tk.StringVar()
-        general_search_entry = ttk.Entry(ba_button_frame, textvariable=self.general_search_var, width=40)
-        general_search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-
-        ttk.Button(ba_button_frame, text="AI Search", command=self._run_general_search).pack(side=tk.LEFT)
+        general_search_entry = ttk.Entry(ba_row2, textvariable=self.general_search_var, width=50)
+        general_search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, Spacing.XS))
+        self._attach_tooltip(general_search_entry, text="Ask AI any question about the selected stock", tooltip_id="ba.ai_search")
+        
+        ttk.Button(ba_row2, text="Search", command=self._run_general_search, width=8).pack(side=tk.LEFT)
         
         # Add filter frame for business analysis
         ba_filter_frame = ttk.Frame(ba_frame)
@@ -1947,6 +2067,20 @@ class StockDataGUI:
         except Exception as e:
             messagebox.showerror("Error", f"Error creating ticker list: {str(e)}")
             logging.error(f"Error creating ticker list: {e}")
+
+    def _toggle_workflow_panel(self):
+        """Toggle the visibility of the workflow quick-access panel."""
+        try:
+            if self.workflow_panel_visible.get():
+                # Show the workflow panel
+                self.workflow_frame.pack(fill=tk.X, pady=(0, Spacing.XS), before=self.paned_window)
+                self.status_var.set("Workflow panel shown - Follow the 5-phase research process")
+            else:
+                # Hide the workflow panel
+                self.workflow_frame.pack_forget()
+                self.status_var.set("Workflow panel hidden")
+        except Exception as e:
+            logging.error(f"Error toggling workflow panel: {e}")
 
     def _load_custom_urls(self):
         """Load custom URLs from JSON file."""
@@ -3988,6 +4122,10 @@ class StockDataGUI:
                 
             # Populate the treeview from the cache (this will apply any filter)
             self._populate_fundamental_treeview()
+            
+            # Update business snapshot with key metrics
+            self._update_business_snapshot(all_data, tickers[0] if tickers else None)
+            
             self.status_var.set(f"Displayed fundamental data for {', '.join(tickers)}")
             
         except Exception as e:
@@ -3995,6 +4133,93 @@ class StockDataGUI:
             self.status_var.set(error_msg)
             logging.error(error_msg)
             messagebox.showerror("Error", error_msg)
+
+    def _update_business_snapshot(self, data, ticker):
+        """Update the business snapshot panel with key metrics from fundamental data.
+        
+        Args:
+            data: Dictionary of fundamental data
+            ticker: The ticker symbol being displayed
+        """
+        try:
+            if not data or not ticker:
+                self.snapshot_name_var.set("Select a ticker")
+                self.snapshot_sector_var.set("")
+                for var in self.snapshot_vars.values():
+                    var.set("--")
+                return
+            
+            # Get the first ticker's data
+            ticker_data = data.get(ticker, {})
+            
+            # Company name and sector
+            name = ticker_data.get('longName', ticker_data.get('shortName', ticker))
+            self.snapshot_name_var.set(f"{ticker} - {name}")
+            
+            sector = ticker_data.get('sector', '')
+            industry = ticker_data.get('industry', '')
+            if sector and industry:
+                self.snapshot_sector_var.set(f"{sector} | {industry}")
+            elif sector:
+                self.snapshot_sector_var.set(sector)
+            else:
+                self.snapshot_sector_var.set("")
+            
+            # Format market cap
+            mcap = ticker_data.get('marketCap', 0)
+            if mcap:
+                if mcap >= 1e12:
+                    mcap_str = f"${mcap/1e12:.2f}T"
+                elif mcap >= 1e9:
+                    mcap_str = f"${mcap/1e9:.2f}B"
+                elif mcap >= 1e6:
+                    mcap_str = f"${mcap/1e6:.2f}M"
+                else:
+                    mcap_str = f"${mcap:,.0f}"
+            else:
+                mcap_str = "--"
+            self.snapshot_vars['snapshot_mcap'].set(mcap_str)
+            
+            # P/E Ratio
+            pe = ticker_data.get('trailingPE', ticker_data.get('forwardPE', None))
+            self.snapshot_vars['snapshot_pe'].set(f"{pe:.2f}" if pe else "--")
+            
+            # Revenue (total revenue)
+            revenue = ticker_data.get('totalRevenue', 0)
+            if revenue:
+                if revenue >= 1e12:
+                    rev_str = f"${revenue/1e12:.2f}T"
+                elif revenue >= 1e9:
+                    rev_str = f"${revenue/1e9:.2f}B"
+                elif revenue >= 1e6:
+                    rev_str = f"${revenue/1e6:.2f}M"
+                else:
+                    rev_str = f"${revenue:,.0f}"
+            else:
+                rev_str = "--"
+            self.snapshot_vars['snapshot_revenue'].set(rev_str)
+            
+            # Dividend yield
+            div_yield = ticker_data.get('dividendYield', None)
+            if div_yield:
+                self.snapshot_vars['snapshot_div'].set(f"{div_yield*100:.2f}%")
+            else:
+                self.snapshot_vars['snapshot_div'].set("--")
+            
+            # 52-week range
+            low_52w = ticker_data.get('fiftyTwoWeekLow', None)
+            high_52w = ticker_data.get('fiftyTwoWeekHigh', None)
+            if low_52w and high_52w:
+                self.snapshot_vars['snapshot_52w'].set(f"${low_52w:.2f} - ${high_52w:.2f}")
+            else:
+                self.snapshot_vars['snapshot_52w'].set("--")
+            
+            # Beta
+            beta = ticker_data.get('beta', None)
+            self.snapshot_vars['snapshot_beta'].set(f"{beta:.2f}" if beta else "--")
+            
+        except Exception as e:
+            logging.debug(f"Error updating business snapshot: {e}")
 
     def _save_filter(self):
         """Save the current filter to a file (ticker-agnostic)"""
