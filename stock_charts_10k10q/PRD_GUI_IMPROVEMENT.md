@@ -401,6 +401,156 @@ gui.py                    # Main GUI class
 
 ---
 
+## Workflow-Driven Design
+
+The GUI improvements are specifically designed to support the **5-Phase Stock Research Workflow** documented in USER_GUIDE.md. Each phase has specific UI requirements to streamline the research process.
+
+### Phase 1: Discovery & Screening
+
+**Workflow Goal:** Identify potential investment candidates
+
+| Workflow Step | UI Requirement | Implementation |
+|---------------|----------------|----------------|
+| Market Overview | Quick access to Market news | **REQ-WF-1.1**: Add prominent "Market News" button in toolbar |
+| Browse Lists | Easy list navigation | **REQ-WF-1.2**: ◀/▶ buttons visible, list dropdown prominent |
+| Quick Visual Scan | Fast chart gallery access | **REQ-WF-1.3**: D/W/M buttons clearly grouped |
+| External Screening | URLs menu accessible | **REQ-WF-1.4**: URLs dropdown in consistent location |
+
+**UI Enhancements:**
+- Add "🔍 Discovery" quick-action panel with:
+  - Market News button
+  - Finviz Screener shortcut
+  - AI Search field
+- Highlight curated lists (mag7, sp500_top50, etc.) in dropdown
+
+### Phase 2: Technical Analysis
+
+**Workflow Goal:** Evaluate price action and chart patterns
+
+| Workflow Step | UI Requirement | Implementation |
+|---------------|----------------|----------------|
+| Multi-Timeframe | One-click gallery | **REQ-WF-2.1**: Multi-TF button prominent in toolbar |
+| StockCharts | SC buttons accessible | **REQ-WF-2.2**: SC and SC-Line grouped together |
+| Seasonality | Tab easily accessible | **REQ-WF-2.3**: 📆 Seasonal tab with icon |
+| Comparison | Multi-select + Compare | **REQ-WF-2.4**: Compare button visible in action bar |
+
+**UI Enhancements:**
+- Group chart buttons: `[D] [W] [M] | [Multi-TF] [Lines] | [SC] [SC-Line]`
+- Add "📊 Technical" section label in toolbar
+- Timeframe control bar positioned above chart tabs
+
+### Phase 3: Fundamental Analysis
+
+**Workflow Goal:** Understand the business and valuation
+
+| Workflow Step | UI Requirement | Implementation |
+|---------------|----------------|----------------|
+| Quick Metrics | Fundamentals tab | **REQ-WF-3.1**: 📋 Fundamentals tab with filter |
+| Business Analysis | BA tab with Run BA | **REQ-WF-3.2**: 💼 Business tab with prominent Run BA button |
+| News & Sentiment | News search accessible | **REQ-WF-3.3**: Stock news button in action bar |
+| Investment Framework | Buffett & CANSLIM | **REQ-WF-3.4**: 🎯 Analysis tab with Analyze button |
+
+**UI Enhancements:**
+- Add "Business Snapshot" grid at top of Fundamentals tab showing:
+  - 💰 Market Cap | 📈 Revenue Growth | 💵 Dividend Yield
+  - 📊 P/E Ratio | 🏢 Sector | 🏭 Industry
+- Make "Run BA" button primary style (prominent color)
+- Add filter presets: "Value Metrics", "Growth Metrics", "Dividend Metrics"
+
+### Phase 4: SEC Filing Analysis
+
+**Workflow Goal:** Verify financials and identify risks
+
+| Workflow Step | UI Requirement | Implementation |
+|---------------|----------------|----------------|
+| 10-K Study | Quick access from BA tab | **REQ-WF-4.1**: 10K Study button in Business tab |
+| 10-Q Study | Quick access from BA tab | **REQ-WF-4.2**: 10-Q Study button in Business tab |
+| Extract Tables | SEC tab with extraction | **REQ-WF-4.3**: 📑 SEC tab with clear workflow |
+| Export to Excel | Export button visible | **REQ-WF-4.4**: Export button in SEC tab |
+
+**UI Enhancements:**
+- Add "📑 SEC Quick Actions" panel in Business tab:
+  - [10-K Study] [10-Q Study] [Extract Tables]
+- SEC tab shows clear workflow: Ticker → Form Type → Extract → View → Export
+- Add financial table highlighting for key metrics
+
+### Phase 5: Decision & Monitoring
+
+**Workflow Goal:** Make informed decision and track position
+
+| Workflow Step | UI Requirement | Implementation |
+|---------------|----------------|----------------|
+| Build Thesis | Clipboard AI accessible | **REQ-WF-5.1**: 📋 button in action bar |
+| Add to Watch List | Right-click or button | **REQ-WF-5.2**: "Add to Watch" in context menu |
+| Ongoing Monitoring | Watch list prominent | **REQ-WF-5.3**: ⭐ Watch tab with count badge |
+| Portfolio Review | Visualize all button | **REQ-WF-5.4**: 📊Visualize button in action bar |
+
+**UI Enhancements:**
+- Watch list tab shows count: "⭐ Watch (12)"
+- Add "Portfolio Actions" group in action bar:
+  - [📊 Visualize] [📄 Report] [📈 Compare]
+- Status bar shows last action and timestamp
+
+---
+
+## Workflow Quick-Access Panel
+
+**Priority:** P1 (High)
+
+Add a collapsible "Research Workflow" panel that guides users through the 5-phase process:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 📋 Research Workflow                                    [−]     │
+├─────────────────────────────────────────────────────────────────┤
+│ Phase 1: Discovery    [Market News] [Browse Lists] [Screener]   │
+│ Phase 2: Technical    [Multi-TF] [SC Charts] [Seasonality]      │
+│ Phase 3: Fundamental  [Run BA] [Fundamentals] [News]            │
+│ Phase 4: SEC Filing   [10-K Study] [10-Q Study] [Extract]       │
+│ Phase 5: Decision     [Add to Watch] [Compare] [Visualize]      │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Requirements:**
+| Requirement | Description |
+|-------------|-------------|
+| **REQ-WF-P.1** | Collapsible panel below toolbar |
+| **REQ-WF-P.2** | Each phase has 3 most-used action buttons |
+| **REQ-WF-P.3** | Clicking button executes action AND highlights current phase |
+| **REQ-WF-P.4** | Panel state (expanded/collapsed) persists in settings |
+
+---
+
+## Quick Research Checklists Integration
+
+Add checklist functionality to support the documented checklists:
+
+### 5-Minute Stock Check
+```
+☐ Open D chart - Trending?
+☐ Fundamentals - P/E reasonable?
+☐ Stock news - Red flags?
+```
+
+### 30-Minute Deep Dive
+```
+☐ Multi-TF charts - Trend alignment?
+☐ Seasonality - Good entry timing?
+☐ Run BA - Business quality?
+☐ Buffett & CANSLIM - Investment grade?
+☐ 10-Q Study - Recent quarter healthy?
+```
+
+**Requirements:**
+| Requirement | Description |
+|-------------|-------------|
+| **REQ-CL.1** | Add "Checklist" dropdown in toolbar |
+| **REQ-CL.2** | Selecting checklist opens floating checklist panel |
+| **REQ-CL.3** | Clicking checklist item navigates to relevant tab/action |
+| **REQ-CL.4** | Checklist state resets when ticker changes |
+
+---
+
 ## Appendix
 
 ### A. Current vs. Proposed Layout
