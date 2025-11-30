@@ -1381,12 +1381,32 @@ class StockDataGUI:
         self.business_analysis_text.config(yscrollcommand=ba_scrollbar.set)
 
         # --- Market News Tab Widgets ---
-        mn_outer = ttk.Frame(self.market_news_frame, padding="10")
+        mn_outer = ttk.Frame(self.market_news_frame, padding=Spacing.SM)
         mn_outer.pack(fill=tk.BOTH, expand=True)
 
-        ttk.Label(mn_outer, text="Latest Market News Blog", font=("Helvetica", 12, "bold"))\
-            .pack(anchor=tk.W, pady=(0, 5))
+        # =================================================================
+        # NEWS QUICK ACTIONS - One-click news summaries
+        # =================================================================
+        mn_actions = ttk.LabelFrame(mn_outer, text="📰 Quick News Actions", padding=Spacing.SM)
+        mn_actions.pack(fill=tk.X, pady=(0, Spacing.SM))
+        
+        mn_btn_row = ttk.Frame(mn_actions)
+        mn_btn_row.pack(fill=tk.X)
+        
+        ttk.Button(mn_btn_row, text="🌐 Market News", command=self._summarize_market_news, width=14).pack(side=tk.LEFT, padx=1)
+        ttk.Button(mn_btn_row, text="📈 Stock News", command=self._summarize_stock_news, width=14).pack(side=tk.LEFT, padx=1)
+        ttk.Button(mn_btn_row, text="📊 ETF News", command=self._summarize_etf_news, width=12).pack(side=tk.LEFT, padx=1)
+        ttk.Button(mn_btn_row, text="₿ Crypto News", command=self._summarize_crypto_news, width=13).pack(side=tk.LEFT, padx=1)
+        
+        ttk.Separator(mn_btn_row, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=Spacing.SM)
+        
+        ttk.Button(mn_btn_row, text="📋 Summarize Clipboard", command=self._summarize_clipboard_content, width=18).pack(side=tk.LEFT, padx=1)
+        
+        # Status label
+        self.news_status_var = tk.StringVar(value="Click a button to fetch news")
+        ttk.Label(mn_btn_row, textvariable=self.news_status_var, foreground=Colors.TEXT_SECONDARY).pack(side=tk.RIGHT, padx=Spacing.SM)
 
+        # News content area
         mn_text_frame = ttk.Frame(mn_outer)
         mn_text_frame.pack(fill=tk.BOTH, expand=True)
 
@@ -1481,6 +1501,27 @@ class StockDataGUI:
         self.ticker_listbox.bind("<ButtonRelease-1>", self._on_ticker_selected)
         self.watch_listbox.bind("<ButtonRelease-1>", self._on_watch_ticker_selected)
 
+        # =================================================================
+        # KEYBOARD SHORTCUTS - For power users
+        # =================================================================
+        self.root.bind("<Control-d>", lambda e: self._download_data())
+        self.root.bind("<Control-r>", lambda e: self._view_html_report())
+        self.root.bind("<Control-w>", lambda e: self._copy_to_watch_list())
+        self.root.bind("<Control-b>", lambda e: self._run_business_analysis())
+        self.root.bind("<Control-n>", lambda e: self._summarize_market_news())
+        self.root.bind("<Control-l>", lambda e: self._load_ticker_list())
+        self.root.bind("<Control-Right>", lambda e: self._go_next_list())
+        self.root.bind("<Control-Left>", lambda e: self._go_prev_list())
+        self.root.bind("<F5>", lambda e: self._refresh_ticker_lists())
+        self.root.bind("<Control-1>", lambda e: self.chart_notebook.select(0))  # Chart tab
+        self.root.bind("<Control-2>", lambda e: self.chart_notebook.select(1))  # Compare tab
+        self.root.bind("<Control-3>", lambda e: self.chart_notebook.select(2))  # Seasonal tab
+        self.root.bind("<Control-4>", lambda e: self.chart_notebook.select(3))  # Fundamentals tab
+        self.root.bind("<Control-5>", lambda e: self.chart_notebook.select(4))  # Business tab
+        
+        # Log keyboard shortcuts
+        logging.info("Keyboard shortcuts enabled: Ctrl+D (download), Ctrl+R (report), Ctrl+W (watch), Ctrl+B (BA), Ctrl+N (news)")
+
         # =====================================================================
         # BOTTOM ACTION BAR - Organized by workflow phase with clear separation
         # =====================================================================
@@ -1558,10 +1599,20 @@ class StockDataGUI:
         self._attach_tooltip(force_dl_check, text="Force re-download even if cached", tooltip_id="option.force_dl")
 
         # =================================================================
-        # STATUS BAR - Separate from actions with clear visual distinction
+        # STATUS BAR - With progress indicator
         # =================================================================
         status_frame = ttk.Frame(bottom_frame)
         status_frame.pack(side=tk.BOTTOM, fill=tk.X)
+        
+        # Progress bar (hidden by default)
+        self.progress_var = tk.DoubleVar(value=0)
+        self.progress_bar = ttk.Progressbar(
+            status_frame, 
+            variable=self.progress_var,
+            mode='indeterminate',
+            length=100
+        )
+        # Don't pack yet - will be shown/hidden as needed
         
         # Status icon and message
         self.status_var = tk.StringVar(value="Ready")
@@ -1575,9 +1626,38 @@ class StockDataGUI:
             foreground=Colors.TEXT_SECONDARY
         )
         status_bar.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        # Keyboard shortcuts hint
+        shortcuts_label = ttk.Label(
+            status_frame,
+            text="Ctrl+D:Download | Ctrl+B:BA | Ctrl+W:Watch | F5:Refresh",
+            font=Fonts.small(),
+            foreground=Colors.TEXT_MUTED
+        )
+        shortcuts_label.pack(side=tk.RIGHT, padx=Spacing.SM)
 
         # Sash initialization is handled via the <Configure> binding above so
         # the action bar stays compact by default while remaining resizable.
+
+    def _show_progress(self, message="Processing..."):
+        """Show the progress bar with a message."""
+        try:
+            self.status_var.set(message)
+            self.progress_bar.pack(side=tk.LEFT, padx=(0, Spacing.SM))
+            self.progress_bar.start(10)
+            self.root.update_idletasks()
+        except Exception as e:
+            logging.debug(f"Error showing progress: {e}")
+
+    def _hide_progress(self, message="Ready"):
+        """Hide the progress bar and update status."""
+        try:
+            self.progress_bar.stop()
+            self.progress_bar.pack_forget()
+            self.status_var.set(message)
+            self.root.update_idletasks()
+        except Exception as e:
+            logging.debug(f"Error hiding progress: {e}")
 
     def _ensure_bottom_frame_layout(self):
         """Keep the bottom action bar attached to the vertical paned window."""
