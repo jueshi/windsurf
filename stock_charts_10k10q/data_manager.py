@@ -1172,7 +1172,13 @@ class StockDataManager:
             original_backend = matplotlib.get_backend()
             matplotlib.use('Agg')  # Use non-interactive backend for thread safety
             # Load daily data with normalization and cleaning
-            data = self.load_data(ticker)
+            # Read directly from file to ensure we get ALL data (ignore any date filters)
+            data_path = os.path.join(self.data_dir, f"{ticker}_stock_data.tsv")
+            if os.path.exists(data_path):
+                data = pd.read_csv(data_path, sep='\t')
+                logging.info(f"Loaded {len(data)} rows directly from {data_path} for visualization")
+            else:
+                data = self.load_data(ticker)
 
             if data is None or data.empty:
                 logging.warning(f"No data available for {ticker}")
@@ -1197,26 +1203,8 @@ class StockDataManager:
                 logging.error(f"Date column not found in {ticker} data")
                 return
 
-            # Apply date range filtering if specified
-            if self.start_date:
-                # Convert start_date to a timezone-aware timestamp (UTC)
-                start_date = pd.to_datetime(self.start_date, utc=True)
-                # Log the date range before filtering
-                logging.info(f"Applying start date filter: {start_date}, data range: {daily_data.index.min()} to {daily_data.index.max()}")
-                # Filter data (index is already UTC-aware)
-                daily_data = daily_data[daily_data.index >= start_date]
-                # Log the data range after filtering
-                logging.info(f"After start date filter: data range: {daily_data.index.min()} to {daily_data.index.max()}, rows: {len(daily_data)}")
-
-            if self.end_date:
-                # Convert end_date to a timezone-aware timestamp (UTC)
-                end_date = pd.to_datetime(self.end_date, utc=True)
-                # Log the date range before filtering
-                logging.info(f"Applying end date filter: {end_date}, data range: {daily_data.index.min()} to {daily_data.index.max()}")
-                # Filter data (index is already UTC-aware)
-                daily_data = daily_data[daily_data.index <= end_date]
-                # Log the data range after filtering
-                logging.info(f"After end date filter: data range: {daily_data.index.min()} to {daily_data.index.max()}, rows: {len(daily_data)}")
+            # Log the full data range available (DO NOT apply date filters for visualization)
+            logging.info(f"Visualization data range for {ticker}: {daily_data.index.min()} to {daily_data.index.max()}, total rows: {len(daily_data)}")
 
             # Check if we still have data after filtering
             if daily_data.empty:
