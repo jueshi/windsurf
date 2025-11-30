@@ -4303,33 +4303,15 @@ class StockDataGUI:
                 self.root.update_idletasks()
                 self._download_data_in_background(missing_tickers)
 
-            # Check for missing or outdated visualizations and generate them
-            for ticker in selected_tickers:
-                timeframe_plot_path = os.path.join(plots_dir, f"{ticker}_daily_weekly_monthly.png")
-                data_path = self.manager._get_data_path(ticker)
-
-                # Check if chart needs to be generated or updated
-                chart_outdated = False
-
-                # If chart doesn't exist, it needs to be generated
-                if not os.path.exists(timeframe_plot_path):
-                    chart_outdated = True
-                # If chart exists, check if data file is newer than chart file
-                elif os.path.exists(data_path):
-                    chart_mod_time = os.path.getmtime(timeframe_plot_path)
-                    data_mod_time = os.path.getmtime(data_path)
-
-                    # If data file is newer, chart is outdated
-                    if data_mod_time > chart_mod_time:
-                        chart_outdated = True
-                        self.status_var.set(f"Chart for {ticker} is outdated. Regenerating...")
-                        self.root.update_idletasks()
-
-                # Generate chart if needed
-                if chart_outdated:
-                    self.status_var.set(f"Generating visualizations for {ticker}...")
-                    self.root.update_idletasks()
+            # Always regenerate charts to ensure they use the latest data
+            # This is more reliable than checking file modification times
+            for i, ticker in enumerate(selected_tickers):
+                self.status_var.set(f"Generating chart for {ticker} ({i+1}/{len(selected_tickers)})...")
+                self.root.update_idletasks()
+                try:
                     self.manager.visualize_daily_vs_weekly(ticker)
+                except Exception as e:
+                    logging.warning(f"Could not generate chart for {ticker}: {e}")
 
             # Get the current ticker list name
             current_list_name = self.ticker_list_var.get() or "custom_list"
