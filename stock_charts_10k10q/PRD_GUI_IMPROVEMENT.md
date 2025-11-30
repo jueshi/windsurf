@@ -380,23 +380,23 @@ gui.py                    # Main GUI class
 
 ### Must Have (MVP)
 
-- [ ] Consolidated tabbed ticker panel
-- [ ] Cohesive timeframe control bar
-- [ ] Styled analysis tabs with active indicator
-- [ ] Consistent color palette applied
-- [ ] Improved spacing throughout
+- [x] Consolidated tabbed ticker panel
+- [x] Cohesive timeframe control bar
+- [x] Styled analysis tabs with active indicator
+- [x] Consistent color palette applied
+- [x] Improved spacing throughout
 
 ### Should Have
 
-- [ ] Business Snapshot data grid
-- [ ] Markdown rendering in reports
-- [ ] Collapsible filter panel
-- [ ] Reorganized toolbars
+- [x] Business Snapshot data grid
+- [x] Markdown rendering in reports
+- [x] Collapsible filter panel
+- [x] Reorganized toolbars
 
 ### Nice to Have
 
 - [ ] Language toggle
-- [ ] Keyboard shortcuts
+- [x] Keyboard shortcuts
 - [ ] Dark mode support
 
 ---

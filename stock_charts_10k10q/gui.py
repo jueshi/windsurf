@@ -1238,21 +1238,41 @@ class StockDataGUI:
         # Create a frame for the filter widget
         fa_filter_frame = ttk.Frame(self.fundamental_analysis_frame)
         fa_filter_frame.pack(fill=tk.X, padx=5, pady=5)
-        ttk.Label(fa_filter_frame, text="🔍 Filter Metric:").pack(side=tk.LEFT, padx=(0, 5))
-        fa_filter_entry = ttk.Entry(fa_filter_frame, textvariable=self.fundamental_filter_var)
-        fa_filter_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        # Filter presets row
+        fa_presets_row = ttk.Frame(fa_filter_frame)
+        fa_presets_row.pack(fill=tk.X, pady=(0, Spacing.XS))
+        
+        ttk.Label(fa_presets_row, text="Quick Filters:", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
+        
+        # Define filter presets
+        filter_presets = [
+            ("Value", "pe ratio dividend yield book value eps"),
+            ("Growth", "revenue growth earnings growth profit margin"),
+            ("Dividend", "dividend yield payout ratio ex-dividend"),
+            ("Risk", "beta debt volatility short"),
+            ("Clear", ""),
+        ]
+        
+        for label, filter_text in filter_presets:
+            btn = ttk.Button(fa_presets_row, text=label, width=8, 
+                           command=lambda f=filter_text: self._apply_filter_preset(f))
+            btn.pack(side=tk.LEFT, padx=1)
+        
+        # Filter entry row
+        fa_entry_row = ttk.Frame(fa_filter_frame)
+        fa_entry_row.pack(fill=tk.X)
+        
+        ttk.Label(fa_entry_row, text="🔍 Filter:", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
+        fa_filter_entry = ttk.Entry(fa_entry_row, textvariable=self.fundamental_filter_var)
+        fa_filter_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, Spacing.XS))
         fa_filter_entry.bind("<KeyRelease>", self._populate_fundamental_treeview)
         
-        # Add a small help label
-        ttk.Label(fa_filter_frame, text="(Multiple terms use OR logic, ! for exclusion, * to show all)", 
-                 font=("Helvetica", 8)).pack(side=tk.LEFT, padx=5)
+        ttk.Label(fa_entry_row, text="(OR logic, ! exclude, * all)", font=Fonts.small(), foreground=Colors.TEXT_MUTED).pack(side=tk.LEFT, padx=(0, Spacing.XS))
         
-        # Add Save and Load filter buttons
-        save_filter_button = ttk.Button(fa_filter_frame, text="Save Filter", width=10, command=self._save_filter)
-        save_filter_button.pack(side=tk.LEFT, padx=5)
-        
-        load_filter_button = ttk.Button(fa_filter_frame, text="Load Filter", width=10, command=self._load_filter)
-        load_filter_button.pack(side=tk.LEFT, padx=5)
+        # Save and Load filter buttons
+        ttk.Button(fa_entry_row, text="Save", width=6, command=self._save_filter).pack(side=tk.LEFT, padx=1)
+        ttk.Button(fa_entry_row, text="Load", width=6, command=self._load_filter).pack(side=tk.LEFT, padx=1)
 
         # Create a frame to hold the treeview and scrollbar
         fa_tree_frame = ttk.Frame(self.fundamental_analysis_frame)
@@ -1397,6 +1417,9 @@ class StockDataGUI:
         ba_scrollbar = ttk.Scrollbar(ba_text_frame, command=self.business_analysis_text.yview)
         ba_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.business_analysis_text.config(yscrollcommand=ba_scrollbar.set)
+        
+        # Configure markdown-style text tags for Business Analysis
+        self._configure_markdown_tags(self.business_analysis_text, font_name)
 
         # --- Market News Tab Widgets ---
         mn_outer = ttk.Frame(self.market_news_frame, padding=Spacing.SM)
@@ -1663,6 +1686,66 @@ class StockDataGUI:
             self.ba_options_frame.pack(fill=tk.X, pady=(Spacing.XS, 0), before=self.business_analysis_text.master)
         else:
             self.ba_options_frame.pack_forget()
+
+    def _apply_filter_preset(self, filter_text):
+        """Apply a filter preset to the Fundamentals filter entry."""
+        self.fundamental_filter_var.set(filter_text)
+        self._populate_fundamental_treeview()
+
+    def _configure_markdown_tags(self, text_widget, font_name="Consolas"):
+        """Configure text tags for markdown-style formatting in a Text widget.
+        
+        Supports: H1, H2, H3 headings, bold, bullet points, code blocks.
+        """
+        # Heading styles
+        text_widget.tag_configure("h1", font=(font_name, 18, "bold"), foreground=Colors.PRIMARY, spacing1=12, spacing3=6)
+        text_widget.tag_configure("h2", font=(font_name, 15, "bold"), foreground=Colors.PRIMARY, spacing1=10, spacing3=4)
+        text_widget.tag_configure("h3", font=(font_name, 13, "bold"), foreground=Colors.TEXT_PRIMARY, spacing1=8, spacing3=2)
+        
+        # Text styles
+        text_widget.tag_configure("bold", font=(font_name, 12, "bold"))
+        text_widget.tag_configure("italic", font=(font_name, 12, "italic"))
+        text_widget.tag_configure("code", font=(font_name, 11), background="#f0f0f0", foreground="#c7254e")
+        
+        # List styles
+        text_widget.tag_configure("bullet", lmargin1=20, lmargin2=35)
+        text_widget.tag_configure("numbered", lmargin1=20, lmargin2=35)
+        
+        # Special styles
+        text_widget.tag_configure("positive", foreground=Colors.SUCCESS)
+        text_widget.tag_configure("negative", foreground=Colors.ERROR)
+        text_widget.tag_configure("separator", foreground=Colors.TEXT_MUTED)
+
+    def _insert_markdown_text(self, text_widget, text):
+        """Insert text with markdown-style formatting into a Text widget.
+        
+        Parses markdown syntax and applies appropriate tags.
+        """
+        text_widget.delete("1.0", tk.END)
+        
+        lines = text.split('\n')
+        for line in lines:
+            stripped = line.strip()
+            
+            # Heading detection
+            if stripped.startswith('# '):
+                text_widget.insert(tk.END, stripped[2:] + '\n', "h1")
+            elif stripped.startswith('## '):
+                text_widget.insert(tk.END, stripped[3:] + '\n', "h2")
+            elif stripped.startswith('### '):
+                text_widget.insert(tk.END, stripped[4:] + '\n', "h3")
+            # Bullet points
+            elif stripped.startswith('- ') or stripped.startswith('* '):
+                text_widget.insert(tk.END, '  • ' + stripped[2:] + '\n', "bullet")
+            # Numbered lists
+            elif len(stripped) > 2 and stripped[0].isdigit() and stripped[1] in '.):':
+                text_widget.insert(tk.END, '  ' + stripped + '\n', "numbered")
+            # Separator lines
+            elif stripped.startswith('---') or stripped.startswith('==='):
+                text_widget.insert(tk.END, '─' * 60 + '\n', "separator")
+            # Regular text
+            else:
+                text_widget.insert(tk.END, line + '\n')
 
     def _show_progress(self, message="Processing..."):
         """Show the progress bar with a message."""
