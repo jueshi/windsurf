@@ -723,13 +723,4 @@ if __name__ == '__main__':
 
 
 
-temp_stocks = [
-    "PT",
-    "MTZ",
-    "SNOW",
-    "VRT",
-    "TLN",
-    "DHR",
-    "WMT",
-    "LSCC"
-]
+temp_stocks = []

@@ -92,6 +92,11 @@ class StockDataGUI:
         self.show_tooltips.trace_add("write", self._update_tooltip_state)
         self._update_tooltip_state()
 
+        # Custom URLs storage
+        self.custom_urls_file = os.path.join(os.path.dirname(__file__), "custom_urls.json")
+        self.custom_urls = self._load_custom_urls()
+        self.urls_menu = None  # Will be set in _create_widgets
+
         # Load ticker lists from ticker_lists.py
         self.ticker_lists = {}
         self._load_ticker_lists_from_module()
@@ -632,12 +637,14 @@ class StockDataGUI:
 
         urls_menu = tk.Menu(urls_menubutton, tearoff=0)
         urls_menubutton["menu"] = urls_menu
+        self.urls_menu = urls_menu  # Store reference for dynamic updates
 
         # Market Data section
         urls_menu.add_command(label="📊 Finviz Screener", command=lambda: webbrowser.open("https://finviz.com/screener.ashx"))
         urls_menu.add_command(label="📈 TradingView", command=lambda: webbrowser.open("https://www.tradingview.com/"))
         urls_menu.add_command(label="📉 StockCharts", command=lambda: webbrowser.open("https://stockcharts.com/"))
         urls_menu.add_command(label="🏦 Yahoo Finance", command=lambda: webbrowser.open("https://finance.yahoo.com/"))
+        urls_menu.add_command(label="📊 Koyfin", command=lambda: webbrowser.open("https://www.koyfin.com/"))
         urls_menu.add_separator()
 
         # News section
@@ -647,10 +654,36 @@ class StockDataGUI:
         urls_menu.add_command(label="📰 Reuters", command=lambda: webbrowser.open("https://www.reuters.com/markets/"))
         urls_menu.add_separator()
 
+        # Fundamental Analysis section
+        urls_menu.add_command(label="📝 Seeking Alpha", command=lambda: webbrowser.open("https://seekingalpha.com/"))
+        urls_menu.add_command(label="📊 Simply Wall St", command=lambda: webbrowser.open("https://simplywall.st/"))
+        urls_menu.add_command(label="💎 GuruFocus", command=lambda: webbrowser.open("https://www.gurufocus.com/"))
+        urls_menu.add_command(label="⭐ Morningstar", command=lambda: webbrowser.open("https://www.morningstar.com/"))
+        urls_menu.add_command(label="🎯 TipRanks", command=lambda: webbrowser.open("https://www.tipranks.com/"))
+        urls_menu.add_separator()
+
+        # Earnings & Events section
+        urls_menu.add_command(label="🗓️ Earnings Whispers", command=lambda: webbrowser.open("https://www.earningswhispers.com/"))
+        urls_menu.add_command(label="📊 Zacks", command=lambda: webbrowser.open("https://www.zacks.com/"))
+        urls_menu.add_command(label="📅 Economic Calendar", command=lambda: webbrowser.open("https://www.investing.com/economic-calendar/"))
+        urls_menu.add_separator()
+
+        # Insider & Institutional section
+        urls_menu.add_command(label="🔍 OpenInsider", command=lambda: webbrowser.open("https://openinsider.com/"))
+        urls_menu.add_command(label="🐋 WhaleWisdom", command=lambda: webbrowser.open("https://whalewisdom.com/"))
+        urls_menu.add_command(label="🏆 Dataroma", command=lambda: webbrowser.open("https://www.dataroma.com/m/home.php"))
+        urls_menu.add_separator()
+
+        # Options section
+        urls_menu.add_command(label="🐳 Unusual Whales", command=lambda: webbrowser.open("https://unusualwhales.com/"))
+        urls_menu.add_command(label="📊 CBOE", command=lambda: webbrowser.open("https://www.cboe.com/"))
+        urls_menu.add_separator()
+
         # Research section
         urls_menu.add_command(label="📋 SEC EDGAR", command=lambda: webbrowser.open("https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany"))
         urls_menu.add_command(label="📊 Macrotrends", command=lambda: webbrowser.open("https://www.macrotrends.net/"))
         urls_menu.add_command(label="📈 Barchart", command=lambda: webbrowser.open("https://www.barchart.com/"))
+        urls_menu.add_command(label="📉 FRED Economic Data", command=lambda: webbrowser.open("https://fred.stlouisfed.org/"))
         urls_menu.add_separator()
 
         # Ticker-specific section (uses selected ticker)
@@ -658,8 +691,8 @@ class StockDataGUI:
         urls_menu.add_command(label="📉 StockCharts UI (selected)", command=self._open_stockcharts_ui)
         urls_menu.add_separator()
 
-        # Custom URL
-        urls_menu.add_command(label="🌐 Open Custom URL...", command=self._open_custom_url)
+        # Custom URLs section
+        self._rebuild_custom_urls_menu()
 
         # Create a PanedWindow for resizable sections
         self.paned_window = ttk.PanedWindow(main_frame, orient=tk.HORIZONTAL)
@@ -1824,24 +1857,184 @@ class StockDataGUI:
             messagebox.showerror("Error", f"Error creating ticker list: {str(e)}")
             logging.error(f"Error creating ticker list: {e}")
 
-    def _open_custom_url(self):
-        """Open a custom URL entered by the user"""
-        from tkinter import simpledialog
-        url = simpledialog.askstring(
-            "Open Custom URL",
-            "Enter URL to open:",
-            initialvalue="https://"
-        )
-        if url and url.strip():
-            url = url.strip()
-            # Add https:// if no protocol specified
+    def _load_custom_urls(self):
+        """Load custom URLs from JSON file."""
+        try:
+            if os.path.exists(self.custom_urls_file):
+                with open(self.custom_urls_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+        except Exception as e:
+            logging.error(f"Error loading custom URLs: {e}")
+        return []
+
+    def _save_custom_urls(self):
+        """Save custom URLs to JSON file."""
+        try:
+            with open(self.custom_urls_file, 'w', encoding='utf-8') as f:
+                json.dump(self.custom_urls, f, indent=2)
+        except Exception as e:
+            logging.error(f"Error saving custom URLs: {e}")
+            messagebox.showerror("Error", f"Could not save custom URLs: {e}")
+
+    def _rebuild_custom_urls_menu(self):
+        """Rebuild the custom URLs section of the URLs menu."""
+        if not self.urls_menu:
+            return
+        
+        # Find and remove existing custom URL items (after the last separator before custom section)
+        # We'll track the index where custom URLs start
+        menu_size = self.urls_menu.index(tk.END)
+        if menu_size is None:
+            return
+        
+        # Find the last separator (which is before custom URLs section)
+        # Remove items from the end until we hit the separator before "Stock Forecast"
+        # Actually, let's just add items at the end - the menu was built with custom section last
+        
+        # Remove all items after the ticker-specific separator
+        # Count separators to find where custom section starts
+        sep_count = 0
+        custom_start_idx = None
+        for i in range(menu_size + 1):
+            try:
+                item_type = self.urls_menu.type(i)
+                if item_type == 'separator':
+                    sep_count += 1
+                    if sep_count == 8:  # 8th separator is before custom URLs
+                        custom_start_idx = i + 1
+                        break
+            except:
+                break
+        
+        if custom_start_idx is not None:
+            # Delete from custom_start_idx to end
+            # Use a bounded loop to prevent infinite loops
+            for _ in range(100):  # Safety limit
+                try:
+                    current_size = self.urls_menu.index(tk.END)
+                    if current_size is None or custom_start_idx > current_size:
+                        break
+                    self.urls_menu.delete(custom_start_idx)
+                except:
+                    break
+        
+        # Add saved custom URLs
+        if self.custom_urls:
+            for item in self.custom_urls:
+                name = item.get('name', 'Custom')
+                url = item.get('url', '')
+                self.urls_menu.add_command(
+                    label=f"⭐ {name}",
+                    command=lambda u=url: webbrowser.open(u)
+                )
+            self.urls_menu.add_separator()
+        
+        # Add management commands
+        self.urls_menu.add_command(label="➕ Add Custom URL...", command=self._add_custom_url)
+        if self.custom_urls:
+            self.urls_menu.add_command(label="🗑️ Remove Custom URL...", command=self._remove_custom_url)
+
+    def _add_custom_url(self):
+        """Add a new custom URL with name and persist it."""
+        # Create a dialog for name and URL
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Add Custom URL")
+        dialog.geometry("400x150")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Center the dialog
+        dialog.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() - 400) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - 150) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        ttk.Label(dialog, text="Name:").grid(row=0, column=0, padx=10, pady=10, sticky='e')
+        name_entry = ttk.Entry(dialog, width=40)
+        name_entry.grid(row=0, column=1, padx=10, pady=10)
+        
+        ttk.Label(dialog, text="URL:").grid(row=1, column=0, padx=10, pady=10, sticky='e')
+        url_entry = ttk.Entry(dialog, width=40)
+        url_entry.grid(row=1, column=1, padx=10, pady=10)
+        url_entry.insert(0, "https://")
+        
+        def save_url():
+            name = name_entry.get().strip()
+            url = url_entry.get().strip()
+            
+            if not name:
+                messagebox.showwarning("Missing Name", "Please enter a name for the URL.")
+                return
+            if not url or url == "https://":
+                messagebox.showwarning("Missing URL", "Please enter a valid URL.")
+                return
+            
+            # Add protocol if missing
             if not url.startswith(("http://", "https://")):
                 url = "https://" + url
-            try:
-                webbrowser.open(url)
-                self.status_var.set(f"Opened: {url}")
-            except Exception as e:
-                messagebox.showerror("Error", f"Could not open URL: {e}")
+            
+            self.custom_urls.append({'name': name, 'url': url})
+            self._save_custom_urls()
+            self._rebuild_custom_urls_menu()
+            self.status_var.set(f"Added custom URL: {name}")
+            dialog.destroy()
+        
+        btn_frame = ttk.Frame(dialog)
+        btn_frame.grid(row=2, column=0, columnspan=2, pady=15)
+        ttk.Button(btn_frame, text="Save", command=save_url).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Cancel", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
+        
+        name_entry.focus_set()
+        dialog.bind('<Return>', lambda e: save_url())
+        dialog.bind('<Escape>', lambda e: dialog.destroy())
+
+    def _remove_custom_url(self):
+        """Remove a custom URL from the list."""
+        if not self.custom_urls:
+            messagebox.showinfo("No Custom URLs", "There are no custom URLs to remove.")
+            return
+        
+        # Create selection dialog
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Remove Custom URL")
+        dialog.geometry("350x200")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Center the dialog
+        dialog.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() - 350) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - 200) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        ttk.Label(dialog, text="Select URL to remove:").pack(pady=10)
+        
+        listbox = tk.Listbox(dialog, width=45, height=6)
+        listbox.pack(padx=10, pady=5, fill=tk.BOTH, expand=True)
+        
+        for item in self.custom_urls:
+            listbox.insert(tk.END, f"{item['name']} - {item['url'][:40]}...")
+        
+        def remove_selected():
+            selection = listbox.curselection()
+            if not selection:
+                messagebox.showwarning("No Selection", "Please select a URL to remove.")
+                return
+            
+            idx = selection[0]
+            removed = self.custom_urls.pop(idx)
+            self._save_custom_urls()
+            self._rebuild_custom_urls_menu()
+            self.status_var.set(f"Removed custom URL: {removed['name']}")
+            dialog.destroy()
+        
+        btn_frame = ttk.Frame(dialog)
+        btn_frame.pack(pady=10)
+        ttk.Button(btn_frame, text="Remove", command=remove_selected).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Cancel", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
+        
+        dialog.bind('<Return>', lambda e: remove_selected())
+        dialog.bind('<Escape>', lambda e: dialog.destroy())
 
     def _open_stock_forecast(self):
         """Open Stock Analysis forecast page for the currently selected ticker"""
