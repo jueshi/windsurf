@@ -553,19 +553,19 @@ class StockDataGUI:
         # Navigation buttons
         load_btn = ttk.Button(row1, text="Load", command=self._load_ticker_list, width=5)
         load_btn.pack(side=tk.LEFT, padx=1)
-        self._attach_tooltip(load_btn, text="Load selected ticker list", tooltip_id="nav.load")
+        self._attach_tooltip(load_btn, text="Load selected ticker list (Ctrl+L)", tooltip_id="nav.load")
 
         prev_btn = ttk.Button(row1, text="◀", command=self._go_prev_list, width=2)
         prev_btn.pack(side=tk.LEFT, padx=1)
-        self._attach_tooltip(prev_btn, text="Previous list", tooltip_id="nav.prev")
+        self._attach_tooltip(prev_btn, text="Previous list (Ctrl+←)", tooltip_id="nav.prev")
 
         next_btn = ttk.Button(row1, text="▶", command=self._go_next_list, width=2)
         next_btn.pack(side=tk.LEFT, padx=1)
-        self._attach_tooltip(next_btn, text="Next list", tooltip_id="nav.next")
+        self._attach_tooltip(next_btn, text="Next list (Ctrl+→)", tooltip_id="nav.next")
 
         refresh_btn = ttk.Button(row1, text="↻", command=self._refresh_ticker_lists, width=2)
         refresh_btn.pack(side=tk.LEFT, padx=1)
-        self._attach_tooltip(refresh_btn, text="Refresh lists from disk", tooltip_id="nav.refresh")
+        self._attach_tooltip(refresh_btn, text="Refresh lists from disk (F5)", tooltip_id="nav.refresh")
 
         ttk.Separator(row1, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=Spacing.SM)
 
@@ -1300,7 +1300,7 @@ class StockDataGUI:
         # Make Run BA button prominent with larger width
         run_ba_btn = ttk.Button(ba_row1, text="▶ Run Business Analysis", command=self._run_business_analysis, width=22)
         run_ba_btn.pack(side=tk.LEFT, padx=(0, Spacing.SM))
-        self._attach_tooltip(run_ba_btn, text="Run comprehensive AI business analysis", tooltip_id="ba.run")
+        self._attach_tooltip(run_ba_btn, text="Run comprehensive AI business analysis (Ctrl+B)", tooltip_id="ba.run")
         
         ttk.Button(ba_row1, text="📰 News Search", command=self._run_news_search, width=14).pack(side=tk.LEFT, padx=(0, Spacing.XS))
         
@@ -1538,7 +1538,7 @@ class StockDataGUI:
         
         download_btn = ttk.Button(actions_row, text="Download", command=self._download_data, width=9)
         download_btn.pack(side=tk.LEFT, padx=1)
-        self._attach_tooltip(download_btn, text="Download data for selected tickers", tooltip_id="action.download")
+        self._attach_tooltip(download_btn, text="Download data for selected tickers (Ctrl+D)", tooltip_id="action.download")
 
         download_all_btn = ttk.Button(actions_row, text="All", command=self._download_all_data, width=4)
         download_all_btn.pack(side=tk.LEFT, padx=1)
@@ -1557,7 +1557,7 @@ class StockDataGUI:
 
         report_btn = ttk.Button(actions_row, text="Report", command=self._view_html_report, width=7)
         report_btn.pack(side=tk.LEFT, padx=1)
-        self._attach_tooltip(report_btn, text="Open HTML report", tooltip_id="action.report")
+        self._attach_tooltip(report_btn, text="Open HTML report (Ctrl+R)", tooltip_id="action.report")
 
         compare_btn = ttk.Button(actions_row, text="Compare", command=self._compare_percentage_performance, width=8)
         compare_btn.pack(side=tk.LEFT, padx=1)
@@ -1572,7 +1572,7 @@ class StockDataGUI:
         
         market_news_btn = ttk.Button(actions_row, text="Market", command=self._summarize_market_news, width=6)
         market_news_btn.pack(side=tk.LEFT, padx=1)
-        self._attach_tooltip(market_news_btn, text="Summarize market news", tooltip_id="news.market")
+        self._attach_tooltip(market_news_btn, text="Summarize market news (Ctrl+N)", tooltip_id="news.market")
 
         stock_news_btn = ttk.Button(actions_row, text="Stock", command=self._summarize_stock_news, width=5)
         stock_news_btn.pack(side=tk.LEFT, padx=1)
