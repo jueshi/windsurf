@@ -702,6 +702,19 @@ class StockDataGUI:
         # Custom URLs section
         self._rebuild_custom_urls_menu()
 
+        # Help/Guide dropdown menu
+        help_menubutton = ttk.Menubutton(row2, text="📖 Guide ▾", width=9)
+        help_menubutton.pack(side=tk.LEFT, padx=2)
+        self._attach_tooltip(help_menubutton, text="Open user guides and documentation", tooltip_id="help.menu")
+
+        help_menu = tk.Menu(help_menubutton, tearoff=0)
+        help_menubutton["menu"] = help_menu
+
+        help_menu.add_command(label="📊 Online Guide (Google Slides)", 
+                             command=lambda: webbrowser.open("https://docs.google.com/presentation/d/1S9DbnPXyngAKldnp6jWZjJkXLDE5Q4v6/edit?slide=id.p4#slide=id.p4"))
+        help_menu.add_command(label="📄 Local User Guide (Markdown)", 
+                             command=self._open_local_user_guide)
+
         # Create a PanedWindow for resizable sections
         self.paned_window = ttk.PanedWindow(main_frame, orient=tk.HORIZONTAL)
         self.paned_window.pack(fill=tk.BOTH, expand=True, pady=5)
@@ -1911,6 +1924,48 @@ class StockDataGUI:
                 self._save_settings()
         except Exception as e:
             logging.debug(f"Error saving StockCharts style ID: {e}")
+
+    def _open_local_user_guide(self):
+        """Open the local USER_GUIDE.md file in Chrome or Edge browser.
+        
+        For best viewing, install a Markdown Viewer extension:
+        - Chrome: 'Markdown Viewer' by nicksay
+        - Edge: 'Markdown Viewer' from Microsoft Store
+        """
+        try:
+            guide_path = os.path.join(os.path.dirname(__file__), "USER_GUIDE.md")
+            if os.path.exists(guide_path):
+                file_url = f"file:///{os.path.abspath(guide_path).replace(os.sep, '/')}"
+                
+                # Try Edge first, then Chrome, then default browser
+                browsers_to_try = [
+                    ('edge', r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'),
+                    ('chrome', r'C:\Program Files\Google\Chrome\Application\chrome.exe'),
+                    ('chrome_x86', r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe'),
+                ]
+                
+                opened = False
+                for name, path in browsers_to_try:
+                    if os.path.exists(path):
+                        try:
+                            import subprocess
+                            subprocess.Popen([path, file_url])
+                            self.status_var.set(f"Opened user guide in {name.replace('_x86', '')} (install Markdown Viewer extension for best viewing)")
+                            opened = True
+                            break
+                        except Exception as e:
+                            logging.debug(f"Could not open with {name}: {e}")
+                            continue
+                
+                if not opened:
+                    # Fallback to default browser
+                    webbrowser.open(file_url)
+                    self.status_var.set("Opened user guide in default browser")
+            else:
+                messagebox.showwarning("File Not Found", f"User guide not found at:\n{guide_path}")
+        except Exception as e:
+            logging.error(f"Error opening local user guide: {e}")
+            messagebox.showerror("Error", f"Could not open user guide: {e}")
 
     def _rebuild_custom_urls_menu(self):
         """Rebuild the custom URLs section of the URLs menu."""
