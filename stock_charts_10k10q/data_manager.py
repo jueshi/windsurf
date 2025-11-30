@@ -1303,14 +1303,26 @@ class StockDataManager:
             plt.tight_layout()
 
             # Save with a single consistent filename pattern
-            plt.savefig(os.path.join(self.plot_save_path, f'{ticker}_daily_weekly_monthly.png'), dpi=300)
+            chart_path = os.path.join(self.plot_save_path, f'{ticker}_daily_weekly_monthly.png')
+            
+            # Delete existing file first to ensure it gets replaced
+            if os.path.exists(chart_path):
+                try:
+                    os.remove(chart_path)
+                    logging.info(f"Deleted old chart file: {chart_path}")
+                except Exception as e:
+                    logging.warning(f"Could not delete old chart file {chart_path}: {e}")
+            
+            # Save the new chart
+            plt.savefig(chart_path, dpi=300)
+            logging.info(f"Saved new chart to: {chart_path}")
 
             plt.close(fig)
 
             # Restore original backend
             matplotlib.use(original_backend)
 
-            logging.info(f"Generated visualization for {ticker}")
+            logging.info(f"Generated visualization for {ticker} with data up to {daily_data.index.max()}")
 
         except Exception as e:
             logging.error(f"Error visualizing data for {ticker}: {e}")
