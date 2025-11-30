@@ -754,53 +754,46 @@ class StockDataGUI:
         workflow_toggle.pack(side=tk.RIGHT, padx=Spacing.SM)
         self._attach_tooltip(workflow_toggle, text="Show/hide research workflow quick-access panel", tooltip_id="workflow.toggle")
 
-        # Workflow panel frame (initially hidden)
-        self.workflow_frame = ttk.LabelFrame(main_frame, text="📋 Research Workflow - 5 Phase Guide", padding=Spacing.SM)
+        # Workflow panel frame (initially hidden) - Compact single row layout
+        self.workflow_frame = ttk.Frame(main_frame)
         # Don't pack yet - will be shown/hidden by toggle
         
-        # Phase buttons inside workflow panel
-        workflow_content = ttk.Frame(self.workflow_frame)
-        workflow_content.pack(fill=tk.X)
+        # All phases in a single compact row
+        workflow_row = ttk.Frame(self.workflow_frame)
+        workflow_row.pack(fill=tk.X, pady=1)
         
         # Phase 1: Discovery
-        phase1 = ttk.Frame(workflow_content)
-        phase1.pack(fill=tk.X, pady=2)
-        ttk.Label(phase1, text="1️⃣ Discovery:", font=Fonts.body_bold(), width=12).pack(side=tk.LEFT)
-        ttk.Button(phase1, text="Market News", command=self._summarize_market_news, width=11).pack(side=tk.LEFT, padx=1)
-        ttk.Button(phase1, text="Browse Lists", command=self._go_next_list, width=11).pack(side=tk.LEFT, padx=1)
-        ttk.Button(phase1, text="D Charts", command=lambda: self._open_live_charts_for_current_list(time_frame="d"), width=9).pack(side=tk.LEFT, padx=1)
+        ttk.Label(workflow_row, text="1⃣", font=Fonts.small()).pack(side=tk.LEFT)
+        ttk.Button(workflow_row, text="News", command=self._summarize_market_news, width=5).pack(side=tk.LEFT, padx=1)
+        ttk.Button(workflow_row, text="D", command=lambda: self._open_live_charts_for_current_list(time_frame="d"), width=2).pack(side=tk.LEFT, padx=1)
+        
+        ttk.Separator(workflow_row, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=3)
         
         # Phase 2: Technical
-        phase2 = ttk.Frame(workflow_content)
-        phase2.pack(fill=tk.X, pady=2)
-        ttk.Label(phase2, text="2️⃣ Technical:", font=Fonts.body_bold(), width=12).pack(side=tk.LEFT)
-        ttk.Button(phase2, text="Multi-TF", command=self._open_multi_timeframe_gallery_for_current_list, width=11).pack(side=tk.LEFT, padx=1)
-        ttk.Button(phase2, text="SC Charts", command=self._open_stockcharts_gallery_for_current_list, width=11).pack(side=tk.LEFT, padx=1)
-        ttk.Button(phase2, text="Seasonality", command=lambda: self.chart_notebook.select(2), width=9).pack(side=tk.LEFT, padx=1)
+        ttk.Label(workflow_row, text="2⃣", font=Fonts.small()).pack(side=tk.LEFT)
+        ttk.Button(workflow_row, text="Multi-TF", command=self._open_multi_timeframe_gallery_for_current_list, width=7).pack(side=tk.LEFT, padx=1)
+        ttk.Button(workflow_row, text="SC", command=self._open_stockcharts_gallery_for_current_list, width=3).pack(side=tk.LEFT, padx=1)
+        
+        ttk.Separator(workflow_row, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=3)
         
         # Phase 3: Fundamental
-        phase3 = ttk.Frame(workflow_content)
-        phase3.pack(fill=tk.X, pady=2)
-        ttk.Label(phase3, text="3️⃣ Fundamental:", font=Fonts.body_bold(), width=12).pack(side=tk.LEFT)
-        ttk.Button(phase3, text="Run BA", command=self._run_business_analysis, width=11).pack(side=tk.LEFT, padx=1)
-        ttk.Button(phase3, text="Fundamentals", command=lambda: self.chart_notebook.select(3), width=11).pack(side=tk.LEFT, padx=1)
-        ttk.Button(phase3, text="Stock News", command=self._summarize_stock_news, width=9).pack(side=tk.LEFT, padx=1)
+        ttk.Label(workflow_row, text="3⃣", font=Fonts.small()).pack(side=tk.LEFT)
+        ttk.Button(workflow_row, text="Run BA", command=self._run_business_analysis, width=6).pack(side=tk.LEFT, padx=1)
+        ttk.Button(workflow_row, text="Fund", command=lambda: self.chart_notebook.select(3), width=4).pack(side=tk.LEFT, padx=1)
+        
+        ttk.Separator(workflow_row, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=3)
         
         # Phase 4: SEC Filing
-        phase4 = ttk.Frame(workflow_content)
-        phase4.pack(fill=tk.X, pady=2)
-        ttk.Label(phase4, text="4️⃣ SEC Filing:", font=Fonts.body_bold(), width=12).pack(side=tk.LEFT)
-        ttk.Button(phase4, text="10-K Study", command=lambda: self._extract_sec_filing("10-K"), width=11).pack(side=tk.LEFT, padx=1)
-        ttk.Button(phase4, text="10-Q Study", command=lambda: self._extract_sec_filing("10-Q"), width=11).pack(side=tk.LEFT, padx=1)
-        ttk.Button(phase4, text="SEC Tab", command=lambda: self.chart_notebook.select(7), width=9).pack(side=tk.LEFT, padx=1)
+        ttk.Label(workflow_row, text="4⃣", font=Fonts.small()).pack(side=tk.LEFT)
+        ttk.Button(workflow_row, text="10-K", command=lambda: self._extract_sec_filing("10-K"), width=4).pack(side=tk.LEFT, padx=1)
+        ttk.Button(workflow_row, text="10-Q", command=lambda: self._extract_sec_filing("10-Q"), width=4).pack(side=tk.LEFT, padx=1)
+        
+        ttk.Separator(workflow_row, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=3)
         
         # Phase 5: Decision
-        phase5 = ttk.Frame(workflow_content)
-        phase5.pack(fill=tk.X, pady=2)
-        ttk.Label(phase5, text="5️⃣ Decision:", font=Fonts.body_bold(), width=12).pack(side=tk.LEFT)
-        ttk.Button(phase5, text="Add to Watch", command=self._copy_to_watch_list, width=11).pack(side=tk.LEFT, padx=1)
-        ttk.Button(phase5, text="Compare", command=self._compare_percentage_performance, width=11).pack(side=tk.LEFT, padx=1)
-        ttk.Button(phase5, text="Visualize", command=self._visualize_all_timeframes, width=9).pack(side=tk.LEFT, padx=1)
+        ttk.Label(workflow_row, text="5⃣", font=Fonts.small()).pack(side=tk.LEFT)
+        ttk.Button(workflow_row, text="⭐Watch", command=self._copy_to_watch_list, width=7).pack(side=tk.LEFT, padx=1)
+        ttk.Button(workflow_row, text="Compare", command=self._compare_percentage_performance, width=7).pack(side=tk.LEFT, padx=1)
 
         # Create a PanedWindow for resizable sections
         self.paned_window = ttk.PanedWindow(main_frame, orient=tk.HORIZONTAL)
