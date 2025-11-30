@@ -1081,57 +1081,57 @@ class StockDataGUI:
         self.chart_notebook.add(self.sec_filings_frame, text="📑 SEC")
         
         # Configure SEC filings tab
-        sec_frame = ttk.Frame(self.sec_filings_frame, padding="10")
+        sec_frame = ttk.Frame(self.sec_filings_frame, padding=Spacing.SM)
         sec_frame.pack(fill=tk.BOTH, expand=True)
         
-        # Top control frame for SEC filings tab
-        sec_control_frame = ttk.Frame(sec_frame)
-        sec_control_frame.pack(fill=tk.X, pady=5)
+        # =================================================================
+        # SEC QUICK ACTIONS - Prominent controls for SEC filing analysis
+        # =================================================================
+        sec_quick_frame = ttk.LabelFrame(sec_frame, text="📑 SEC Filing Controls", padding=Spacing.SM)
+        sec_quick_frame.pack(fill=tk.X, pady=(0, Spacing.SM))
         
-        # Ticker label and selection
-        ttk.Label(sec_control_frame, text="Ticker:").pack(side=tk.LEFT, padx=(0, 5))
+        # Row 1: Ticker and Form Type selection
+        sec_row1 = ttk.Frame(sec_quick_frame)
+        sec_row1.pack(fill=tk.X, pady=2)
+        
+        ttk.Label(sec_row1, text="Ticker:", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
         self.sec_ticker_var = tk.StringVar()
-        self.sec_ticker_entry = ttk.Entry(sec_control_frame, textvariable=self.sec_ticker_var, width=10)
-        self.sec_ticker_entry.pack(side=tk.LEFT, padx=(0, 10))
+        self.sec_ticker_entry = ttk.Entry(sec_row1, textvariable=self.sec_ticker_var, width=10)
+        self.sec_ticker_entry.pack(side=tk.LEFT, padx=(0, Spacing.MD))
         
-        # Form type selection
-        ttk.Label(sec_control_frame, text="Form Type:").pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(sec_row1, text="Form:", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
         self.sec_form_type_var = tk.StringVar(value="10-K")
-        form_type_combo = ttk.Combobox(sec_control_frame, textvariable=self.sec_form_type_var, 
-                                     values=["10-K", "10-Q"], width=5, state="readonly")
-        form_type_combo.pack(side=tk.LEFT, padx=(0, 10))
+        form_type_combo = ttk.Combobox(sec_row1, textvariable=self.sec_form_type_var, 
+                                     values=["10-K", "10-Q"], width=6, state="readonly")
+        form_type_combo.pack(side=tk.LEFT, padx=(0, Spacing.MD))
         
-        # Mock data checkbox
+        ttk.Separator(sec_row1, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=Spacing.SM)
+        
+        # Primary action buttons
+        extract_btn = ttk.Button(sec_row1, text="▶ Extract Tables", command=self._extract_sec_tables_from_tab, width=14)
+        extract_btn.pack(side=tk.LEFT, padx=(0, Spacing.XS))
+        self._attach_tooltip(extract_btn, text="Extract financial tables from SEC filing", tooltip_id="sec.extract")
+        
+        ttk.Button(sec_row1, text="📂 Open Folder", command=self._open_sec_output_folder, width=12).pack(side=tk.LEFT, padx=(0, Spacing.XS))
+        
+        ttk.Separator(sec_row1, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=Spacing.SM)
+        
+        # Options
         self.use_mock_data_var = tk.BooleanVar(value=False)
-        mock_data_check = ttk.Checkbutton(sec_control_frame, text="Use Mock Data", 
-                                       variable=self.use_mock_data_var,
-                                       command=self._toggle_mock_data)
-        mock_data_check.pack(side=tk.LEFT, padx=(0, 10))
+        mock_data_check = ttk.Checkbutton(sec_row1, text="Mock Data", variable=self.use_mock_data_var, command=self._toggle_mock_data)
+        mock_data_check.pack(side=tk.LEFT, padx=(0, Spacing.XS))
         
-        # Extract button
-        ttk.Button(sec_control_frame, text="Extract Tables", 
-                  command=self._extract_sec_tables_from_tab).pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Button(sec_row1, text="Clear Cache", command=self._clear_sec_cache, width=10).pack(side=tk.LEFT)
         
-        # Open folder button
-        ttk.Button(sec_control_frame, text="Open Output Folder", 
-                  command=self._open_sec_output_folder).pack(side=tk.LEFT, padx=(0, 10))
+        # Row 2: Status
+        sec_row2 = ttk.Frame(sec_quick_frame)
+        sec_row2.pack(fill=tk.X, pady=(Spacing.XS, 0))
         
-        # Status label
         self.sec_status_var = tk.StringVar(value="Select a ticker and form type, then click 'Extract Tables'")
-        ttk.Label(sec_control_frame, textvariable=self.sec_status_var).pack(side=tk.LEFT, fill=tk.X, expand=True)
+        ttk.Label(sec_row2, textvariable=self.sec_status_var, foreground=Colors.TEXT_SECONDARY).pack(side=tk.LEFT, fill=tk.X, expand=True)
         
-        # Second row for API status and cache info
-        sec_status_frame = ttk.Frame(sec_frame)
-        sec_status_frame.pack(fill=tk.X, pady=(0, 5))
-        
-        # API status label
-        self.sec_api_status_var = tk.StringVar(value="Using real SEC API with caching (recommended for production)")
-        ttk.Label(sec_status_frame, textvariable=self.sec_api_status_var, 
-                 font=("Helvetica", 9, "italic")).pack(side=tk.LEFT, fill=tk.X, expand=True)
-        
-        # Clear cache button
-        ttk.Button(sec_status_frame, text="Clear SEC Cache", 
-                 command=self._clear_sec_cache).pack(side=tk.RIGHT)
+        self.sec_api_status_var = tk.StringVar(value="Using real SEC API with caching")
+        ttk.Label(sec_row2, textvariable=self.sec_api_status_var, font=Fonts.small(), foreground=Colors.TEXT_MUTED).pack(side=tk.RIGHT)
         
         # Create a paned window to split the view
         sec_paned = ttk.PanedWindow(sec_frame, orient=tk.HORIZONTAL)
@@ -1325,43 +1325,61 @@ class StockDataGUI:
         
         ttk.Button(ba_row2, text="Search", command=self._run_general_search, width=8).pack(side=tk.LEFT)
         
-        # Add filter frame for business analysis
-        ba_filter_frame = ttk.Frame(ba_frame)
-        ba_filter_frame.pack(fill=tk.X, pady=5)
+        # =================================================================
+        # COLLAPSIBLE OPTIONS - Filter and tuning controls
+        # =================================================================
+        self.ba_options_visible = tk.BooleanVar(value=False)
         
-        ttk.Label(ba_filter_frame, text="Filter Metric:").pack(side=tk.LEFT, padx=(0, 5))
-        filter_entry = ttk.Entry(ba_filter_frame, textvariable=self.business_analysis_filter_var, width=40)
-        filter_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        # Toggle button for options
+        ba_toggle_row = ttk.Frame(ba_frame)
+        ba_toggle_row.pack(fill=tk.X, pady=(Spacing.XS, 0))
+        
+        ba_options_toggle = ttk.Checkbutton(
+            ba_toggle_row, 
+            text="⚙️ Show Options", 
+            variable=self.ba_options_visible,
+            command=self._toggle_ba_options
+        )
+        ba_options_toggle.pack(side=tk.LEFT)
+        
+        # Collapsible options frame (hidden by default)
+        self.ba_options_frame = ttk.LabelFrame(ba_frame, text="Filter & Tuning Options", padding=Spacing.XS)
+        # Don't pack yet - will be shown/hidden by toggle
+        
+        # Filter row
+        ba_filter_row = ttk.Frame(self.ba_options_frame)
+        ba_filter_row.pack(fill=tk.X, pady=2)
+        
+        ttk.Label(ba_filter_row, text="Filter:", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
+        filter_entry = ttk.Entry(ba_filter_row, textvariable=self.business_analysis_filter_var, width=40)
+        filter_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, Spacing.XS))
         filter_entry.bind("<KeyRelease>", self._apply_business_analysis_filter)
+        ttk.Label(ba_filter_row, text="(AND logic, ! for exclusion)", font=Fonts.small(), foreground=Colors.TEXT_MUTED).pack(side=tk.LEFT)
         
-        # Add a small help label
-        ttk.Label(ba_filter_frame, text="(Multiple terms use AND logic, ! for exclusion)", 
-                 font=("Helvetica", 8)).pack(side=tk.LEFT, padx=5)
-        
-        # BA tuning controls: freshness (days), history depth, and show/hide change-over-time
-        ba_opts_frame = ttk.Frame(ba_frame)
-        ba_opts_frame.pack(fill=tk.X, pady=(0,5))
+        # Tuning row
+        ba_tuning_row = ttk.Frame(self.ba_options_frame)
+        ba_tuning_row.pack(fill=tk.X, pady=2)
         
         # Variables
         self.ba_freshness_days_var = tk.IntVar(value=30)
         self.ba_history_max_items_var = tk.IntVar(value=5)
         self.ba_show_change_var = tk.BooleanVar(value=True)
         
-        ttk.Label(ba_opts_frame, text="Freshness (days):").pack(side=tk.LEFT, padx=(0,5))
+        ttk.Label(ba_tuning_row, text="Freshness (days):", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
         try:
-            freshness_spin = ttk.Spinbox(ba_opts_frame, from_=1, to=365, width=5, textvariable=self.ba_freshness_days_var)
+            freshness_spin = ttk.Spinbox(ba_tuning_row, from_=1, to=365, width=5, textvariable=self.ba_freshness_days_var)
         except Exception:
-            freshness_spin = tk.Spinbox(ba_opts_frame, from_=1, to=365, width=5, textvariable=self.ba_freshness_days_var)
-        freshness_spin.pack(side=tk.LEFT)
+            freshness_spin = tk.Spinbox(ba_tuning_row, from_=1, to=365, width=5, textvariable=self.ba_freshness_days_var)
+        freshness_spin.pack(side=tk.LEFT, padx=(0, Spacing.MD))
         
-        ttk.Label(ba_opts_frame, text="History (max):").pack(side=tk.LEFT, padx=(10,5))
+        ttk.Label(ba_tuning_row, text="History (max):", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
         try:
-            history_spin = ttk.Spinbox(ba_opts_frame, from_=1, to=20, width=5, textvariable=self.ba_history_max_items_var)
+            history_spin = ttk.Spinbox(ba_tuning_row, from_=1, to=20, width=5, textvariable=self.ba_history_max_items_var)
         except Exception:
-            history_spin = tk.Spinbox(ba_opts_frame, from_=1, to=20, width=5, textvariable=self.ba_history_max_items_var)
-        history_spin.pack(side=tk.LEFT)
+            history_spin = tk.Spinbox(ba_tuning_row, from_=1, to=20, width=5, textvariable=self.ba_history_max_items_var)
+        history_spin.pack(side=tk.LEFT, padx=(0, Spacing.MD))
         
-        ttk.Checkbutton(ba_opts_frame, text="Show Change Over Time", variable=self.ba_show_change_var).pack(side=tk.LEFT, padx=(10,0))
+        ttk.Checkbutton(ba_tuning_row, text="Show Change Over Time", variable=self.ba_show_change_var).pack(side=tk.LEFT)
         
         ba_text_frame = ttk.Frame(ba_frame)
         ba_text_frame.pack(fill=tk.BOTH, expand=True, pady=5)
@@ -1638,6 +1656,13 @@ class StockDataGUI:
 
         # Sash initialization is handled via the <Configure> binding above so
         # the action bar stays compact by default while remaining resizable.
+
+    def _toggle_ba_options(self):
+        """Toggle visibility of Business Analysis options panel."""
+        if self.ba_options_visible.get():
+            self.ba_options_frame.pack(fill=tk.X, pady=(Spacing.XS, 0), before=self.business_analysis_text.master)
+        else:
+            self.ba_options_frame.pack_forget()
 
     def _show_progress(self, message="Processing..."):
         """Show the progress bar with a message."""
