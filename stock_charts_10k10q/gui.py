@@ -97,6 +97,10 @@ class StockDataGUI:
         self.custom_urls = self._load_custom_urls()
         self.urls_menu = None  # Will be set in _create_widgets
 
+        # Settings storage (for StockCharts style ID, etc.)
+        self.settings_file = os.path.join(os.path.dirname(__file__), "gui_settings.json")
+        self.settings = self._load_settings()
+
         # Load ticker lists from ticker_lists.py
         self.ticker_lists = {}
         self._load_ticker_lists_from_module()
@@ -579,10 +583,14 @@ class StockDataGUI:
         self._attach_tooltip(sc_btn, text="StockCharts: Open StockCharts.com gallery view", tooltip_id="gallery.stockcharts")
 
         # SC-Line section - with tooltips
-        self.stockcharts_line_style_var = tk.StringVar(value="t3327397499c")
+        # Load saved style ID or use default
+        saved_style_id = self.settings.get("stockcharts_style_id", "t3327397499c")
+        self.stockcharts_line_style_var = tk.StringVar(value=saved_style_id)
         sc_style_entry = ttk.Entry(row1, textvariable=self.stockcharts_line_style_var, width=12)
         sc_style_entry.pack(side=tk.LEFT, padx=(3, 1))
-        self._attach_tooltip(sc_style_entry, text="StockCharts Style ID: Paste style code from stockcharts.com/sc3/ui", tooltip_id="gallery.sc_style")
+        self._attach_tooltip(sc_style_entry, text="StockCharts Style ID: Paste style code from stockcharts.com/sc3/ui (auto-saved)", tooltip_id="gallery.sc_style")
+        # Auto-save when style ID changes
+        self.stockcharts_line_style_var.trace_add("write", self._save_stockcharts_style_id)
 
         sc_line_btn = ttk.Button(row1, text="SC-Line", command=self._open_stockcharts_line_gallery_for_current_list, width=6)
         sc_line_btn.pack(side=tk.LEFT, padx=1)
@@ -1875,6 +1883,34 @@ class StockDataGUI:
         except Exception as e:
             logging.error(f"Error saving custom URLs: {e}")
             messagebox.showerror("Error", f"Could not save custom URLs: {e}")
+
+    def _load_settings(self):
+        """Load GUI settings from JSON file."""
+        try:
+            if os.path.exists(self.settings_file):
+                with open(self.settings_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+        except Exception as e:
+            logging.error(f"Error loading settings: {e}")
+        return {}
+
+    def _save_settings(self):
+        """Save GUI settings to JSON file."""
+        try:
+            with open(self.settings_file, 'w', encoding='utf-8') as f:
+                json.dump(self.settings, f, indent=2)
+        except Exception as e:
+            logging.error(f"Error saving settings: {e}")
+
+    def _save_stockcharts_style_id(self, *args):
+        """Save StockCharts style ID when it changes."""
+        try:
+            style_id = self.stockcharts_line_style_var.get().strip()
+            if style_id:
+                self.settings["stockcharts_style_id"] = style_id
+                self._save_settings()
+        except Exception as e:
+            logging.debug(f"Error saving StockCharts style ID: {e}")
 
     def _rebuild_custom_urls_menu(self):
         """Rebuild the custom URLs section of the URLs menu."""
