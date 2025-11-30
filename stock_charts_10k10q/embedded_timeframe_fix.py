@@ -254,17 +254,41 @@ def apply_embedded_timeframe_fix(app):
                     'Volume': 'sum'
                 })
             elif timeframe == "Monthly":
-                # Resample to monthly frequency
-                resampled_df = plot_df.resample('M').agg({
-                    'Open': 'first',
-                    'High': 'max',
-                    'Low': 'min',
-                    'Close': 'last',
-                    'Volume': 'sum'
-                })
+                # Resample to monthly frequency - use 'ME' for pandas >= 2.2, 'M' for older
+                try:
+                    resampled_df = plot_df.resample('ME').agg({
+                        'Open': 'first',
+                        'High': 'max',
+                        'Low': 'min',
+                        'Close': 'last',
+                        'Volume': 'sum'
+                    })
+                except ValueError:
+                    # Fall back to 'M' for older pandas versions
+                    resampled_df = plot_df.resample('M').agg({
+                        'Open': 'first',
+                        'High': 'max',
+                        'Low': 'min',
+                        'Close': 'last',
+                        'Volume': 'sum'
+                    })
             else:
                 logging.error(f"Invalid timeframe: {timeframe}")
                 return False
+            
+            # Drop NaN values from resampled data
+            resampled_df = resampled_df.dropna()
+            
+            # Check if we have data after resampling
+            if resampled_df.empty:
+                logging.warning(f"No data available for {ticker} after {timeframe} resampling")
+                if chart_frame and chart_frame.winfo_exists():
+                    for widget in chart_frame.winfo_children():
+                        widget.destroy()
+                    ttk.Label(chart_frame, text=f"No {timeframe} data available for {ticker}").pack(pady=10)
+                return False
+            
+            logging.info(f"Resampled {timeframe} data for {ticker}: {len(resampled_df)} rows")
             
             # Create Plotly figure
             fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
