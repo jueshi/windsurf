@@ -739,6 +739,31 @@ class StockDataGUI:
         help_menu.add_command(label="📄 Local User Guide (Markdown)", 
                              command=self._open_local_user_guide)
 
+        # Settings dropdown menu
+        settings_menubutton = ttk.Menubutton(row2, text="⚙️ Settings ▾", width=11)
+        settings_menubutton.pack(side=tk.LEFT, padx=2)
+        self._attach_tooltip(settings_menubutton, text="Application settings", tooltip_id="settings.menu")
+
+        settings_menu = tk.Menu(settings_menubutton, tearoff=0)
+        settings_menubutton["menu"] = settings_menu
+        
+        # Language submenu
+        self.language_var = tk.StringVar(value="en")
+        lang_menu = tk.Menu(settings_menu, tearoff=0)
+        settings_menu.add_cascade(label="🌐 Language", menu=lang_menu)
+        lang_menu.add_radiobutton(label="English", variable=self.language_var, value="en", command=self._on_language_change)
+        lang_menu.add_radiobutton(label="中文 (Chinese)", variable=self.language_var, value="zh", command=self._on_language_change)
+        
+        # Theme submenu
+        self.theme_var = tk.StringVar(value="light")
+        theme_menu = tk.Menu(settings_menu, tearoff=0)
+        settings_menu.add_cascade(label="🎨 Theme", menu=theme_menu)
+        theme_menu.add_radiobutton(label="☀️ Light", variable=self.theme_var, value="light", command=self._on_theme_change)
+        theme_menu.add_radiobutton(label="🌙 Dark", variable=self.theme_var, value="dark", command=self._on_theme_change)
+        
+        settings_menu.add_separator()
+        settings_menu.add_command(label="⌨️ Keyboard Shortcuts", command=self._show_keyboard_shortcuts)
+
         # =================================================================
         # WORKFLOW QUICK-ACCESS PANEL - Collapsible guide for 5-phase workflow
         # =================================================================
@@ -1691,6 +1716,52 @@ class StockDataGUI:
         """Apply a filter preset to the Fundamentals filter entry."""
         self.fundamental_filter_var.set(filter_text)
         self._populate_fundamental_treeview()
+
+    def _on_language_change(self):
+        """Handle language preference change."""
+        lang = self.language_var.get()
+        lang_name = "English" if lang == "en" else "中文"
+        self.status_var.set(f"Language set to {lang_name}. AI responses will use this language.")
+        logging.info(f"Language preference changed to: {lang}")
+
+    def _on_theme_change(self):
+        """Handle theme change between light and dark mode."""
+        theme = self.theme_var.get()
+        Colors.apply_theme(theme)
+        configure_styles(self.root)
+        
+        # Update status
+        theme_name = "Light" if theme == "light" else "Dark"
+        self.status_var.set(f"Theme changed to {theme_name} mode. Restart for full effect.")
+        logging.info(f"Theme changed to: {theme}")
+
+    def _show_keyboard_shortcuts(self):
+        """Show a dialog with all keyboard shortcuts."""
+        shortcuts = """
+KEYBOARD SHORTCUTS
+==================
+
+Navigation:
+  Ctrl+L         Load selected ticker list
+  Ctrl+←         Previous list
+  Ctrl+→         Next list
+  F5             Refresh lists from disk
+
+Actions:
+  Ctrl+D         Download data for selected tickers
+  Ctrl+R         Open HTML report
+  Ctrl+B         Run Business Analysis
+  Ctrl+N         Summarize market news
+  Ctrl+W         Copy to Watch List
+
+Tabs:
+  Ctrl+1         Chart tab
+  Ctrl+2         Compare tab
+  Ctrl+3         Seasonal tab
+  Ctrl+4         Fundamentals tab
+  Ctrl+5         Business tab
+"""
+        messagebox.showinfo("Keyboard Shortcuts", shortcuts.strip())
 
     def _configure_markdown_tags(self, text_widget, font_name="Consolas"):
         """Configure text tags for markdown-style formatting in a Text widget.

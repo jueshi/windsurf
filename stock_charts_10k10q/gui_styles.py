@@ -14,8 +14,73 @@ import sys
 # COLOR PALETTE
 # =============================================================================
 
+# Theme state - can be 'light' or 'dark'
+_current_theme = 'light'
+
 class Colors:
-    """Color constants for the application."""
+    """Color constants for the application. Supports light and dark themes."""
+    
+    # Light theme colors
+    _LIGHT = {
+        'PRIMARY': "#1a365d",
+        'PRIMARY_LIGHT': "#3b82f6",
+        'PRIMARY_DARK': "#0f172a",
+        'ACCENT': "#0d9488",
+        'ACCENT_LIGHT': "#14b8a6",
+        'SUCCESS': "#16a34a",
+        'WARNING': "#f59e0b",
+        'ERROR': "#dc2626",
+        'INFO': "#3b82f6",
+        'BACKGROUND': "#f9fafb",
+        'BACKGROUND_ALT': "#f3f4f6",
+        'SURFACE': "#ffffff",
+        'BORDER': "#e5e7eb",
+        'BORDER_DARK': "#d1d5db",
+        'TEXT_PRIMARY': "#1f2937",
+        'TEXT_SECONDARY': "#6b7280",
+        'TEXT_MUTED': "#9ca3af",
+        'TEXT_INVERSE': "#ffffff",
+        'TAB_ACTIVE': "#1a365d",
+        'TAB_INACTIVE': "#e5e7eb",
+        'TAB_HOVER': "#dbeafe",
+        'BTN_PRIMARY_BG': "#1a365d",
+        'BTN_PRIMARY_FG': "#ffffff",
+        'BTN_SECONDARY_BG': "#6b7280",
+        'BTN_SECONDARY_FG': "#ffffff",
+        'BTN_TERTIARY_BG': "#ffffff",
+        'BTN_TERTIARY_FG': "#1a365d",
+    }
+    
+    # Dark theme colors
+    _DARK = {
+        'PRIMARY': "#60a5fa",
+        'PRIMARY_LIGHT': "#93c5fd",
+        'PRIMARY_DARK': "#3b82f6",
+        'ACCENT': "#2dd4bf",
+        'ACCENT_LIGHT': "#5eead4",
+        'SUCCESS': "#4ade80",
+        'WARNING': "#fbbf24",
+        'ERROR': "#f87171",
+        'INFO': "#60a5fa",
+        'BACKGROUND': "#1f2937",
+        'BACKGROUND_ALT': "#374151",
+        'SURFACE': "#111827",
+        'BORDER': "#4b5563",
+        'BORDER_DARK': "#6b7280",
+        'TEXT_PRIMARY': "#f9fafb",
+        'TEXT_SECONDARY': "#d1d5db",
+        'TEXT_MUTED': "#9ca3af",
+        'TEXT_INVERSE': "#1f2937",
+        'TAB_ACTIVE': "#3b82f6",
+        'TAB_INACTIVE': "#374151",
+        'TAB_HOVER': "#4b5563",
+        'BTN_PRIMARY_BG': "#3b82f6",
+        'BTN_PRIMARY_FG': "#ffffff",
+        'BTN_SECONDARY_BG': "#6b7280",
+        'BTN_SECONDARY_FG': "#ffffff",
+        'BTN_TERTIARY_BG': "#374151",
+        'BTN_TERTIARY_FG': "#60a5fa",
+    }
     
     # Primary colors
     PRIMARY = "#1a365d"          # Deep blue - main brand color
@@ -57,6 +122,32 @@ class Colors:
     BTN_SECONDARY_FG = "#ffffff"
     BTN_TERTIARY_BG = "#ffffff"
     BTN_TERTIARY_FG = "#1a365d"
+    
+    @classmethod
+    def apply_theme(cls, theme='light'):
+        """Apply a color theme (light or dark).
+        
+        Args:
+            theme: 'light' or 'dark'
+        """
+        global _current_theme
+        _current_theme = theme
+        colors = cls._LIGHT if theme == 'light' else cls._DARK
+        
+        for key, value in colors.items():
+            setattr(cls, key, value)
+    
+    @classmethod
+    def get_current_theme(cls):
+        """Get the current theme name."""
+        return _current_theme
+    
+    @classmethod
+    def toggle_theme(cls):
+        """Toggle between light and dark themes."""
+        new_theme = 'dark' if _current_theme == 'light' else 'light'
+        cls.apply_theme(new_theme)
+        return new_theme
 
 
 # =============================================================================

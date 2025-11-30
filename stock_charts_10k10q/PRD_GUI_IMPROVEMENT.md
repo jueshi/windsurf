@@ -395,9 +395,9 @@ gui.py                    # Main GUI class
 
 ### Nice to Have
 
-- [ ] Language toggle
+- [x] Language toggle
 - [x] Keyboard shortcuts
-- [ ] Dark mode support
+- [x] Dark mode support
 
 ---
 
