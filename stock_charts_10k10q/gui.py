@@ -1288,7 +1288,11 @@ class StockDataGUI:
         # Data actions - with tooltips
         download_btn = ttk.Button(actions_row, text="⬇Download", command=self._download_data, width=10)
         download_btn.pack(side=tk.LEFT, padx=2)
-        self._attach_tooltip(download_btn, text="Download/update stock data for all tickers in current list", tooltip_id="action.download")
+        self._attach_tooltip(download_btn, text="Download/update stock data for selected tickers", tooltip_id="action.download")
+
+        download_all_btn = ttk.Button(actions_row, text="⬇All", command=self._download_all_data, width=5)
+        download_all_btn.pack(side=tk.LEFT, padx=2)
+        self._attach_tooltip(download_all_btn, text="Download/update stock data for ALL tickers in current list", tooltip_id="action.download_all")
 
         visualize_btn = ttk.Button(actions_row, text="📊Visualize", command=self._visualize_all_timeframes, width=10)
         visualize_btn.pack(side=tk.LEFT, padx=2)
@@ -2330,6 +2334,18 @@ class StockDataGUI:
         
         # Use the background download functionality instead of blocking the UI thread
         self._download_data_with_force_option(selected_tickers, force_download)
+
+    def _download_all_data(self):
+        """Download or update data for ALL tickers in the current ticker list"""
+        if not self.current_tickers:
+            messagebox.showwarning("No Tickers", "There are no tickers in the current list to download.")
+            return
+        
+        # Get force download setting
+        force_download = self.force_download_var.get()
+        
+        # Use the background download functionality for all tickers
+        self._download_data_with_force_option(self.current_tickers, force_download)
         
     def _download_data_with_force_option(self, tickers, force_download=False):
         """Download data for multiple tickers in a background thread with force option
