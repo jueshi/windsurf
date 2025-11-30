@@ -4305,13 +4305,31 @@ class StockDataGUI:
 
             # Always regenerate charts to ensure they use the latest data
             # This is more reliable than checking file modification times
+            logging.info(f"Regenerating charts for {len(selected_tickers)} tickers to plots_dir: {plots_dir}")
             for i, ticker in enumerate(selected_tickers):
                 self.status_var.set(f"Generating chart for {ticker} ({i+1}/{len(selected_tickers)})...")
                 self.root.update_idletasks()
                 try:
+                    # Ensure plot_save_path is set to the correct absolute path
+                    original_plot_path = self.manager.plot_save_path
+                    self.manager.plot_save_path = os.path.abspath(plots_dir)
+                    
                     self.manager.visualize_daily_vs_weekly(ticker)
+                    
+                    # Log the generated file path
+                    chart_path = os.path.join(self.manager.plot_save_path, f"{ticker}_daily_weekly_monthly.png")
+                    if os.path.exists(chart_path):
+                        mod_time = datetime.fromtimestamp(os.path.getmtime(chart_path))
+                        logging.info(f"Generated chart for {ticker} at {chart_path}, modified: {mod_time}")
+                    else:
+                        logging.warning(f"Chart file not found after generation: {chart_path}")
+                    
+                    # Restore original path
+                    self.manager.plot_save_path = original_plot_path
                 except Exception as e:
-                    logging.warning(f"Could not generate chart for {ticker}: {e}")
+                    logging.error(f"Could not generate chart for {ticker}: {e}")
+                    import traceback
+                    logging.error(traceback.format_exc())
 
             # Get the current ticker list name
             current_list_name = self.ticker_list_var.get() or "custom_list"
