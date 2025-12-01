@@ -6526,20 +6526,15 @@ Tabs:
             self.sec_api_status_var.set("Using real SEC API with caching (recommended for production)")
     
     def _clear_sec_cache(self):
-        """Clear the SEC API cache"""
+        """Clear the SEC API cache (both file and in-memory)"""
         try:
-            import shutil
-            from pathlib import Path
+            import sec_api_cache
             
-            cache_dir = Path("sec_cache")
-            if cache_dir.exists():
-                shutil.rmtree(cache_dir)
-                os.makedirs(cache_dir, exist_ok=True)
-                self.sec_api_status_var.set("SEC cache cleared successfully")
-                messagebox.showinfo("Cache Cleared", "SEC API cache has been cleared successfully.")
-            else:
-                self.sec_api_status_var.set("No SEC cache to clear")
-                messagebox.showinfo("No Cache", "No SEC cache directory found.")
+            # Use the centralized cache clearing function
+            sec_api_cache.clear_all_cache(include_memory=True)
+            
+            self.sec_api_status_var.set("SEC cache cleared successfully (file + memory)")
+            messagebox.showinfo("Cache Cleared", "SEC API cache has been cleared successfully.\n\nBoth file cache and in-memory cache have been cleared.")
         except Exception as e:
             error_msg = f"Error clearing SEC cache: {str(e)}"
             self.sec_api_status_var.set(error_msg)
@@ -6585,24 +6580,28 @@ Tabs:
         # Run extraction in a separate thread to avoid freezing the GUI
         def extraction_thread():
             try:
-                # Get SEC API wrapper (will use mock or real based on checkbox)
-                api = sec_api_wrapper.sec_api
+                # Sync mock setting BEFORE getting API instance (fixes mock toggle sync issue)
                 using_mock = self.use_mock_data_var.get()
+                sec_api_wrapper.use_mock_sec_api(using_mock)
+                api = sec_api_wrapper.sec_api
                 
-                # Update business analysis text area with status
-                self.business_analysis_text.delete("1.0", tk.END)
-                self.business_analysis_text.insert(tk.END, f"Extracting {form_type} tables for {ticker}...\n\n")
+                # Helper function for thread-safe text updates
+                def update_text(message, clear=False):
+                    if clear:
+                        safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
+                    safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, message)
+                
+                # Update business analysis text area with status (thread-safe)
+                update_text(f"Extracting {form_type} tables for {ticker}...\n\n", clear=True)
                 if using_mock:
-                    self.business_analysis_text.insert(tk.END, "Using MOCK SEC data for testing\n\n")
+                    update_text("Using MOCK SEC data for testing\n\n")
                 else:
-                    self.business_analysis_text.insert(tk.END, "Using real SEC API with caching and rate limiting\n\n")
+                    update_text("Using real SEC API with caching and rate limiting\n\n")
                     
-                self.business_analysis_text.insert(tk.END, "Step 1: Getting company CIK...\n")
-                self.root.update_idletasks()
+                update_text("Step 1: Getting company CIK...\n")
                 
-                # Update SEC tab status
-                self.sec_status_var.set(f"Step 1: Getting company CIK for {ticker}...")
-                self.root.update_idletasks()
+                # Update SEC tab status (thread-safe)
+                safe_update_status(self.sec_status_var, f"Step 1: Getting company CIK for {ticker}...")
                 
                 # Get company CIK using the wrapper
                 start_time = time.time()
@@ -6610,15 +6609,14 @@ Tabs:
                 elapsed = time.time() - start_time
                 
                 if not cik:
-                    self.business_analysis_text.insert(tk.END, f"Error: Could not find CIK for {ticker}\n")
-                    self.sec_status_var.set(f"Error: Could not find CIK for {ticker}")
-                    self.status_var.set(f"Error: Could not find CIK for {ticker}")
+                    update_text(f"Error: Could not find CIK for {ticker}\n")
+                    safe_update_status(self.sec_status_var, f"Error: Could not find CIK for {ticker}")
+                    safe_update_status(self.status_var, f"Error: Could not find CIK for {ticker}")
                     return
                 
-                self.business_analysis_text.insert(tk.END, f"Found CIK: {cik} (took {elapsed:.2f}s)\n\n")
-                self.business_analysis_text.insert(tk.END, f"Step 2: Getting latest {form_type} filing info...\n")
-                self.sec_status_var.set(f"Step 2: Getting latest {form_type} filing info...")
-                self.root.update_idletasks()
+                update_text(f"Found CIK: {cik} (took {elapsed:.2f}s)\n\n")
+                update_text(f"Step 2: Getting latest {form_type} filing info...\n")
+                safe_update_status(self.sec_status_var, f"Step 2: Getting latest {form_type} filing info...")
                 
                 # Get latest filing info using the wrapper
                 start_time = time.time()
@@ -6626,16 +6624,15 @@ Tabs:
                 elapsed = time.time() - start_time
                 
                 if not filing_info:
-                    self.business_analysis_text.insert(tk.END, f"Error: Could not find {form_type} filing for {ticker}\n")
-                    self.sec_status_var.set(f"Error: Could not find {form_type} filing for {ticker}")
-                    self.status_var.set(f"Error: Could not find {form_type} filing for {ticker}")
+                    update_text(f"Error: Could not find {form_type} filing for {ticker}\n")
+                    safe_update_status(self.sec_status_var, f"Error: Could not find {form_type} filing for {ticker}")
+                    safe_update_status(self.status_var, f"Error: Could not find {form_type} filing for {ticker}")
                     return
                 
-                self.business_analysis_text.insert(tk.END, f"Found {form_type} filing from {filing_info['filingDate']} (took {elapsed:.2f}s)\n")
-                self.business_analysis_text.insert(tk.END, f"Filing URL: {filing_info['detailUrl']}\n\n")
-                self.business_analysis_text.insert(tk.END, "Step 3: Downloading filing...\n")
-                self.sec_status_var.set(f"Step 3: Downloading {form_type} filing from {filing_info['filingDate']}...")
-                self.root.update_idletasks()
+                update_text(f"Found {form_type} filing from {filing_info['filingDate']} (took {elapsed:.2f}s)\n")
+                update_text(f"Filing URL: {filing_info['detailUrl']}\n\n")
+                update_text("Step 3: Downloading filing...\n")
+                safe_update_status(self.sec_status_var, f"Step 3: Downloading {form_type} filing from {filing_info['filingDate']}...")
                 
                 # Download filing using the wrapper
                 start_time = time.time()
@@ -6643,73 +6640,70 @@ Tabs:
                 elapsed = time.time() - start_time
                 
                 if not html_content:
-                    self.business_analysis_text.insert(tk.END, "Error: Failed to download filing\n")
-                    self.sec_status_var.set("Error: Failed to download filing")
-                    self.status_var.set("Error: Failed to download filing")
+                    update_text("Error: Failed to download filing\n")
+                    safe_update_status(self.sec_status_var, "Error: Failed to download filing")
+                    safe_update_status(self.status_var, "Error: Failed to download filing")
                     return
                 
-                self.business_analysis_text.insert(tk.END, f"Successfully downloaded {len(html_content)} bytes (took {elapsed:.2f}s)\n\n")
-                self.business_analysis_text.insert(tk.END, "Step 4: Extracting tables...\n")
-                self.sec_status_var.set("Step 4: Extracting tables...")
-                self.root.update_idletasks()
+                update_text(f"Successfully downloaded {len(html_content)} bytes (took {elapsed:.2f}s)\n\n")
+                update_text("Step 4: Extracting tables...\n")
+                safe_update_status(self.sec_status_var, "Step 4: Extracting tables...")
                 
-                # Extract tables
+                # Extract tables using the wrapper (consolidated API)
                 start_time = time.time()
-                tables = sec_filing_extractor.extract_tables(html_content)
+                tables = api.extract_tables(html_content)
                 elapsed = time.time() - start_time
                 
                 if not tables:
-                    self.business_analysis_text.insert(tk.END, "Error: No tables found in filing\n")
-                    self.sec_status_var.set("Error: No tables found in filing")
-                    self.status_var.set("Error: No tables found in filing")
+                    update_text("Error: No tables found in filing\n")
+                    safe_update_status(self.sec_status_var, "Error: No tables found in filing")
+                    safe_update_status(self.status_var, "Error: No tables found in filing")
                     return
                 
-                self.business_analysis_text.insert(tk.END, f"Found {len(tables)} tables (took {elapsed:.2f}s)\n\n")
-                self.business_analysis_text.insert(tk.END, "Step 5: Identifying financial tables...\n")
-                self.sec_status_var.set("Step 5: Identifying financial tables...")
-                self.root.update_idletasks()
+                update_text(f"Found {len(tables)} tables (took {elapsed:.2f}s)\n\n")
+                update_text("Step 5: Identifying financial tables...\n")
+                safe_update_status(self.sec_status_var, "Step 5: Identifying financial tables...")
                 
-                # Identify financial tables
+                # Identify financial tables using the wrapper (consolidated API)
                 start_time = time.time()
-                financial_tables = sec_filing_extractor.identify_financial_tables(tables)
+                financial_tables = api.identify_financial_tables(tables)
                 elapsed = time.time() - start_time
                 
                 # Count identified tables
                 identified_count = sum(1 for table in financial_tables.values() if table is not None)
-                self.business_analysis_text.insert(tk.END, f"Identified {identified_count} financial tables (took {elapsed:.2f}s)\n\n")
-                self.business_analysis_text.insert(tk.END, "Step 6: Saving tables to Excel...\n")
-                self.sec_status_var.set("Step 6: Saving tables to Excel...")
-                self.root.update_idletasks()
+                update_text(f"Identified {identified_count} financial tables (took {elapsed:.2f}s)\n\n")
+                update_text("Step 6: Saving tables to Excel...\n")
+                safe_update_status(self.sec_status_var, "Step 6: Saving tables to Excel...")
                 
-                # Save tables to Excel
+                # Save tables to Excel using the wrapper (consolidated API)
                 start_time = time.time()
-                success = sec_filing_extractor.save_tables_to_excel(financial_tables, tables, ticker, output_dir)
+                success = api.save_tables_to_excel(financial_tables, tables, ticker, output_dir)
                 elapsed = time.time() - start_time
                 
                 if success:
-                    self.business_analysis_text.insert(tk.END, f"\nSuccessfully extracted and saved tables for {ticker} (took {elapsed:.2f}s)\n")
-                    self.business_analysis_text.insert(tk.END, f"\nFiles saved to: {os.path.abspath(output_dir)}\n")
+                    update_text(f"\nSuccessfully extracted and saved tables for {ticker} (took {elapsed:.2f}s)\n")
+                    update_text(f"\nFiles saved to: {os.path.abspath(output_dir)}\n")
                     
                     # Store tables for display in SEC tab
                     self.sec_tables = tables
                     self.sec_financial_tables = financial_tables
                     self.sec_output_dir = output_dir
                     
-                    # Update SEC tab with available tables
-                    self._update_sec_table_list()
+                    # Update SEC tab with available tables (schedule on main thread)
+                    self.root.after(0, self._update_sec_table_list)
                     
-                    self.sec_status_var.set(f"Successfully extracted {len(tables)} tables ({identified_count} financial tables)")
-                    self.status_var.set(f"Successfully extracted {form_type} tables for {ticker}")
+                    safe_update_status(self.sec_status_var, f"Successfully extracted {len(tables)} tables ({identified_count} financial tables)")
+                    safe_update_status(self.status_var, f"Successfully extracted {form_type} tables for {ticker}")
                 else:
-                    self.business_analysis_text.insert(tk.END, "\nError: Failed to save tables to Excel\n")
-                    self.sec_status_var.set("Error: Failed to save tables to Excel")
-                    self.status_var.set("Error: Failed to save tables to Excel")
+                    update_text("\nError: Failed to save tables to Excel\n")
+                    safe_update_status(self.sec_status_var, "Error: Failed to save tables to Excel")
+                    safe_update_status(self.status_var, "Error: Failed to save tables to Excel")
                     
             except Exception as e:
                 error_msg = f"Error extracting {form_type} tables: {str(e)}"
-                self.business_analysis_text.insert(tk.END, f"\n{error_msg}\n")
-                self.sec_status_var.set(error_msg)
-                self.status_var.set(error_msg)
+                safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, f"\n{error_msg}\n")
+                safe_update_status(self.sec_status_var, error_msg)
+                safe_update_status(self.status_var, error_msg)
                 logging.error(error_msg)
                 logging.error(traceback.format_exc())
         
@@ -6793,7 +6787,7 @@ Tabs:
                 self._display_sec_table(table, f"{self.sec_ticker_var.get()} - {selected_item}")
     
     def _display_sec_table(self, table, title):
-        """Display a SEC table in the treeview"""
+        """Display a SEC table in the treeview with auto-adjusted column widths"""
         # Clear existing columns and items
         for col in self.sec_table_tree['columns']:
             self.sec_table_tree.heading(col, text="")
@@ -6809,12 +6803,31 @@ Tabs:
         columns = list(table.columns)
         self.sec_table_tree['columns'] = columns
         
-        # Configure column headings
+        # Calculate optimal column widths based on content
+        # Use a font-based estimation (approx 7 pixels per character)
+        CHAR_WIDTH = 8
+        MIN_COL_WIDTH = 60
+        MAX_COL_WIDTH = 250
+        
+        # Configure column headings with auto-adjusted widths
         for col in columns:
             self.sec_table_tree.heading(col, text=str(col))
-            # Set a reasonable width based on content
-            max_width = max(len(str(col)), table[col].astype(str).str.len().max() * 10)
-            self.sec_table_tree.column(col, width=min(max_width, 300))
+            
+            # Calculate width based on header and content
+            header_width = len(str(col)) * CHAR_WIDTH + 20  # Extra padding for header
+            
+            # Get max content width (sample first 50 rows for performance)
+            try:
+                sample = table[col].head(50).astype(str)
+                max_content_len = sample.str.len().max() if len(sample) > 0 else 0
+                content_width = max_content_len * CHAR_WIDTH + 10
+            except:
+                content_width = MIN_COL_WIDTH
+            
+            # Use the larger of header or content width, bounded by min/max
+            col_width = max(MIN_COL_WIDTH, min(MAX_COL_WIDTH, max(header_width, content_width)))
+            
+            self.sec_table_tree.column(col, width=int(col_width), minwidth=MIN_COL_WIDTH)
             
         # Add data rows
         for i, row in table.iterrows():

@@ -84,6 +84,115 @@ class SECAPIWrapper:
             return self.mock_api.download_filing(filing_info)
         else:
             return sec_api_cache.download_filing(filing_info)
+    
+    def extract_tables(self, html_content):
+        """
+        Extract tables from HTML content
+        
+        Args:
+            html_content (str): HTML content of the filing
+            
+        Returns:
+            list: List of pandas DataFrames containing tables
+        """
+        import pandas as pd
+        
+        print("Extracting tables from HTML content...", flush=True)
+        try:
+            print(f"HTML content size: {len(html_content)} bytes", flush=True)
+            tables = pd.read_html(html_content)
+            print(f"Found {len(tables)} tables", flush=True)
+            return tables
+        except Exception as e:
+            print(f"Error extracting tables: {e}")
+            return []
+    
+    def identify_financial_tables(self, tables):
+        """
+        Identify financial tables (balance sheet, income statement, cash flow)
+        
+        Args:
+            tables (list): List of pandas DataFrames
+            
+        Returns:
+            dict: Dictionary with identified financial tables
+        """
+        print("Identifying financial tables...")
+        financial_tables = {
+            "balance_sheet": None,
+            "income_statement": None,
+            "cash_flow": None
+        }
+        
+        # Keywords to identify each type of financial statement
+        bs_keywords = ["balance sheet", "assets", "liabilities", "stockholders equity", "shareholders equity"]
+        is_keywords = ["income statement", "statement of operations", "revenues", "net income", "earnings per share"]
+        cf_keywords = ["cash flow", "statement of cash flows", "operating activities", "investing activities", "financing activities"]
+        
+        # Check each table
+        for i, table in enumerate(tables):
+            # Convert table to string for keyword search
+            table_str = str(table).lower()
+            
+            # Check for balance sheet
+            if financial_tables["balance_sheet"] is None and any(keyword in table_str for keyword in bs_keywords):
+                financial_tables["balance_sheet"] = table
+                print(f"Found balance sheet (Table {i})")
+                
+            # Check for income statement
+            if financial_tables["income_statement"] is None and any(keyword in table_str for keyword in is_keywords):
+                financial_tables["income_statement"] = table
+                print(f"Found income statement (Table {i})")
+                
+            # Check for cash flow statement
+            if financial_tables["cash_flow"] is None and any(keyword in table_str for keyword in cf_keywords):
+                financial_tables["cash_flow"] = table
+                print(f"Found cash flow statement (Table {i})")
+        
+        return financial_tables
+    
+    def save_tables_to_excel(self, financial_tables, all_tables, ticker, output_dir="."):
+        """
+        Save tables to Excel files
+        
+        Args:
+            financial_tables (dict): Dictionary with identified financial tables
+            all_tables (list): List of all tables
+            ticker (str): Company ticker
+            output_dir (str): Output directory
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        import pandas as pd
+        import os
+        
+        try:
+            # Create output directory if it doesn't exist
+            os.makedirs(output_dir, exist_ok=True)
+            
+            # Save financial tables
+            if any(table is not None for table in financial_tables.values()):
+                financial_file = os.path.join(output_dir, f"{ticker}_Financial_Statements.xlsx")
+                with pd.ExcelWriter(financial_file) as writer:
+                    for name, table in financial_tables.items():
+                        if table is not None:
+                            sheet_name = name.replace("_", " ").title()
+                            table.to_excel(writer, sheet_name=sheet_name)
+                print(f"Saved financial statements to {financial_file}")
+            
+            # Save all tables
+            all_tables_file = os.path.join(output_dir, f"{ticker}_All_Tables.xlsx")
+            with pd.ExcelWriter(all_tables_file) as writer:
+                for i, table in enumerate(all_tables[:30]):  # Limit to 30 tables
+                    table.to_excel(writer, sheet_name=f"Table_{i}")
+            print(f"Saved all tables to {all_tables_file}")
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error saving tables: {e}")
+            return False
 
 # Create a global instance with default settings
 # This can be imported and used directly by other modules

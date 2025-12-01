@@ -154,9 +154,20 @@ class GeminiRateLimiter:
     _instance = None
     _lock = Lock()
     _last_call_time = 0
-    MIN_INTERVAL = 5.0  # Minimum seconds between API calls
-    MAX_RETRIES = 3     # Maximum number of retries for rate limit errors
-    BASE_DELAY = 5.0    # Base delay in seconds for exponential backoff
+    MIN_INTERVAL = 10.0  # Increased: Minimum seconds between API calls for free tier
+    MAX_RETRIES = 5      # Increased: Maximum number of retries for rate limit errors
+    BASE_DELAY = 10.0    # Increased: Base delay in seconds for exponential backoff
+    
+    # Patterns that indicate rate limiting or quota exceeded
+    RATE_LIMIT_PATTERNS = [
+        "RATE_LIMIT_EXCEEDED",
+        "429",
+        "quota",
+        "exceeded your current quota",
+        "rate limit",
+        "too many requests",
+        "Resource has been exhausted",
+    ]
     
     def __new__(cls):
         if cls._instance is None:
@@ -164,6 +175,26 @@ class GeminiRateLimiter:
                 if cls._instance is None:
                     cls._instance = super(GeminiRateLimiter, cls).__new__(cls)
         return cls._instance
+    
+    def _is_rate_limit_error(self, error_msg: str) -> bool:
+        """Check if an error message indicates a rate limit issue"""
+        error_lower = error_msg.lower()
+        return any(pattern.lower() in error_lower for pattern in self.RATE_LIMIT_PATTERNS)
+    
+    def _extract_retry_delay(self, error_msg: str) -> float:
+        """Extract retry delay from error message if present"""
+        import re
+        # Look for patterns like "retry in 33.344336875s" or "retry_delay { seconds: 33 }"
+        patterns = [
+            r'retry in (\d+\.?\d*)s',
+            r'retry_delay\s*\{\s*seconds:\s*(\d+)',
+            r'Please retry in (\d+\.?\d*)',
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, error_msg, re.IGNORECASE)
+            if match:
+                return float(match.group(1))
+        return None
     
     def wait_for_rate_limit(self):
         with self._lock:
@@ -204,15 +235,27 @@ class GeminiRateLimiter:
                 
             except Exception as e:
                 last_exception = e
-                if "RATE_LIMIT_EXCEEDED" in str(e) and attempt < self.MAX_RETRIES:
-                    # Calculate exponential backoff with jitter
-                    delay = self.BASE_DELAY * (2 ** attempt) * (0.5 + random.random())
-                    logging.warning(f"Rate limit exceeded (attempt {attempt + 1}/{self.MAX_RETRIES}). "
-                                 f"Retrying in {delay:.2f} seconds...")
+                error_msg = str(e)
+                
+                if self._is_rate_limit_error(error_msg) and attempt < self.MAX_RETRIES:
+                    # Try to extract retry delay from error message
+                    suggested_delay = self._extract_retry_delay(error_msg)
+                    
+                    if suggested_delay:
+                        # Use the suggested delay plus a small buffer
+                        delay = suggested_delay + 5.0
+                        logging.warning(f"Rate limit/quota exceeded (attempt {attempt + 1}/{self.MAX_RETRIES}). "
+                                     f"API suggested {suggested_delay:.1f}s, waiting {delay:.1f}s...")
+                    else:
+                        # Calculate exponential backoff with jitter
+                        delay = self.BASE_DELAY * (2 ** attempt) * (0.5 + random.random())
+                        logging.warning(f"Rate limit/quota exceeded (attempt {attempt + 1}/{self.MAX_RETRIES}). "
+                                     f"Retrying in {delay:.2f} seconds...")
+                    
                     time.sleep(delay)
                     continue
                 elif attempt >= self.MAX_RETRIES:
-                    logging.error(f"Max retries ({self.MAX_RETRIES}) exceeded. Last error: {str(e)}")
+                    logging.error(f"Max retries ({self.MAX_RETRIES}) exceeded. Last error: {error_msg}")
                 else:
                     # For non-rate-limit errors, re-raise immediately
                     raise
@@ -304,11 +347,10 @@ def analyze_ticker(ticker, company_info):
     """
 
     try:
-        # Apply rate limiting
-        rate_limiter.wait_for_rate_limit()
-        
-        # Make the API call
-        response = model.generate_content(prompt)
+        # Use make_api_call_with_retry to handle 429 quota errors automatically
+        response = rate_limiter.make_api_call_with_retry(
+            model.generate_content, prompt
+        )
         return response.text
     except Exception as e:
         return _format_gemini_error(e)
@@ -840,113 +882,57 @@ def _download_sec_filing(ticker, filing_type):
 def analyze_10k_report(ticker):
     """
     Finds the latest 10-K report from the web, analyzes it using Google Gemini API.
+    
+    Uses edgartools to extract only the key sections (Business, Risk Factors, MD&A)
+    to stay within Gemini's token limits.
     """
     print(f"Starting 10-K analysis for {ticker}...")
     
-    # Try the new downloader method first
-    success, file_path, report_text, filing_url = _download_sec_filing(ticker, "10-K")
-    
-    if not success or not report_text:
-        # If the new method fails, try the original method
-        filing_url = _get_filing_url(ticker, "10-K")
-        if not filing_url:
-            return f"无法为 {ticker} 的10-K报告找到有效的SEC URL。"
-
-        print(f"Found URL: {filing_url}. Fetching content...")
-        report_text = _get_text_from_url(filing_url)
-        if not report_text:
-            return f"无法从URL获取或解析内容: {filing_url}"
-    
-    print(f"Successfully retrieved 10-K report for {ticker}")
-    if file_path:
-        print(f"Local file path: {file_path}")
-    if filing_url:
-        print(f"Filing URL: {filing_url}")
-
-    # 用BeautifulSoup解析HTML
-    soup = BeautifulSoup(report_text, 'html.parser')
-
-    # 提取页面中的全部文本（去掉标签、脚本）
-    # full_text = soup.get_text(separator='\n', strip=True)
-    
-    # Save HTML content to a file
-    html_path = f"{ticker}_10K.html"
+    # Try using the new sec_filing_parser with edgartools first (much better extraction)
     try:
-        with open(html_path, 'w', encoding='utf-8') as f:
-            f.write(report_text)
-        print(f"HTML content saved to {html_path}")
+        import sec_filing_parser
+        print("Using edgartools to extract key 10-K sections...")
+        
+        success, error, text = sec_filing_parser.get_filing_for_analysis(ticker, "10-K")
+        
+        if success:
+            print(f"Successfully extracted key sections: {len(text):,} characters")
+            print(f"(Reduced from ~8-10M chars to {len(text):,} chars)")
+            filing_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={ticker}&type=10-K"
+        else:
+            print(f"edgartools extraction failed: {error}")
+            print("Falling back to legacy method...")
+            raise Exception(error)
+            
     except Exception as e:
-        print(f"Could not save HTML content: {e}")
-        print("Continuing with text analysis...")
-    
-    # Filter content to focus on relevant sections for the analysis
-    print("Filtering content for relevant sections...")
-    
-    # Define keywords for each section we're interested in
-    relevant_sections = {
-        'summary': ['summary', 'overview', 'highlights', '概述', '摘要'],
-        'highlights': ['highlights', 'achievements', 'growth', 'increase', 'positive', '亮点', '增长'],
-        'lowlights': ['challenges', 'risks', 'decrease', 'negative', 'decline', '风险', '挑战', '下降'],
-        'financial': ['financial', 'revenue', 'income', 'earnings', 'profit', 'loss', 'balance', 'cash flow', '财务', '收入', '利润'],
-        'management': ['management discussion', 'MD&A', 'outlook', 'guidance', 'future', '管理层', '展望']
-    }
-    
-    
-    # Extract relevant sections
-    relevant_sections_text = {}
-    for section, keywords in relevant_sections.items():
-        relevant_sections_text[section] = []
-        for keyword in keywords:
-            for match in soup.find_all(text=lambda t: t and keyword.lower() in t.lower()):
-                if match.parent.name not in ['style', 'script', '[document]']:
-                    relevant_sections_text[section].append(match.parent.get_text(separator='\n', strip=True))
-    
-    # Combine the relevant sections
-    relevant_text = []
-    for section_content in relevant_sections_text.values():
-        relevant_text.extend(section_content)
-    
-    # Remove duplicates
-    relevant_text = list(set(relevant_text))
-    
-    # Remove empty strings
-    relevant_text = [text for text in relevant_text if text.strip()]
-    
-    # If we didn't find enough relevant content, include some key sections by position
-    if len(relevant_text) < 20:
-        # Split the full text into paragraphs
-        paragraphs = report_text.split('\n\n')
+        print(f"edgartools not available or failed: {e}")
+        print("Using legacy extraction method...")
         
-        # Include beginning (often contains business overview)
-        if len(paragraphs) > 5:
-            relevant_text.extend(paragraphs[:5])
+        # Fall back to the old method
+        success, file_path, report_text, filing_url = _download_sec_filing(ticker, "10-K")
         
-        # Include some middle parts (often risk factors)
-        if len(paragraphs) > 10:
-            middle_start = len(paragraphs) // 3
-            relevant_text.extend(paragraphs[middle_start:middle_start+5])
-        
-        # Include some end parts (often outlook)
-        if len(paragraphs) > 5:
-            relevant_text.extend(paragraphs[-5:])
-    
-    # Combine the relevant text
-    text = '\n\n'.join(relevant_text)
-    
-    # Save the filtered text
-    try:
-        with open(f"{ticker}_10K_filtered.txt", 'w', encoding='utf-8') as f:
-            f.write(text)
-        print(f"Filtered text saved to {ticker}_10K_filtered.txt")
-    except Exception as e:
-        print(f"Could not save filtered text: {e}")
-    
-    # Print a sample of the filtered text
-    print("Sample of filtered text:")
-    print(text[:500] + "...")
-    print(f"Total filtered text length: {len(text)} characters")
+        if not success or not report_text:
+            filing_url = _get_filing_url(ticker, "10-K")
+            if not filing_url:
+                return f"无法为 {ticker} 的10-K报告找到有效的SEC URL。"
 
-    # report_text = report_text[:200000]
+            print(f"Found URL: {filing_url}. Fetching content...")
+            report_text = _get_text_from_url(filing_url)
+            if not report_text:
+                return f"无法从URL获取或解析内容: {filing_url}"
+        
+        # Legacy filtering - truncate to reasonable size
+        soup = BeautifulSoup(report_text, 'html.parser')
+        text = soup.get_text(separator='\n', strip=True)
+        
+        # Truncate to 200K chars max to avoid quota issues
+        MAX_CHARS = 200000
+        if len(text) > MAX_CHARS:
+            print(f"Truncating from {len(text):,} to {MAX_CHARS:,} characters")
+            text = text[:MAX_CHARS] + "\n\n[... Content truncated for length ...]"
+        
+        print(f"Total text length: {len(text):,} characters")
+    
     print("Content fetched. Analyzing with Gemini...")
 
     load_dotenv()
@@ -983,184 +969,72 @@ def analyze_10k_report(ticker):
     """
 
     try:
-        # Initialize rate limiter
+        # Initialize rate limiter and use retry logic for quota errors
         rate_limiter = GeminiRateLimiter()
         
-        # Apply rate limiting
-        rate_limiter.wait_for_rate_limit()
-        
-        # Make the API call
-        response = model.generate_content(prompt)
+        # Use make_api_call_with_retry to handle 429 quota errors automatically
+        response = rate_limiter.make_api_call_with_retry(
+            model.generate_content, prompt
+        )
         return response.text
     except Exception as e:
+        error_msg = str(e)
+        if "429" in error_msg or "quota" in error_msg.lower():
+            return f"Gemini API quota exceeded. Please wait a few minutes and try again.\n\nDetails: {e}"
         return f"在最终分析过程中发生错误: {e}"
 
 def analyze_10q_report(ticker):
     """
     Finds the latest 10-Q report from the web, analyzes it using Google Gemini API.
+    
+    Uses edgartools to extract only the key sections (MD&A, Risk Factors)
+    to stay within Gemini's token limits.
     """
     print(f"Starting 10-Q analysis for {ticker}...")
     
-    # Try the new downloader method first
-    success, file_path, report_text, filing_url = _download_sec_filing(ticker, "10-Q")
-    
-    if not success or not report_text:
-        # If the new method fails, try the original method
-        filing_url = _get_filing_url(ticker, "10-Q")
-        if not filing_url:
-            return f"无法为 {ticker} 的10-Q报告找到有效的SEC URL。"
-
-        print(f"Found URL: {filing_url}. Fetching content...")
-        report_text = _get_text_from_url(filing_url)
-        if not report_text:
-            return f"无法从URL获取或解析内容: {filing_url}"
-    
-    print(f"Successfully retrieved 10-Q report for {ticker}")
-    if file_path:
-        print(f"Local file path: {file_path}")
-    if filing_url:
-        print(f"Filing URL: {filing_url}")
-        
-    # 用BeautifulSoup解析HTML
-    soup = BeautifulSoup(report_text, 'html.parser')
-
-    # 提取页面中的全部文本（去掉标签、脚本）
-    # full_text = soup.get_text(separator='\n', strip=True)
-    
-    # Save HTML content to a file
-    html_path = f"{ticker}_10Q.html"
+    # Try using the new sec_filing_parser with edgartools first (much better extraction)
     try:
-        with open(html_path, 'w', encoding='utf-8') as f:
-            f.write(report_text)
-        print(f"HTML content saved to {html_path}")
-    except Exception as e:
-        print(f"Could not save HTML content: {e}")
-        print("Continuing with text analysis...")
-    
-    # Filter content to focus on relevant sections for the analysis
-    print("Filtering content for relevant sections...")
-    
-    # Define keywords for each section we're interested in
-    relevant_sections = {
-        'summary': ['summary', 'overview', 'highlights', '概述', '摘要'],
-        'highlights': ['highlights', 'achievements', 'growth', 'increase', 'positive', '亮点', '增长'],
-        'lowlights': ['challenges', 'risks', 'decrease', 'negative', 'decline', '风险', '挑战', '下降'],
-        'financial': ['financial', 'revenue', 'income', 'earnings', 'profit', 'loss', 'balance', 'cash flow', '财务', '收入', '利润'],
-        'management': ['management discussion', 'MD&A', 'outlook', 'guidance', 'future', '管理层', '展望']
-    }
-    
-    
-    # Extract relevant sections
-    relevant_sections_text = {}
-    for section, keywords in relevant_sections.items():
-        relevant_sections_text[section] = []
-        for keyword in keywords:
-            for match in soup.find_all(text=lambda t: t and keyword.lower() in t.lower()):
-                if match.parent.name not in ['style', 'script', '[document]']:
-                    relevant_sections_text[section].append(match.parent.get_text(separator='\n', strip=True))
-    
-    # Combine the relevant sections
-    relevant_text = []
-    for section_content in relevant_sections_text.values():
-        relevant_text.extend(section_content)
-    
-    # Remove duplicates
-    relevant_text = list(set(relevant_text))
-    
-    # Remove empty strings
-    relevant_text = [text for text in relevant_text if text.strip()]
-
-    # If we didn't find enough relevant content, include some key sections by position
-    if len(relevant_text) < 20:
-        # Split the full text into paragraphs
-        paragraphs = report_text.split('\n\n')
+        import sec_filing_parser
+        print("Using edgartools to extract key 10-Q sections...")
         
-        # Include beginning (often contains summary)
-        if len(paragraphs) > 5:
-            relevant_text.extend(paragraphs[:5])
+        success, error, text = sec_filing_parser.get_filing_for_analysis(ticker, "10-Q")
         
-        # Include some middle parts (often financial data)
-        if len(paragraphs) > 10:
-            middle_start = len(paragraphs) // 3
-            relevant_text.extend(paragraphs[middle_start:middle_start+5])
-        
-        # Include some end parts (often outlook)
-        if len(paragraphs) > 5:
-            relevant_text.extend(paragraphs[-5:])
-    
-    # Combine the relevant text
-    text = '\n\n'.join(relevant_text)
-    
-    # Save the filtered text
-    try:
-        with open(f"{ticker}_10Q_filtered.txt", 'w', encoding='utf-8') as f:
-            f.write(text)
-        print(f"Filtered text saved to {ticker}_10Q_filtered.txt")
-    except Exception as e:
-        print(f"Could not save filtered text: {e}")
-    
-    # Print a sample of the filtered text
-    print("Sample of filtered text:")
-    print(text[:500] + "...")
-    print(f"Total filtered text length: {len(text)} characters")
-
-
-    # Try to extract tables from HTML content
-    try:
-        import pandas as pd
-        from io import StringIO
-        import lxml
-        
-        # Check if the content is HTML before processing
-        if '<html' in report_text.lower() or '<table' in report_text.lower():
-            # Use StringIO to handle the HTML content safely
-            html_io = StringIO(report_text)
-            
-            # Use more robust error handling with specific parser
-            try:
-                tables = pd.read_html(html_io, flavor='bs4')
-                print(f"Found {len(tables)} tables in the document using bs4 parser")
-            except Exception as bs4_error:
-                print(f"BS4 parser failed: {bs4_error}, trying lxml parser...")
-                try:
-                    # Reset StringIO position
-                    html_io = StringIO(report_text)
-                    tables = pd.read_html(html_io, flavor='lxml')
-                    print(f"Found {len(tables)} tables in the document using lxml parser")
-                except Exception as lxml_error:
-                    print(f"LXML parser failed: {lxml_error}")
-                    # Create an empty list to avoid errors later
-                    tables = []
-            
-            # Process tables if any were found
-            if tables and len(tables) > 0:
-                # Print sample of tables
-                for i, table in enumerate(tables[:3]):  # Limit to first 3 tables
-                    if not table.empty:
-                        print(f"Table {i}:")
-                        print(table.head())  # Only print the first few rows
-                        print()
-                
-                # Save the first non-empty table if available
-                for table in tables:
-                    if not table.empty and table.shape[0] > 1 and table.shape[1] > 1:
-                        try:
-                            table.to_csv(f"{ticker}_10Q_table.csv", index=False)
-                            print(f"Table saved to {ticker}_10Q_table.csv")
-                            break
-                        except Exception as save_error:
-                            print(f"Error saving table: {save_error}")
-            else:
-                print("No valid tables found in the document")
+        if success:
+            print(f"Successfully extracted key sections: {len(text):,} characters")
+            filing_url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={ticker}&type=10-Q"
         else:
-            print("Content does not appear to be HTML or contain tables")
-    except ImportError as e:
-        print(f"Required library not installed: {e}")
-        print("Continuing with text analysis...")
+            print(f"edgartools extraction failed: {error}")
+            print("Falling back to legacy method...")
+            raise Exception(error)
+            
     except Exception as e:
-        print(f"Error extracting tables: {e}")
-        print("Continuing with text analysis...")
-        # Tables extraction is optional, so continue with the analysis
+        print(f"edgartools not available or failed: {e}")
+        print("Using legacy extraction method...")
+        
+        # Fall back to the old method
+        success, file_path, report_text, filing_url = _download_sec_filing(ticker, "10-Q")
+        
+        if not success or not report_text:
+            filing_url = _get_filing_url(ticker, "10-Q")
+            if not filing_url:
+                return f"无法为 {ticker} 的10-Q报告找到有效的SEC URL。"
+
+            print(f"Found URL: {filing_url}. Fetching content...")
+            report_text = _get_text_from_url(filing_url)
+            if not report_text:
+                return f"无法从URL获取或解析内容: {filing_url}"
+        
+        # Legacy filtering - truncate to reasonable size
+        soup = BeautifulSoup(report_text, 'html.parser')
+        text = soup.get_text(separator='\n', strip=True)
+        
+        # Truncate to 200K chars max to avoid quota issues
+        MAX_CHARS = 200000
+        if len(text) > MAX_CHARS:
+            print(f"Truncating from {len(text):,} to {MAX_CHARS:,} characters")
+            text = text[:MAX_CHARS] + "\n\n[... Content truncated for length ...]"
+        
+        print(f"Total text length: {len(text):,} characters")
 
     load_dotenv()
     api_key = os.getenv("GEMINI_API_KEY")
@@ -1195,16 +1069,18 @@ def analyze_10q_report(ticker):
     """
 
     try:
-        # Initialize rate limiter
+        # Initialize rate limiter and use retry logic for quota errors
         rate_limiter = GeminiRateLimiter()
         
-        # Apply rate limiting
-        rate_limiter.wait_for_rate_limit()
-        
-        # Make the API call
-        response = model.generate_content(prompt)
+        # Use make_api_call_with_retry to handle 429 quota errors automatically
+        response = rate_limiter.make_api_call_with_retry(
+            model.generate_content, prompt
+        )
         return response.text
     except Exception as e:
+        error_msg = str(e)
+        if "429" in error_msg or "quota" in error_msg.lower():
+            return f"Gemini API quota exceeded. Please wait a few minutes and try again.\n\nDetails: {e}"
         return f"在最终分析过程中发生错误: {e}"
 
 def analyze_news(news_articles):
@@ -1245,11 +1121,10 @@ def analyze_news(news_articles):
             # Initialize rate limiter
             rate_limiter = GeminiRateLimiter()
             
-            # Apply rate limiting
-            rate_limiter.wait_for_rate_limit()
-            
-            # Make the API call
-            response = model.generate_content(prompt)
+            # Use make_api_call_with_retry to handle 429 quota errors automatically
+            response = rate_limiter.make_api_call_with_retry(
+                model.generate_content, prompt
+            )
             # Clean the response to make it valid JSON
             cleaned_response = response.text.strip().replace("```json", "").replace("```", "")
             result = json.loads(cleaned_response)
