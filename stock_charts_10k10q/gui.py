@@ -520,46 +520,14 @@ class StockDataGUI:
         )
         shortcuts_label.pack(side=tk.RIGHT, padx=Spacing.SM)
         
-        # Create a vertical paned window so the action bar can be resized
-        self.layout_paned = ttk.PanedWindow(self.root, orient=tk.VERTICAL)
-        self.layout_paned.pack(fill=tk.BOTH, expand=True)
-
-        # Create main frame for the core content (top pane)
-        main_frame = ttk.Frame(self.layout_paned, padding="10")
-        self.layout_paned.add(main_frame, weight=1)
-
-        # Create bottom frame for actions (bottom pane) but populate later
-        bottom_frame = ttk.Frame(self.layout_paned, padding=(10, 2))
-        self.layout_paned.add(bottom_frame, weight=0)
-        try:
-            self.layout_paned.paneconfig(bottom_frame, minsize=55)
-        except Exception:
-            pass
+        # Create bottom frame for actions (pack BEFORE main content so it's at bottom)
+        bottom_frame = ttk.Frame(self.root, padding=(10, 2))
+        bottom_frame.pack(side=tk.BOTTOM, fill=tk.X)
         self.bottom_frame = bottom_frame
-        self._bottom_sash_initialized = False
 
-        def _init_bottom_sash(event=None):
-            if self._bottom_sash_initialized:
-                return
-            paned = getattr(self, 'layout_paned', None)
-            if not paned:
-                return
-            bottom = getattr(self, 'bottom_frame', None)
-            if not bottom:
-                return
-            paned.update_idletasks()
-            height = paned.winfo_height()
-            bottom_height = bottom.winfo_reqheight()
-            if height <= 0:
-                return
-            try:
-                desired = max(height - bottom_height - 4, 0)
-                paned.sashpos(0, desired)
-                self._bottom_sash_initialized = True
-            except Exception:
-                pass
-
-        self.layout_paned.bind("<Configure>", _init_bottom_sash)
+        # Create main frame for the core content (fills remaining space)
+        main_frame = ttk.Frame(self.root, padding="10")
+        main_frame.pack(fill=tk.BOTH, expand=True)
 
         # =====================================================================
         # TOP TOOLBAR - Organized into logical groups per workflow phases
@@ -1695,8 +1663,6 @@ class StockDataGUI:
         force_dl_check.pack(side=tk.RIGHT, padx=Spacing.SM)
         self._attach_tooltip(force_dl_check, text="Force re-download even if cached", tooltip_id="option.force_dl")
 
-        # Sash initialization is handled via the <Configure> binding above so
-        # the action bar stays compact by default while remaining resizable.
 
     def _toggle_ba_options(self):
         """Toggle visibility of Business Analysis options panel."""
@@ -1832,51 +1798,8 @@ Tabs:
             logging.debug(f"Error hiding progress: {e}")
 
     def _ensure_bottom_frame_layout(self):
-        """Keep the bottom action bar attached to the vertical paned window."""
-        paned = getattr(self, "layout_paned", None)
-        bottom = getattr(self, "bottom_frame", None)
-        if not paned or not bottom:
-            return
-        if not paned.winfo_exists() or not bottom.winfo_exists():
-            return
-
-        parent_widget = None
-        try:
-            parent_name = bottom.winfo_parent()
-            if parent_name:
-                parent_widget = self.root.nametowidget(parent_name)
-        except Exception:
-            parent_widget = None
-
-        if parent_widget is not paned:
-            # Detach from whatever geometry manager was applied and re-add to the paned window
-            try:
-                bottom.pack_forget()
-            except Exception:
-                pass
-            try:
-                paned.add(bottom, weight=0)
-            except Exception:
-                try:
-                    paned.forget(bottom)
-                except Exception:
-                    pass
-                paned.add(bottom, weight=0)
-
-        try:
-            paned.paneconfig(bottom, minsize=55)
-        except Exception:
-            pass
-
-        try:
-            paned.update_idletasks()
-            total_height = paned.winfo_height()
-            bottom_height = bottom.winfo_reqheight() or 0
-            if total_height > 0:
-                desired = max(total_height - bottom_height - 4, 0)
-                paned.sashpos(0, desired)
-        except Exception as exc:
-            logging.debug("Bottom sash adjustment skipped: %s", exc)
+        """Ensure bottom action bar is properly laid out (no-op with simple pack layout)."""
+        pass
 
     def _on_list_selected(self, event):
         """Handle ticker list selection and auto-load the selected list"""
