@@ -932,72 +932,65 @@ class StockDataGUI:
         self.paned_window.add(right_pane_frame, weight=20)
         self.right_pane_frame = right_pane_frame
 
-        self.chart_frame = ttk.LabelFrame(right_pane_frame, text="📈 Chart Display", padding="5")
+        self.chart_frame = ttk.Frame(right_pane_frame)
         self.chart_frame.pack(fill=tk.BOTH, expand=True)
 
         # =================================================================
-        # TIMEFRAME CONTROL BAR - Cohesive date range controls
+        # CONSOLIDATED CHART HEADER - Single row with title and timeframe
         # =================================================================
-        timeframe_frame = ttk.LabelFrame(self.chart_frame, text="📅 Timeframe", padding=Spacing.SM)
-        timeframe_frame.pack(fill=tk.X, expand=False, pady=(0, Spacing.SM))
-
-        # Date range row
-        date_row = ttk.Frame(timeframe_frame)
-        date_row.pack(fill=tk.X, pady=(0, Spacing.XS))
-
-        # Start date
-        ttk.Label(date_row, text="From:", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
+        chart_header = ttk.Frame(self.chart_frame)
+        chart_header.pack(fill=tk.X, pady=(0, Spacing.XS))
+        
+        # Chart title on left
+        ttk.Label(chart_header, text="📈 Chart Display", font=Fonts.h3(), foreground=Colors.PRIMARY).pack(side=tk.LEFT, padx=(Spacing.XS, Spacing.MD))
+        
+        # Timeframe controls inline
+        ttk.Label(chart_header, text="From:", font=Fonts.small()).pack(side=tk.LEFT, padx=(0, 2))
         self.start_date_var = tk.StringVar()
         self.start_date_entry = DateEntry(
-            date_row, 
+            chart_header, 
             textvariable=self.start_date_var, 
-            width=12,
+            width=10,
             date_pattern='yyyy-mm-dd', 
             background=Colors.PRIMARY,
             foreground=Colors.TEXT_INVERSE,
             borderwidth=1,
             locale='en_US'
         )
-        self.start_date_entry.pack(side=tk.LEFT, padx=(0, Spacing.MD))
+        self.start_date_entry.pack(side=tk.LEFT, padx=(0, Spacing.XS))
         self._attach_tooltip(self.start_date_entry, text="Pick the earliest date for charts.", tooltip_id="charts.start_entry")
 
-        # End date
-        ttk.Label(date_row, text="To:", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
+        ttk.Label(chart_header, text="To:", font=Fonts.small()).pack(side=tk.LEFT, padx=(0, 2))
         self.end_date_var = tk.StringVar()
         self.end_date_entry = DateEntry(
-            date_row, 
+            chart_header, 
             textvariable=self.end_date_var, 
-            width=12,
+            width=10,
             date_pattern='yyyy-mm-dd', 
             background=Colors.PRIMARY,
             foreground=Colors.TEXT_INVERSE,
             borderwidth=1,
             locale='en_US'
         )
-        self.end_date_entry.pack(side=tk.LEFT, padx=(0, Spacing.MD))
+        self.end_date_entry.pack(side=tk.LEFT, padx=(0, Spacing.XS))
         self._attach_tooltip(self.end_date_entry, text="Choose the final date for charts.", tooltip_id="charts.end_entry")
 
-        # Apply and Reset buttons
-        apply_btn = ttk.Button(date_row, text="✓ Apply", command=self._apply_date_range, width=8)
-        apply_btn.pack(side=tk.LEFT, padx=(0, Spacing.XS))
-        self._attach_tooltip(apply_btn, text="Apply the date range to charts.", tooltip_id="charts.apply_range")
-
-        reset_btn = ttk.Button(date_row, text="↺ Reset", command=self._reset_date_range, width=8)
-        reset_btn.pack(side=tk.LEFT, padx=(0, Spacing.MD))
-        self._attach_tooltip(reset_btn, text="Reset to show full data history.", tooltip_id="charts.reset_range")
+        # Apply and Reset buttons (compact)
+        ttk.Button(chart_header, text="✓", command=self._apply_date_range, width=3).pack(side=tk.LEFT, padx=1)
+        ttk.Button(chart_header, text="↺", command=self._reset_date_range, width=3).pack(side=tk.LEFT, padx=(1, Spacing.XS))
 
         # Separator
-        ttk.Separator(date_row, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=Spacing.SM)
+        ttk.Separator(chart_header, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=Spacing.XS)
 
-        # Quick range buttons
-        ttk.Label(date_row, text="Quick:", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
+        # Quick range buttons (compact)
+        ttk.Label(chart_header, text="Quick:", font=Fonts.small()).pack(side=tk.LEFT, padx=(0, 2))
         
         for label, days in [("6M", 182), ("1Y", 365), ("3Y", 365*3), ("5Y", 365*5), ("All", None)]:
             if days is None:
-                btn = ttk.Button(date_row, text=label, width=4, command=self._reset_date_range)
+                btn = ttk.Button(chart_header, text=label, width=3, command=self._reset_date_range)
             else:
-                btn = ttk.Button(date_row, text=label, width=4, command=lambda d=days: self._set_quick_range(days=d))
-            btn.pack(side=tk.LEFT, padx=(0, 2))
+                btn = ttk.Button(chart_header, text=label, width=3, command=lambda d=days: self._set_quick_range(days=d))
+            btn.pack(side=tk.LEFT, padx=1)
             self._attach_tooltip(btn, text=f"Show {label} of data" if days else "Show all available data", tooltip_id=f"charts.quick_{label.lower()}")
 
         # =================================================================
