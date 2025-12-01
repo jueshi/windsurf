@@ -482,6 +482,44 @@ class StockDataGUI:
     
     def _create_widgets(self):
         """Create all GUI widgets"""
+        # =================================================================
+        # STATUS BAR - At very bottom of window (pack first with side=BOTTOM)
+        # =================================================================
+        status_frame = ttk.Frame(self.root)
+        status_frame.pack(side=tk.BOTTOM, fill=tk.X)
+        
+        # Progress bar (hidden by default)
+        self.progress_var = tk.DoubleVar(value=0)
+        self.progress_bar = ttk.Progressbar(
+            status_frame, 
+            variable=self.progress_var,
+            mode='indeterminate',
+            length=100
+        )
+        # Don't pack yet - will be shown/hidden as needed
+        
+        # Status icon and message
+        self.status_var = tk.StringVar(value="Ready")
+        status_bar_label = ttk.Label(
+            status_frame, 
+            textvariable=self.status_var, 
+            relief=tk.FLAT,
+            anchor=tk.W, 
+            padding=(Spacing.SM, Spacing.XS),
+            font=Fonts.small(),
+            foreground=Colors.TEXT_SECONDARY
+        )
+        status_bar_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        # Keyboard shortcuts hint
+        shortcuts_label = ttk.Label(
+            status_frame,
+            text="Ctrl+D:Download | Ctrl+B:BA | Ctrl+W:Watch | F5:Refresh",
+            font=Fonts.small(),
+            foreground=Colors.TEXT_MUTED
+        )
+        shortcuts_label.pack(side=tk.RIGHT, padx=Spacing.SM)
+        
         # Create a vertical paned window so the action bar can be resized
         self.layout_paned = ttk.PanedWindow(self.root, orient=tk.VERTICAL)
         self.layout_paned.pack(fill=tk.BOTH, expand=True)
@@ -1656,44 +1694,6 @@ class StockDataGUI:
         force_dl_check = ttk.Checkbutton(actions_row, text="Force DL", variable=self.force_download_var)
         force_dl_check.pack(side=tk.RIGHT, padx=Spacing.SM)
         self._attach_tooltip(force_dl_check, text="Force re-download even if cached", tooltip_id="option.force_dl")
-
-        # =================================================================
-        # STATUS BAR - With progress indicator
-        # =================================================================
-        status_frame = ttk.Frame(bottom_frame)
-        status_frame.pack(side=tk.BOTTOM, fill=tk.X)
-        
-        # Progress bar (hidden by default)
-        self.progress_var = tk.DoubleVar(value=0)
-        self.progress_bar = ttk.Progressbar(
-            status_frame, 
-            variable=self.progress_var,
-            mode='indeterminate',
-            length=100
-        )
-        # Don't pack yet - will be shown/hidden as needed
-        
-        # Status icon and message
-        self.status_var = tk.StringVar(value="Ready")
-        status_bar = ttk.Label(
-            status_frame, 
-            textvariable=self.status_var, 
-            relief=tk.FLAT,
-            anchor=tk.W, 
-            padding=(Spacing.SM, Spacing.XS),
-            font=Fonts.small(),
-            foreground=Colors.TEXT_SECONDARY
-        )
-        status_bar.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        
-        # Keyboard shortcuts hint
-        shortcuts_label = ttk.Label(
-            status_frame,
-            text="Ctrl+D:Download | Ctrl+B:BA | Ctrl+W:Watch | F5:Refresh",
-            font=Fonts.small(),
-            foreground=Colors.TEXT_MUTED
-        )
-        shortcuts_label.pack(side=tk.RIGHT, padx=Spacing.SM)
 
         # Sash initialization is handled via the <Configure> binding above so
         # the action bar stays compact by default while remaining resizable.
