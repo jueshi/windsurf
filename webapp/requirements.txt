@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+jinja2
+sqlalchemy
+pandas
+yfinance
+plotly
+requests
+beautifulsoup4
+google-generativeai
+python-multipart
+httpx
+kaleido
+python-dotenv
+tavily-python
+markdown
+lxml

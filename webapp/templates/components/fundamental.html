@@ -1,0 +1,40 @@
+<div class="row">
+    <div class="col-md-6">
+        <h5>Fundamental Data for {{ ticker }}</h5>
+        {% if data %}
+        <table class="table table-striped table-sm">
+            <thead>
+                <tr>
+                    <th>Metric</th>
+                    <th>Value</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for key, value in data.items() %}
+                <tr>
+                    <td>{{ key }}</td>
+                    <td>{{ value }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No data available.</p>
+        {% endif %}
+    </div>
+    <div class="col-md-6">
+        <h5>Business Analysis</h5>
+        <button class="btn btn-primary mb-3"
+                hx-post="/analysis/business/{{ ticker }}"
+                hx-target="#business-analysis-content"
+                hx-indicator="#analysis-spinner">Run AI Analysis</button>
+
+        <div id="analysis-spinner" class="htmx-indicator spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+
+        <div id="business-analysis-content" class="border p-3 bg-white" style="max-height: 600px; overflow-y: auto;">
+            <p class="text-muted">Click the button to generate AI analysis.</p>
+        </div>
+    </div>
+</div>
