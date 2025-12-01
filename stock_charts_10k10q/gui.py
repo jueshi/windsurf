@@ -526,7 +526,8 @@ class StockDataGUI:
         self.bottom_frame = bottom_frame
 
         # Create main frame for the core content (fills remaining space)
-        main_frame = ttk.Frame(self.root, padding="10")
+        # Padding: left, top, right, bottom - minimal bottom padding to reduce gap above action bar
+        main_frame = ttk.Frame(self.root, padding=(10, 10, 10, 2))
         main_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
         # =====================================================================
