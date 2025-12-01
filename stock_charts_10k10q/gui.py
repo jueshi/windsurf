@@ -527,7 +527,7 @@ class StockDataGUI:
 
         # Create main frame for the core content (fills remaining space)
         main_frame = ttk.Frame(self.root, padding="10")
-        main_frame.pack(fill=tk.BOTH, expand=True)
+        main_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
         # =====================================================================
         # TOP TOOLBAR - Organized into logical groups per workflow phases
