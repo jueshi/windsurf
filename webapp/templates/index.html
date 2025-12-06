@@ -5,34 +5,157 @@
     <h1 class="h2">Dashboard</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
         <div class="btn-group me-2">
-            <button type="button" class="btn btn-sm btn-outline-secondary">Share</button>
-            <button type="button" class="btn btn-sm btn-outline-secondary">Export</button>
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="openGallery()" id="gallery-btn" disabled>
+                📊 Multi-TF Gallery
+            </button>
         </div>
-        <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle">
-            <span data-feather="calendar"></span>
-            This week
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-success" onclick="loadMarketNews()">
+                📰 Market News
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-info" onclick="loadStockNews()">
+                📈 Stock News
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-warning" onclick="loadETFNews()">
+                📊 ETF News
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="loadCryptoNews()">
+                ₿ Crypto News
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="summarizeClipboard()">
+                📋 Summarize Clipboard
+            </button>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-secondary" 
+                onclick="if(currentTicker) { window.open(`https://finance.yahoo.com/quote/${currentTicker}`, '_blank'); } else { alert('Select a ticker first'); }">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-box-arrow-up-right" viewBox="0 0 16 16">
+                <path fill-rule="evenodd" d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5"/>
+                <path fill-rule="evenodd" d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0z"/>
+            </svg>
+            Yahoo Finance
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-info ms-2" onclick="toggleLanguage()" id="lang-btn" title="Toggle AI response language">
+            🌐 <span id="lang-label">EN</span>
         </button>
     </div>
 </div>
 
+<!-- Charts Toolbar -->
+<div class="d-flex align-items-center flex-wrap gap-2 mb-3 p-2 bg-light rounded border">
+    <span class="fw-bold text-muted me-2">📊 Charts:</span>
+    
+    <!-- Gallery timeframe buttons - opens gallery for all tickers in list -->
+    <div class="btn-group btn-group-sm" role="group">
+        <button type="button" class="btn btn-outline-secondary" onclick="openListGallery('D')" title="Daily charts for all tickers">D</button>
+        <button type="button" class="btn btn-outline-secondary" onclick="openListGallery('W')" title="Weekly charts for all tickers">W</button>
+        <button type="button" class="btn btn-outline-secondary" onclick="openListGallery('M')" title="Monthly charts for all tickers">M</button>
+    </div>
+    
+    <!-- Multi-TF button -->
+    <button type="button" class="btn btn-sm btn-outline-primary" onclick="openMultiTFGallery()" id="multi-tf-btn" title="Multi-Timeframe Gallery (D+W+M)">
+        Multi-TF
+    </button>
+    
+    <!-- Chart style buttons -->
+    <div class="btn-group btn-group-sm" role="group">
+        <button type="button" class="btn btn-outline-secondary" onclick="openLineGallery()" id="style-line-btn" title="Line Charts (Multi-TF)">Lines</button>
+        <button type="button" class="btn btn-outline-secondary" onclick="openSCGallery()" id="style-candle-btn" title="Candlestick Charts">SC</button>
+    </div>
+    
+    <!-- Current ticker/list display -->
+    <span class="badge bg-info text-dark" id="current-ticker-badge" style="font-size: 0.85em;">No ticker</span>
+    <span class="badge bg-secondary" id="list-ticker-count" title="Tickers in current list">0 tickers</span>
+    
+    <div class="border-start ps-2 ms-2"></div>
+    
+    <!-- URLs dropdown -->
+    <div class="dropdown">
+        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" title="Quick Links">
+            🔗 URLs
+        </button>
+        <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="#" onclick="openTickerUrl('yahoo')">Yahoo Finance</a></li>
+            <li><a class="dropdown-item" href="#" onclick="openTickerUrl('finviz')">Finviz</a></li>
+            <li><a class="dropdown-item" href="#" onclick="openTickerUrl('tradingview')">TradingView</a></li>
+            <li><a class="dropdown-item" href="#" onclick="openTickerUrl('stockcharts')">StockCharts</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="#" onclick="openTickerUrl('sec')">SEC EDGAR</a></li>
+            <li><a class="dropdown-item" href="#" onclick="openTickerUrl('earnings')">Earnings Whispers</a></li>
+        </ul>
+    </div>
+    
+    <!-- Guide dropdown -->
+    <div class="dropdown">
+        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" title="Quick Guide">
+            📖 Guide
+        </button>
+        <ul class="dropdown-menu">
+            <li><h6 class="dropdown-header">Keyboard Shortcuts</h6></li>
+            <li><a class="dropdown-item small" href="#">↑/↓ - Navigate tickers</a></li>
+            <li><a class="dropdown-item small" href="#">D/W/M - Change timeframe</a></li>
+            <li><a class="dropdown-item small" href="#">Enter - Load selected ticker</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><h6 class="dropdown-header">Chart Indicators</h6></li>
+            <li><a class="dropdown-item small" href="#">MA20/50/200 - Moving Averages</a></li>
+            <li><a class="dropdown-item small" href="#">Volume - Trading Volume</a></li>
+        </ul>
+    </div>
+    
+    <!-- Settings dropdown -->
+    <div class="dropdown">
+        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" title="Settings">
+            ⚙️ Settings
+        </button>
+        <ul class="dropdown-menu">
+            <li><h6 class="dropdown-header">Chart Settings</h6></li>
+            <li>
+                <a class="dropdown-item" href="#" onclick="toggleChartSetting('showVolume')">
+                    <input type="checkbox" id="setting-volume" checked class="me-2">Show Volume
+                </a>
+            </li>
+            <li>
+                <a class="dropdown-item" href="#" onclick="toggleChartSetting('showMA')">
+                    <input type="checkbox" id="setting-ma" checked class="me-2">Show Moving Averages
+                </a>
+            </li>
+            <li>
+                <a class="dropdown-item" href="#" onclick="toggleChartSetting('showGrid')">
+                    <input type="checkbox" id="setting-grid" checked class="me-2">Show Grid
+                </a>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li><h6 class="dropdown-header">Theme</h6></li>
+            <li>
+                <a class="dropdown-item" href="#" onclick="setChartTheme('light')">☀️ Light</a>
+            </li>
+            <li>
+                <a class="dropdown-item" href="#" onclick="setChartTheme('dark')">🌙 Dark</a>
+            </li>
+        </ul>
+    </div>
+</div>
+
 <div class="row">
-    <!-- Ticker Selection Panel -->
-    <div class="col-md-3 mb-4">
+    <!-- Ticker Selection Panel - Compact -->
+    <div class="col-md-1 mb-4" style="min-width: 140px; max-width: 160px;">
         <div class="card h-100">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span>Current List</span>
-                <span class="badge bg-secondary" id="ticker-count">0</span>
+            <div class="card-header d-flex justify-content-between align-items-center py-1 px-2">
+                <small class="text-truncate">List</small>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-secondary" id="ticker-count">0</span>
+                    <button class="btn btn-sm btn-outline-primary" type="button" title="Create portfolio from this list" onclick="openCreatePortfolioModal(suggestPortfolioName(), true)">+ Portfolio</button>
+                </div>
             </div>
             <div class="card-body p-0" style="overflow-y: auto; max-height: 500px;">
                 <div id="current-ticker-list" class="list-group list-group-flush">
-                    <div class="p-3 text-center text-muted">Select a list from the sidebar</div>
+                    <div class="p-3 text-center text-muted small">Select a list from the sidebar</div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Chart/Analysis Area -->
-    <div class="col-md-9 mb-4">
+    <!-- Chart/Analysis Area - Expanded -->
+    <div class="col mb-4">
         <div class="card h-100">
             <div class="card-header">
                 <ul class="nav nav-tabs card-header-tabs" id="mainTab" role="tablist">
@@ -49,17 +172,45 @@
                         <a class="nav-link" id="analysis-tab" data-bs-toggle="tab" href="#analysis" role="tab">Analysis (AI)</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" id="buffett-tab" data-bs-toggle="tab" href="#buffett" role="tab">Buffett/CANSLIM</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" id="news-tab" data-bs-toggle="tab" href="#news" role="tab">News</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" id="sec-tab" data-bs-toggle="tab" href="#sec" role="tab">SEC Filings</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="portfolio-tab" data-bs-toggle="tab" href="#portfolios" role="tab" onclick="loadPortfolios()">Portfolios</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="chat-tab" data-bs-toggle="tab" href="#chat" role="tab">💬 AI Chat</a>
                     </li>
                 </ul>
             </div>
             <div class="card-body">
                 <div class="tab-content" id="mainTabContent">
                     <div class="tab-pane fade show active" id="chart" role="tabpanel">
-                        <div class="d-flex justify-content-end mb-2">
+                        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                            <!-- Date Range Controls -->
+                            <div class="d-flex align-items-center gap-2">
+                                <small class="text-muted">From:</small>
+                                <input type="date" id="chart-from-date" class="form-control form-control-sm" style="width: 130px;">
+                                <small class="text-muted">To:</small>
+                                <input type="date" id="chart-to-date" class="form-control form-control-sm" style="width: 130px;">
+                                <button class="btn btn-sm btn-outline-primary" onclick="applyDateRange()" title="Apply date range">✓</button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="resetDateRange()" title="Reset to default">↺</button>
+                                <span class="border-start mx-2"></span>
+                                <small class="text-muted">Quick:</small>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="setQuickRange('6M')">6M</button>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="setQuickRange('1Y')">1Y</button>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="setQuickRange('3Y')">3Y</button>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="setQuickRange('5Y')">5Y</button>
+                                    <button type="button" class="btn btn-outline-secondary active" onclick="setQuickRange('ALL')">All</button>
+                                </div>
+                            </div>
+                            <!-- Timeframe Controls -->
                             <div class="btn-group" role="group">
                                 <button type="button" class="btn btn-outline-secondary btn-sm active" onclick="updateTimeframe('D', this)">Daily</button>
                                 <button type="button" class="btn btn-outline-secondary btn-sm" onclick="updateTimeframe('W', this)">Weekly</button>
@@ -71,13 +222,121 @@
                         </div>
                     </div>
                     <div class="tab-pane fade" id="compare" role="tabpanel">
-                        <div id="compare-container">Comparison View</div>
+                        <div id="compare-container">
+                            <div class="row mb-2">
+                                <div class="col-md-6">
+                                    <div class="input-group input-group-sm">
+                                        <input type="text" id="compare-tickers" class="form-control" 
+                                               placeholder="Enter tickers to compare (e.g., AAPL, MSFT, GOOGL)" 
+                                               value="">
+                                        <button class="btn btn-primary" onclick="compareStocks()">Compare</button>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button type="button" class="btn btn-outline-secondary active" onclick="updateCompareTimeframe('D', this)">Daily</button>
+                                        <button type="button" class="btn btn-outline-secondary" onclick="updateCompareTimeframe('W', this)">Weekly</button>
+                                        <button type="button" class="btn btn-outline-secondary" onclick="updateCompareTimeframe('M', this)">Monthly</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Date Range Controls for Compare -->
+                            <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                                <small class="text-muted">From:</small>
+                                <input type="date" id="compare-from-date" class="form-control form-control-sm" style="width: 130px;">
+                                <small class="text-muted">To:</small>
+                                <input type="date" id="compare-to-date" class="form-control form-control-sm" style="width: 130px;">
+                                <button class="btn btn-sm btn-outline-primary" onclick="applyCompareDateRange()" title="Apply date range">✓</button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="resetCompareDateRange()" title="Reset to default">↺</button>
+                                <span class="border-start mx-2"></span>
+                                <small class="text-muted">Quick:</small>
+                                <div class="btn-group btn-group-sm" id="compare-quick-range" role="group">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="setCompareQuickRange('6M', this)">6M</button>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="setCompareQuickRange('1Y', this)">1Y</button>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="setCompareQuickRange('3Y', this)">3Y</button>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="setCompareQuickRange('5Y', this)">5Y</button>
+                                    <button type="button" class="btn btn-outline-secondary active" onclick="setCompareQuickRange('ALL', this)">All</button>
+                                </div>
+                            </div>
+                            <div id="compare-chart" style="height: 500px;">
+                                <p class="text-muted text-center pt-5">Enter tickers above to compare their performance</p>
+                            </div>
+                        </div>
                     </div>
                     <div class="tab-pane fade" id="fundamental" role="tabpanel">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <strong class="text-muted">Fundamental Data</strong>
+                            <button class="btn btn-sm btn-outline-primary" id="run-fundamental-strategy-btn" onclick="runTickerStrategy('fundamental')" disabled>
+                                <span class="spinner-border spinner-border-sm d-none" id="fundamental-strategy-spinner"></span>
+                                AI Strategy
+                            </button>
+                        </div>
                         <div id="fundamental-container">Fundamental Data</div>
                     </div>
                     <div class="tab-pane fade" id="analysis" role="tabpanel">
-                        <div id="analysis-container">AI Analysis</div>
+                        <div id="analysis-container">
+                            <div class="text-center p-4">
+                                <p class="text-muted mb-3">Select a ticker, then click the button below to run AI business analysis</p>
+                                <button class="btn btn-primary" id="run-analysis-btn" onclick="runAIAnalysis()" disabled>
+                                    <span class="spinner-border spinner-border-sm d-none" id="analysis-spinner"></span>
+                                    Run AI Business Analysis
+                                </button>
+                            </div>
+                            <div id="analysis-results"></div>
+                            <div class="card mt-4">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <span>AI Strategy Playbook</span>
+                                    <small class="text-muted">Bull/Bear/Neutral paths powered by Gemini</small>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row g-3 align-items-end">
+                                        <div class="col-md-4">
+                                            <label for="strategy-scenario" class="form-label small mb-1">Market Scenario</label>
+                                            <select id="strategy-scenario" class="form-select form-select-sm">
+                                                <option value="neutral" selected>Neutral / Rangebound</option>
+                                                <option value="bullish">Bullish / Rally</option>
+                                                <option value="bearish">Bearish / Drawdown</option>
+                                                <option value="volatile">Volatile / Choppy</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label for="strategy-timeframe" class="form-label small mb-1">Timeframe</label>
+                                            <select id="strategy-timeframe" class="form-select form-select-sm">
+                                                <option value="swing" selected>Swing (days-weeks)</option>
+                                                <option value="intraday">Intraday</option>
+                                                <option value="position">Position (weeks-months)</option>
+                                                <option value="long_term">Long Term</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label for="strategy-benchmark" class="form-label small mb-1">Benchmark (optional)</label>
+                                            <input id="strategy-benchmark" class="form-control form-control-sm" placeholder="SPY">
+                                        </div>
+                                        <div class="col-md-2 text-md-end">
+                                            <button class="btn btn-outline-primary w-100" id="run-ticker-strategy-btn" onclick="runTickerStrategy('analysis')" disabled>
+                                                <span class="spinner-border spinner-border-sm d-none" id="ticker-strategy-spinner"></span>
+                                                Run Strategy
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div id="ticker-strategy-status" class="small text-muted mt-2"></div>
+                                    <div id="ticker-strategy-results" class="mt-3"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="buffett" role="tabpanel">
+                        <div id="buffett-container">
+                            <div class="text-center p-4">
+                                <p class="text-muted mb-3">Select a ticker, then click the button below to run Buffett/CANSLIM analysis</p>
+                                <button class="btn btn-primary" id="run-buffett-btn" onclick="runBuffettAnalysis()" disabled>
+                                    <span class="spinner-border spinner-border-sm d-none" id="buffett-spinner"></span>
+                                    Run Buffett/CANSLIM Analysis
+                                </button>
+                            </div>
+                            <div id="buffett-results"></div>
+                            <div id="buffett-radar" class="mt-3"></div>
+                        </div>
                     </div>
                     <div class="tab-pane fade" id="news" role="tabpanel">
                         <div id="news-container">News</div>
@@ -85,8 +344,114 @@
                     <div class="tab-pane fade" id="sec" role="tabpanel">
                         <div id="sec-container">SEC Filings</div>
                     </div>
+                    <div class="tab-pane fade" id="portfolios" role="tabpanel">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <div class="card h-100">
+                                    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                                        <div>
+                                            <span>Saved Portfolios</span>
+                                            <small class="text-muted ms-2" id="portfolio-count">0</small>
+                                        </div>
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-sm btn-outline-secondary" type="button" onclick="loadPortfolios()">↻</button>
+                                            <button class="btn btn-sm btn-primary" type="button" onclick="openCreatePortfolioModal()">New Portfolio</button>
+                                        </div>
+                                    </div>
+                                    <div class="card-body" id="portfolio-list">
+                                        <p class="text-muted mb-0">No portfolios yet. Create one to get started.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="chat" role="tabpanel">
+                        <div id="chat-container">
+                            <div class="mb-3">
+                                <p class="text-muted small mb-2">Ask anything about stocks, investing, or financial analysis. The AI will use context from your selected ticker if available.</p>
+                            </div>
+                            <!-- Chat messages area -->
+                            <div id="chat-messages" class="border rounded p-3 mb-3 bg-light" style="height: 350px; overflow-y: auto;">
+                                <div class="text-center text-muted py-4">
+                                    <p>💬 Start a conversation with the AI</p>
+                                    <p class="small">Example questions:</p>
+                                    <ul class="list-unstyled small">
+                                        <li>"What are the key metrics to evaluate a tech stock?"</li>
+                                        <li>"Explain the difference between P/E and Forward P/E"</li>
+                                        <li>"What does high debt-to-equity ratio indicate?"</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <!-- Chat input -->
+                            <div class="input-group">
+                                <input type="text" id="chat-input" class="form-control" 
+                                       placeholder="Ask the AI anything..." 
+                                       onkeydown="if(event.key === 'Enter') sendChatMessage()">
+                                <button class="btn btn-primary" onclick="sendChatMessage()" id="chat-send-btn">
+                                    <span class="spinner-border spinner-border-sm d-none" id="chat-spinner"></span>
+                                    Send
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="create-portfolio-modal" tabindex="-1" aria-labelledby="create-portfolio-modal-title" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="create-portfolio-form" onsubmit="return createPortfolio(event)">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="create-portfolio-modal-title">Create Portfolio</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="portfolio-name" class="form-label">Name</label>
+                        <input type="text" class="form-control" id="portfolio-name" maxlength="80" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="portfolio-notes" class="form-label">Notes (optional)</label>
+                        <textarea class="form-control" id="portfolio-notes" rows="3"></textarea>
+                    </div>
+                    <div class="card border-secondary-subtle">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span class="small fw-semibold">Starting Positions (optional)</span>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary" onclick="seedPositionsFromCurrentList()">Use current list</button>
+                                <button type="button" class="btn btn-outline-primary" onclick="addPendingPositionRow()">Add row</button>
+                            </div>
+                        </div>
+                        <div class="card-body p-2">
+                            <p class="small text-muted mb-2">When seeded from a ticker list, each symbol receives $10,000 target value. Adjust tickers or dollar targets before saving.</p>
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Ticker</th>
+                                            <th scope="col">Target $</th>
+                                            <th scope="col" class="text-end">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="portfolio-positions-body">
+                                        <tr>
+                                            <td colspan="3" class="text-center text-muted small">No starting positions. Use the buttons above to add.</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="portfolio-form-status" class="small text-muted"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Portfolio</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -94,12 +459,3083 @@
 <script>
     let currentTicker = null;
     let currentTimeframe = 'D';
+    let currentListId = null;
+    let selectedTickers = new Set(); // Track multi-selected tickers
+    let currentLanguage = 'en'; // Current AI response language
+    let chartFromDate = null; // Custom date range start
+    let chartToDate = null; // Custom date range end
+    let currentQuickRange = 'ALL'; // Current quick range selection
+    let compareFromDate = null; // Compare chart date range start
+    let compareToDate = null; // Compare chart date range end
+    let portfoliosCache = [];
+    let currentPortfolioId = null;
+    let currentPortfolioSyntheticSymbol = null;
+    let currentPortfolioName = '';
+    let pendingOcrPositions = [];
+    const tickerStrategyCache = new Map();
+    const portfolioStrategyCache = new Map();
+    let journalEntries = [];
+    let editingJournalEntryId = null;
+    let currentJournalFilter = 'all';
+    let equityAnalytics = null;
+    let journeyReviewHtml = '';
+    let simulationGroups = [];
+    let editingSimulationGroupId = null;
+    let currentSimulationGroupFilter = 'all';
+    let currentPortfolioSubTab = 'overview';
+    let pendingPortfolioPositions = [];
 
-    function loadTicker(symbol) {
+    function ensureSyntheticTickerEntry(symbol, label = 'Portfolio') {
+        if (!symbol) return;
+        const listEl = document.getElementById('current-ticker-list');
+        if (!listEl) return;
+
+        const container = listEl.querySelector('#ticker-items') || listEl;
+        let entry = container.querySelector(`.ticker-item[data-symbol="${symbol}"]`);
+
+        if (!entry) {
+            entry = document.createElement('div');
+            entry.className = 'd-flex align-items-center px-2 py-1 ticker-item synthetic-ticker';
+            entry.style.cursor = 'pointer';
+            entry.style.fontSize = '0.85rem';
+            entry.dataset.symbol = symbol;
+            container.prepend(entry);
+        }
+
+        entry.dataset.synthetic = 'true';
+        entry.classList.add('synthetic-ticker');
+        entry.title = `Synthetic ticker for ${label}`;
+        entry.innerHTML = '';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'form-check-input me-2 ticker-checkbox';
+        checkbox.style.margin = '0';
+        checkbox.style.width = '14px';
+        checkbox.style.height = '14px';
+
+        const labelWrapper = document.createElement('div');
+        labelWrapper.className = 'flex-grow-1';
+        labelWrapper.innerHTML = `
+            <div class="fw-medium">${symbol}</div>
+            <div class="text-muted small">Synthetic portfolio</div>
+        `;
+
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-info text-dark ms-2';
+        badge.textContent = 'Portfolio';
+
+        entry.appendChild(checkbox);
+        entry.appendChild(labelWrapper);
+        entry.appendChild(badge);
+
+        entry.onclick = (event) => toggleTickerSelection(entry, symbol, event);
+        checkbox.addEventListener('click', (event) => {
+            event.stopPropagation();
+            toggleTickerSelection(entry, symbol, event);
+        });
+    }
+
+    function clearSyntheticTickerEntries() {
+        document.querySelectorAll('#current-ticker-list .ticker-item[data-synthetic="true"]').forEach(el => el.remove());
+    }
+
+    const journalTemplates = {
+        momentum_breakout: {
+            label: 'Momentum Breakout Plan',
+            strategy_name: 'AI Momentum Breakout',
+            thesis: 'Stock breaking above recent resistance with expanding volume and bullish sector backdrop.',
+            entry_plan: 'Wait for confirmation candle that closes above resistance and enter in two tranches within 1 ATR.',
+            exit_plan: 'Trail stop under prior swing low or 8 EMA; take profits into 3R or when momentum wanes.',
+            risk_notes: 'Size positions to 1% account risk, avoid holding through major catalysts without hedge.',
+            tags: 'momentum,breakout,trend',
+        },
+        mean_reversion: {
+            label: 'Mean Reversion Checklist',
+            strategy_name: 'Mean Reversion Pullback',
+            thesis: 'Extended move away from 20/50 EMA with oversold oscillator reading signaling snapback potential.',
+            entry_plan: 'Scale in near prior demand zone with staggered limit orders; confirm with RSI cross back above 35.',
+            exit_plan: 'First target at 20 EMA, second at 50 EMA; hard stop below recent swing low.',
+            risk_notes: 'Cut trade if macro trend turns sharply or breadth deteriorates; limit to 0.75% risk.',
+            tags: 'mean-reversion,swing',
+        },
+    };
+
+    function formatCurrencyValue(value, options = { maximumFractionDigits: 0 }) {
+        if (typeof value !== 'number' || Number.isNaN(value)) return '—';
+        return `$${value.toLocaleString(undefined, options)}`;
+    }
+
+    function setPortfolioSubTab(tabId) {
+        currentPortfolioSubTab = tabId;
+        updatePortfolioSubTabs();
+    }
+
+    function updatePortfolioSubTabs() {
+        document.querySelectorAll('[data-portfolio-tab-btn]').forEach(button => {
+            const target = button.getAttribute('data-portfolio-tab-btn');
+            const isActive = target === currentPortfolioSubTab;
+            button.classList.toggle('active', isActive);
+            button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        });
+        document.querySelectorAll('.portfolio-subtab').forEach(section => {
+            const tab = section.getAttribute('data-tab');
+            section.classList.toggle('d-none', tab !== currentPortfolioSubTab);
+        });
+    }
+
+    function getBootstrapLib() {
+        if (window.bootstrap?.Modal) return window.bootstrap;
+        if (typeof bootstrap !== 'undefined' && bootstrap?.Modal) return bootstrap;
+        return null;
+    }
+
+    function suggestPortfolioName() {
+        if (currentPortfolioId) {
+            const active = portfoliosCache.find(p => p.id === currentPortfolioId);
+            if (active?.name) return `${active.name} Copy`;
+        }
+        if (currentTicker) return `${currentTicker}-Portfolio`;
+        if (currentListId) return `${String(currentListId).toUpperCase()}-Portfolio`;
+        return '';
+    }
+
+    function buildDefaultPositionsFromList() {
+        const tickers = getListTickers();
+        if (!tickers.length) return [];
+        const allocation = 10000;
+        return tickers.map(symbol => ({
+            ticker: symbol,
+            target_value: allocation,
+        }));
+    }
+
+    function openCreatePortfolioModal(defaultName = '', useCurrentList = false) {
+        const modalEl = document.getElementById('create-portfolio-modal');
+        if (!modalEl) return;
+        const nameInput = document.getElementById('portfolio-name');
+        const notesInput = document.getElementById('portfolio-notes');
+        const positionsBody = document.getElementById('portfolio-positions-body');
+        const statusEl = document.getElementById('portfolio-form-status');
+        if (statusEl) statusEl.textContent = '';
+        if (nameInput) {
+            nameInput.value = defaultName || nameInput.value || suggestPortfolioName();
+            setTimeout(() => {
+                nameInput.focus();
+                nameInput.select();
+            }, 100);
+        }
+        if (notesInput) notesInput.value = '';
+        pendingPortfolioPositions = useCurrentList ? buildDefaultPositionsFromList() : [];
+        renderPendingPortfolioPositions(positionsBody);
+        const bootstrapLib = getBootstrapLib();
+        if (!bootstrapLib?.Modal) {
+            console.error('Bootstrap modal library not available');
+            alert('Unable to open modal at the moment. Please reload the page.');
+            return;
+        }
+        bootstrapLib.Modal.getOrCreateInstance(modalEl).show();
+    }
+
+    function renderPendingPortfolioPositions(tbodyEl) {
+        if (!tbodyEl) return;
+        if (!pendingPortfolioPositions.length) {
+            tbodyEl.innerHTML = '<tr><td colspan="3" class="text-muted small text-center">No starting positions. Use + button to add tickers.</td></tr>';
+            return;
+        }
+        tbodyEl.innerHTML = pendingPortfolioPositions.map((pos, idx) => `
+            <tr>
+                <td>
+                    <input type="text" class="form-control form-control-sm" value="${pos.ticker || ''}" maxlength="10" oninput="updatePendingPosition(${idx}, 'ticker', this.value.toUpperCase())">
+                </td>
+                <td>
+                    <input type="number" class="form-control form-control-sm" min="0" step="0.01" value="${pos.target_value || 0}" oninput="updatePendingPosition(${idx}, 'target_value', parseFloat(this.value) || 0)">
+                </td>
+                <td class="text-end">
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="removePendingPosition(${idx})">Remove</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function updatePendingPosition(index, field, value) {
+        if (!pendingPortfolioPositions[index]) return;
+        pendingPortfolioPositions[index][field] = value;
+    }
+
+    function removePendingPosition(index) {
+        pendingPortfolioPositions.splice(index, 1);
+        renderPendingPortfolioPositions(document.getElementById('portfolio-positions-body'));
+    }
+
+    function addPendingPositionRow() {
+        pendingPortfolioPositions.push({ ticker: '', target_value: 10000 });
+        renderPendingPortfolioPositions(document.getElementById('portfolio-positions-body'));
+    }
+
+    function formatPercentValue(value, options = { maximumFractionDigits: 1 }) {
+        if (typeof value !== 'number' || Number.isNaN(value)) return '—';
+        return `${value.toLocaleString(undefined, options)}%`;
+    }
+
+    function triggerDownload(filename, content, mimeType = 'text/plain') {
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }
+
+    function ensurePlotly() {
+        if (window.Plotly) return Promise.resolve(window.Plotly);
+        return new Promise((resolve, reject) => {
+            const existing = document.getElementById('plotly-lib');
+            if (existing) {
+                existing.addEventListener('load', () => resolve(window.Plotly));
+                existing.addEventListener('error', reject);
+                return;
+            }
+            const script = document.createElement('script');
+            script.id = 'plotly-lib';
+            script.src = 'https://cdn.plot.ly/plotly-2.27.0.min.js';
+            script.onload = () => resolve(window.Plotly);
+            script.onerror = reject;
+            document.body.appendChild(script);
+        });
+    }
+
+    function exportEquityCsv() {
+        if (!equityAnalytics) {
+            alert('Load portfolio analytics before exporting.');
+            return;
+        }
+
+        const rows = [['series', 'timestamp', 'equity', 'ticker', 'action', 'is_simulated']];
+        const appendSeries = (name, series) => {
+            (series || []).forEach(pt => {
+                rows.push([
+                    name,
+                    pt.timestamp,
+                    pt.equity,
+                    pt.ticker || '',
+                    pt.action || '',
+                    typeof pt.is_simulated === 'boolean' ? pt.is_simulated : '',
+                ]);
+            });
+        };
+        appendSeries('overall', equityAnalytics.series?.overall);
+        appendSeries('live_only', equityAnalytics.series?.live_only);
+        appendSeries('simulated_only', equityAnalytics.series?.simulated_only);
+
+        const csvContent = rows.map(cols => cols.map(value => {
+            if (value === null || value === undefined) return '';
+            const str = String(value);
+            return (/[,\n"]/).test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+        }).join(',')).join('\n');
+
+        const timestamp = new Date(equityAnalytics.generated_at || Date.now()).toISOString().replace(/[:T]/g, '-').split('.')[0];
+        triggerDownload(`equity_analytics_${timestamp}.csv`, csvContent, 'text/csv');
+    }
+
+    async function exportEquityPng() {
+        if (!equityAnalytics) {
+            alert('Load portfolio analytics before exporting.');
+            return;
+        }
+        const container = document.getElementById('equity-overall-chart');
+        if (!container) {
+            alert('Equity chart not available yet.');
+            return;
+        }
+        const plotly = await ensurePlotly();
+        try {
+            await plotly.downloadImage(container, {
+                format: 'png',
+                filename: `equity_overview_${Date.now()}`,
+                height: 600,
+                width: 900,
+                scale: 2,
+            });
+        } catch (error) {
+            console.error('exportEquityPng error', error);
+            alert('Unable to download chart image.');
+        }
+    }
+
+    async function loadEquityCurves() {
+        if (!currentPortfolioId) return;
+        const statusEl = document.getElementById('equity-status');
+        const metaEl = document.getElementById('equity-overview-meta');
+        const strategySelect = document.getElementById('strategy-select');
+        if (!statusEl) return;
+        statusEl.textContent = 'Loading equity analytics...';
+        metaEl.textContent = '';
+        if (strategySelect) {
+            strategySelect.innerHTML = '<option value="" selected>Auto</option>';
+        }
+
+        try {
+            const response = await fetch(`/portfolios/${currentPortfolioId}/analytics/equity`);
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || 'Failed to load equity data');
+            }
+            equityAnalytics = await response.json();
+            statusEl.textContent = `Last updated ${new Date(equityAnalytics.generated_at).toLocaleString()}`;
+            metaEl.textContent = `${equityAnalytics.entry_count} trades`;
+            if (strategySelect) {
+                equityAnalytics.strategies.forEach(strategy => {
+                    const option = document.createElement('option');
+                    option.value = strategy.key;
+                    option.textContent = `${strategy.label} (${strategy.entry_count})`;
+                    strategySelect.appendChild(option);
+                });
+            }
+            renderEquityCharts();
+            renderEquityInsights();
+        } catch (error) {
+            console.error('loadEquityCurves error', error);
+            statusEl.textContent = error.message;
+            equityAnalytics = null;
+            const overall = document.getElementById('equity-overall-chart');
+            const strategy = document.getElementById('equity-strategy-chart');
+            if (overall) overall.innerHTML = '<div class="text-danger small">Failed to load.</div>';
+            if (strategy) strategy.innerHTML = '<div class="text-danger small">Failed to load.</div>';
+            renderEquityInsights();
+        }
+    }
+
+    async function renderEquityCharts() {
+        if (!equityAnalytics) return;
+        const plotly = await ensurePlotly();
+        const overallEl = document.getElementById('equity-overall-chart');
+        if (!overallEl) return;
+
+        const showLive = document.getElementById('equity-toggle-live')?.checked;
+        const showSim = document.getElementById('equity-toggle-sim')?.checked;
+        const showAll = document.getElementById('equity-toggle-all')?.checked;
+        const showDrawdown = document.getElementById('equity-overlay-drawdown')?.checked;
+        const showDiscipline = document.getElementById('equity-overlay-discipline')?.checked;
+
+        const traces = [];
+        const buildTrace = (series, name, color) => ({
+            x: series.map(pt => pt.timestamp),
+            y: series.map(pt => pt.equity),
+            type: 'scatter',
+            mode: 'lines',
+            name,
+            line: { color, width: 2 },
+            hovertemplate: '%{x}<br>$%{y:.2f}<extra>' + name + '</extra>',
+        });
+
+        if (showAll) traces.push(buildTrace(equityAnalytics.series.overall, 'All trades', '#0d6efd'));
+        if (showLive) traces.push(buildTrace(equityAnalytics.series.live_only, 'Live only', '#198754'));
+        if (showSim) traces.push(buildTrace(equityAnalytics.series.simulated_only, 'Simulated only', '#ffc107'));
+
+        const overlays = equityAnalytics.overlays || {};
+        const overallSeries = equityAnalytics.series.overall || [];
+        const equityMap = new Map(overallSeries.map(pt => [pt.timestamp, pt.equity]));
+
+        if (showDrawdown && Array.isArray(overlays.drawdown) && overlays.drawdown.length) {
+            traces.push({
+                x: overlays.drawdown.map(point => point.timestamp),
+                y: overlays.drawdown.map(point => Number((point.value || 0) * 100)),
+                name: 'Drawdown %',
+                type: 'scatter',
+                mode: 'lines',
+                line: { color: '#dc3545', width: 1.5, dash: 'dot' },
+                fill: 'tozeroy',
+                fillcolor: 'rgba(220,53,69,0.08)',
+                yaxis: 'y2',
+                hovertemplate: '%{x}<br>%{y:.2f}% drawdown<extra></extra>',
+            });
+        }
+
+        if (showDiscipline && Array.isArray(overlays.discipline_events) && overlays.discipline_events.length) {
+            const disciplineTrace = {
+                x: [],
+                y: [],
+                mode: 'markers',
+                type: 'scatter',
+                name: 'Journal badges',
+                marker: { size: 9, symbol: 'diamond', opacity: 0.9 },
+                text: [],
+                hovertemplate: '%{x}<br>%{text}<extra></extra>',
+            };
+            overlays.discipline_events.forEach(event => {
+                const equityValue = equityMap.get(event.timestamp) ?? overallSeries.at?.(-1)?.equity ?? 0;
+                disciplineTrace.x.push(event.timestamp);
+                disciplineTrace.y.push(equityValue);
+                const missing = Array.isArray(event.flags) && event.flags.length ? `Missing: ${event.flags.join(', ')}` : 'All checks logged';
+                disciplineTrace.text.push(missing);
+            });
+            disciplineTrace.marker.color = disciplineTrace.text.map(label => label.startsWith('Missing') ? '#fd7e14' : '#20c997');
+            traces.push(disciplineTrace);
+        }
+
+        if (!traces.length) {
+            overallEl.innerHTML = '<div class="text-muted small">Enable at least one series.</div>';
+        } else {
+            const layout = {
+                margin: { t: 10, r: 10, l: 40, b: 40 },
+                legend: { orientation: 'h' },
+                yaxis: { title: 'Equity ($)' },
+                xaxis: { title: 'Time' },
+            };
+            if (showDrawdown && Array.isArray(overlays.drawdown) && overlays.drawdown.length) {
+                layout.yaxis2 = {
+                    title: 'Drawdown (%)',
+                    overlaying: 'y',
+                    side: 'right',
+                    tickformat: '.1f',
+                    showgrid: false,
+                    rangemode: 'tozero',
+                };
+            }
+            plotly.newPlot(overallEl, traces, layout, { responsive: true });
+        }
+
+        renderStrategyChart();
+        renderEquityInsights();
+        renderDisciplineHeatmap();
+    }
+
+    async function renderStrategyChart() {
+        if (!equityAnalytics) return;
+        const plotly = await ensurePlotly();
+        const chartEl = document.getElementById('equity-strategy-chart');
+        const statsEl = document.getElementById('strategy-stats');
+        const selectEl = document.getElementById('strategy-select');
+        if (!chartEl || !statsEl || !selectEl) return;
+
+        const selectedKey = selectEl.value;
+        let strategy = equityAnalytics.strategies.find(s => s.key === selectedKey);
+        if (!strategy && equityAnalytics.strategies.length) {
+            strategy = equityAnalytics.strategies[0];
+            if (!selectedKey) {
+                selectEl.value = strategy.key;
+            }
+        }
+
+        if (!strategy) {
+            chartEl.innerHTML = '<div class="text-muted small">No strategy data recorded yet.</div>';
+            statsEl.textContent = '';
+            return;
+        }
+
+        const trace = {
+            x: strategy.points.map(pt => pt.timestamp),
+            y: strategy.points.map(pt => pt.equity),
+            mode: 'lines+markers',
+            type: 'scatter',
+            line: { color: '#6f42c1' },
+            marker: {
+                color: strategy.points.map(pt => pt.is_simulated ? '#ffc107' : '#198754'),
+                size: 6,
+            },
+            name: strategy.label,
+            hovertemplate: '%{x}<br>$%{y:.2f}<extra></extra>',
+        };
+
+        plotly.newPlot(chartEl, [trace], {
+            margin: { t: 10, r: 10, l: 40, b: 40 },
+            yaxis: { title: 'Equity ($)' },
+            xaxis: { title: 'Time' },
+        }, { responsive: true });
+
+        const disciplineStat = typeof strategy.discipline_score === 'number'
+            ? ` · Discipline ${strategy.discipline_score.toFixed(1)}%`
+            : '';
+        statsEl.textContent = `${strategy.entry_count} trades · ${strategy.live_trades} live / ${strategy.simulated_trades} sim${disciplineStat}`;
+    }
+
+    function renderEquityInsights() {
+        const container = document.getElementById('equity-insight-badges');
+        if (!container) return;
+        const insights = equityAnalytics?.insights;
+        if (!insights) {
+            container.innerHTML = '';
+            return;
+        }
+
+        const badges = [];
+        if (typeof insights.current_equity === 'number') {
+            badges.push(`<span class="badge text-bg-dark">Current ${formatCurrencyValue(insights.current_equity)}</span>`);
+        }
+        if (typeof insights.peak_equity === 'number' && insights.peak_equity) {
+            badges.push(`<span class="badge bg-light text-dark">Peak ${formatCurrencyValue(insights.peak_equity)}</span>`);
+        }
+        if (typeof insights.max_drawdown_pct === 'number') {
+            const ddClass = insights.max_drawdown_pct > 20 ? 'bg-danger' : insights.max_drawdown_pct > 10 ? 'bg-warning text-dark' : 'bg-success';
+            badges.push(`<span class="badge ${ddClass}">Max DD ${formatPercentValue(insights.max_drawdown_pct)}</span>`);
+        }
+        if (typeof insights.discipline_score === 'number') {
+            const scoreClass = insights.discipline_score >= 70 ? 'bg-success' : insights.discipline_score >= 50 ? 'bg-warning text-dark' : 'bg-danger';
+            badges.push(`<span class="badge ${scoreClass}">Discipline ${formatPercentValue(insights.discipline_score)}</span>`);
+        }
+
+        container.innerHTML = badges.length
+            ? badges.join('')
+            : '<span class="text-muted">No analytics computed yet.</span>';
+    }
+
+    async function renderDisciplineHeatmap() {
+        const container = document.getElementById('discipline-heatmap');
+        if (!container) return;
+        const heatmap = equityAnalytics?.heatmap;
+        if (!heatmap || !Array.isArray(heatmap.values) || !heatmap.values.length) {
+            container.innerHTML = '<div class="text-muted small px-2">Not enough journal data for a heatmap.</div>';
+            return;
+        }
+
+        const plotly = await ensurePlotly();
+        plotly.newPlot(container, [
+            {
+                z: heatmap.values,
+                x: heatmap.hour_labels,
+                y: heatmap.day_labels,
+                type: 'heatmap',
+                colorscale: [
+                    [0, '#f8f9fa'],
+                    [0.2, '#e9ecef'],
+                    [0.4, '#ffd8a8'],
+                    [0.6, '#ffa94d'],
+                    [0.8, '#ff922b'],
+                    [1, '#e8590c'],
+                ],
+                hoverongaps: false,
+                hovertemplate: '%{y} · %{x}<br>Discipline gaps %{z:.2f}<extra></extra>',
+            },
+        ], {
+            margin: { t: 10, r: 10, b: 30, l: 40 },
+            xaxis: { title: 'Hour bucket (UTC)', tickangle: -30 },
+            yaxis: { title: 'Weekday' },
+        }, {
+            responsive: true,
+        });
+    }
+
+    async function runJourneyReview() {
+        if (!currentPortfolioId) {
+            alert('Open a portfolio first.');
+            return;
+        }
+        const includeSim = document.getElementById('journey-include-sim')?.checked ?? true;
+        const tradeLimitValue = document.getElementById('journey-trade-limit')?.value || '120';
+        const tradeLimit = Number.parseInt(tradeLimitValue, 10) || 120;
+        const statusEl = document.getElementById('journey-status');
+        const resultsEl = document.getElementById('journey-results');
+        const btn = document.getElementById('journey-run-btn');
+        const spinner = document.getElementById('journey-spinner');
+        if (!statusEl || !resultsEl) return;
+
+        statusEl.textContent = 'Asking Gemini for a journey review...';
+        resultsEl.innerHTML = '';
+        btn.disabled = true;
+        spinner?.classList.remove('d-none');
+
+        try {
+            const response = await fetch(`/portfolios/${currentPortfolioId}/analytics/journey`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trade_limit: tradeLimit, include_simulated: includeSim }),
+            });
+            const data = await response.json();
+            if (!response.ok || data.error) {
+                throw new Error(data.detail || data.error || 'Journey review failed');
+            }
+            journeyReviewHtml = data.html || '';
+            const timestamp = data.generated_at ? new Date(data.generated_at).toLocaleString() : new Date().toLocaleString();
+            statusEl.textContent = `Review generated at ${timestamp}.`;
+            if (journeyReviewHtml) {
+                resultsEl.innerHTML = `
+                    <div class="markdown-content">${journeyReviewHtml}</div>
+                    <div class="text-end mt-2">
+                        <button class="btn btn-sm btn-outline-secondary" onclick="openJourneyModal()">Open Fullscreen</button>
+                    </div>`;
+                openJourneyModal();
+            } else {
+                resultsEl.innerHTML = '<div class="text-muted small">No analysis returned.</div>';
+            }
+        } catch (error) {
+            console.error('runJourneyReview error', error);
+            statusEl.textContent = error.message;
+            resultsEl.innerHTML = `<div class="text-danger small">${escapeHtmlLite(error.message)}</div>`;
+        } finally {
+            btn.disabled = false;
+            spinner?.classList.add('d-none');
+        }
+    }
+
+    function openJourneyModal() {
+        const modalEl = document.getElementById('journey-modal');
+        const modalBody = document.getElementById('journey-modal-body');
+        if (!modalEl || !modalBody) return;
+        modalBody.innerHTML = journeyReviewHtml ? journeyReviewHtml : '<div class="text-muted">No review content yet.</div>';
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+    }
+
+    function getTickerStrategyKey(tickerOverride = currentTicker) {
+        if (!tickerOverride) return null;
+        const scenario = document.getElementById('strategy-scenario')?.value || 'neutral';
+        const timeframe = document.getElementById('strategy-timeframe')?.value || 'swing';
+        const benchmarkRaw = document.getElementById('strategy-benchmark')?.value.trim() || '';
+        const benchmark = benchmarkRaw ? benchmarkRaw.toUpperCase() : 'AUTO';
+        return `${tickerOverride}|${scenario}|${timeframe}|${benchmark}`;
+    }
+
+    function getPortfolioStrategyKey() {
+        if (!currentPortfolioId) return null;
+        const scenario = document.getElementById('portfolio-strategy-scenario')?.value || 'neutral';
+        const timeframe = document.getElementById('portfolio-strategy-timeframe')?.value || 'swing';
+        const notesRaw = document.getElementById('portfolio-strategy-notes')?.value.trim() || '';
+        const notesKey = notesRaw.toLowerCase() || 'none';
+        return `${currentPortfolioId}|${scenario}|${timeframe}|${notesKey}`;
+    }
+
+    function renderTickerStrategyResult(entry, fromCache = false) {
+        const statusEl = document.getElementById('ticker-strategy-status');
+        const resultsEl = document.getElementById('ticker-strategy-results');
+        if (!statusEl || !resultsEl) return;
+        if (!entry) {
+            statusEl.textContent = '';
+            resultsEl.innerHTML = '';
+            return;
+        }
+        const timestamp = entry.generated_at ? new Date(entry.generated_at).toLocaleString() : new Date().toLocaleTimeString();
+        const badge = fromCache ? '<span class="badge bg-secondary ms-2">Cached</span>' : '';
+        statusEl.innerHTML = `Strategy preview from ${timestamp}${badge ? ' ' + badge : ''}`;
+        resultsEl.innerHTML = `<div class="card border-0"><div class="card-body markdown-content">${entry.html}</div></div>`;
+    }
+
+    function renderPortfolioStrategyResult(entry, fromCache = false) {
+        const statusEl = document.getElementById('portfolio-strategy-status');
+        const resultsEl = document.getElementById('portfolio-strategy-results');
+        if (!statusEl || !resultsEl) return;
+        if (!entry) {
+            statusEl.textContent = '';
+            resultsEl.innerHTML = '';
+            return;
+        }
+        const timestamp = entry.generated_at ? new Date(entry.generated_at).toLocaleString() : new Date().toLocaleTimeString();
+        const badge = fromCache ? '<span class="badge bg-secondary ms-1">Cached</span>' : '';
+        statusEl.innerHTML = `Playbook from ${timestamp}${badge ? ' ' + badge : ''}`;
+        resultsEl.innerHTML = `<div class="card border-0"><div class="card-body markdown-content">${entry.html}</div></div>`;
+    }
+
+    function restoreTickerStrategyFromCache() {
+        const key = getTickerStrategyKey();
+        if (!key || !tickerStrategyCache.has(key)) {
+            renderTickerStrategyResult(null);
+            return;
+        }
+        renderTickerStrategyResult(tickerStrategyCache.get(key), true);
+    }
+
+    function restorePortfolioStrategyFromCache() {
+        const key = getPortfolioStrategyKey();
+        if (!key || !portfolioStrategyCache.has(key)) {
+            renderPortfolioStrategyResult(null);
+            return;
+        }
+        renderPortfolioStrategyResult(portfolioStrategyCache.get(key), true);
+    }
+
+    function escapeHtmlLite(value) {
+        if (value === null || value === undefined) return '';
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function formatDateTime(value) {
+        if (!value) return '';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return value;
+        return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    }
+
+    function setStrategyButtonsEnabled(enabled) {
+        [
+            'run-analysis-btn',
+            'run-buffett-btn',
+            'run-fundamental-strategy-btn',
+            'run-ticker-strategy-btn',
+        ].forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) btn.disabled = !enabled;
+        });
+    }
+
+    setStrategyButtonsEnabled(false);
+
+    function toNumber(value, fallback = 0) {
+        const num = Number(value);
+        return Number.isFinite(num) ? num : fallback;
+    }
+
+    function normalizeOcrPosition(pos) {
+        const ticker = (pos.ticker || '').trim().toUpperCase();
+        if (!ticker) return null;
+        return {
+            ticker,
+            quantity: toNumber(pos.quantity, 0),
+            avg_cost: toNumber(pos.avg_cost, 0),
+            current_price: toNumber(
+                pos.current_price,
+                toNumber(pos.avg_cost, 0)
+            ),
+            sector: pos.sector || '',
+            weight: toNumber(pos.weight, 0),
+            notes: pos.notes || '',
+        };
+    }
+
+    // Initialize date inputs with defaults
+    function initDateInputs() {
+        const today = new Date();
+        const fiveYearsAgo = new Date();
+        fiveYearsAgo.setFullYear(today.getFullYear() - 5);
+        
+        // Chart tab date inputs
+        document.getElementById('chart-to-date').value = today.toISOString().split('T')[0];
+        document.getElementById('chart-from-date').value = fiveYearsAgo.toISOString().split('T')[0];
+        
+        // Compare tab date inputs
+        document.getElementById('compare-to-date').value = today.toISOString().split('T')[0];
+        document.getElementById('compare-from-date').value = fiveYearsAgo.toISOString().split('T')[0];
+    }
+
+    async function uploadPortfolioScreenshot() {
+        if (!currentPortfolioId) {
+            alert('Open a portfolio first.');
+            return;
+        }
+        const input = document.getElementById('portfolio-screenshot');
+        const statusEl = document.getElementById('screenshot-status');
+        const previewEl = document.getElementById('screenshot-preview');
+        if (!input || !input.files || !input.files[0]) {
+            statusEl.textContent = 'Please choose an image file.';
+            return;
+        }
+
+        const file = input.files[0];
+        statusEl.textContent = 'Uploading screenshot...';
+        previewEl.innerHTML = '';
+        pendingOcrPositions = [];
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const response = await fetch(`/portfolios/${currentPortfolioId}/ocr-upload`, {
+                method: 'POST',
+                body: formData,
+            });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || 'OCR failed');
+            }
+            const data = await response.json();
+            pendingOcrPositions = Array.isArray(data.positions)
+                ? data.positions.filter(pos => (pos.ticker || '').trim().length)
+                : [];
+            if (!pendingOcrPositions.length) {
+                statusEl.textContent = 'Parsed screenshot but no valid tickers detected.';
+                previewEl.innerHTML = '';
+                return;
+            }
+
+            statusEl.textContent = data.summary || `Parsed ${pendingOcrPositions.length} positions.`;
+            const rows = pendingOcrPositions.map(pos => `
+                    <tr>
+                        <td>${pos.ticker || ''}</td>
+                        <td>${pos.quantity ?? ''}</td>
+                        <td>${pos.avg_cost ?? ''}</td>
+                        <td>${pos.current_price ?? ''}</td>
+                        <td>${pos.notes || ''}</td>
+                    </tr>
+                `).join('');
+            const preprocessingSteps = (data.preprocessing?.steps || []).join(', ');
+            previewEl.innerHTML = `
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead><tr><th>Ticker</th><th>Qty</th><th>Avg Cost</th><th>Price</th><th>Notes</th></tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+                <div class="d-flex justify-content-between align-items-center gap-2 mt-2">
+                    <button class="btn btn-sm btn-success" onclick="commitOcrPositions()">Apply ${pendingOcrPositions.length} position(s)</button>
+                    <small class="text-muted text-end">Parsed via Gemini${preprocessingSteps ? ` · Preprocessing: ${preprocessingSteps}` : ''}</small>
+                </div>
+            `;
+        } catch (error) {
+            console.error('uploadPortfolioScreenshot error', error);
+            statusEl.textContent = error.message;
+        }
+    }
+
+    async function runTickerStrategy(source = 'analysis') {
+        if (!currentTicker) {
+            alert('Please select a ticker first');
+            return;
+        }
+
+        const btnId = source === 'analysis' ? 'run-ticker-strategy-btn' : 'run-fundamental-strategy-btn';
+        const spinnerId = source === 'analysis' ? 'ticker-strategy-spinner' : 'fundamental-strategy-spinner';
+        const btn = document.getElementById(btnId);
+        const spinner = document.getElementById(spinnerId);
+        const statusEl = document.getElementById('ticker-strategy-status');
+        const resultsEl = document.getElementById('ticker-strategy-results');
+        if (!btn || !statusEl || !resultsEl) return;
+
+        const scenario = document.getElementById('strategy-scenario')?.value || 'neutral';
+        const timeframe = document.getElementById('strategy-timeframe')?.value || 'swing';
+        const benchmarkValue = document.getElementById('strategy-benchmark')?.value.trim();
+
+        const payload = {
+            ticker: currentTicker,
+            scenario,
+            timeframe,
+        };
+        if (benchmarkValue) {
+            payload.benchmark = benchmarkValue.toUpperCase();
+        }
+
+        const cachedKey = getTickerStrategyKey();
+        const cachedEntry = cachedKey ? tickerStrategyCache.get(cachedKey) : null;
+        if (cachedEntry) {
+            renderTickerStrategyResult(cachedEntry, true);
+        } else {
+            renderTickerStrategyResult(null);
+        }
+        statusEl.textContent = 'Generating AI strategy playbook...';
+        btn.disabled = true;
+        spinner?.classList.remove('d-none');
+
+        try {
+            const response = await fetch('/analysis/strategy/ticker', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            const data = await response.json();
+            if (!response.ok || data.error) {
+                throw new Error(data.detail || data.error || 'Strategy request failed');
+            }
+            const key = getTickerStrategyKey();
+            if (key) {
+                tickerStrategyCache.set(key, data);
+            }
+            renderTickerStrategyResult(data, data.cached);
+        } catch (error) {
+            console.error('runTickerStrategy error', error);
+            statusEl.textContent = error.message || 'Strategy request failed';
+        } finally {
+            btn.disabled = false;
+            spinner?.classList.add('d-none');
+        }
+    }
+
+    async function refreshConnectors() {
+        if (!currentPortfolioId) return;
+        const listEl = document.getElementById('connector-list');
+        if (!listEl) return;
+        listEl.innerHTML = '<div class="text-muted">Loading connectors...</div>';
+        try {
+            const response = await fetch(`/portfolios/${currentPortfolioId}/connectors`);
+            if (!response.ok) throw new Error('Failed to load connectors');
+            const connectors = await response.json();
+            if (!connectors.length) {
+                listEl.innerHTML = '<div class="text-muted">No connectors yet.</div>';
+                return;
+            }
+            const cards = connectors.map(conn => `
+                <div class="border rounded p-2 mb-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>${conn.name}</strong>
+                            <span class="badge bg-light text-dark ms-2">${conn.provider_label || conn.provider}</span>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteConnector(${conn.id})">Remove</button>
+                    </div>
+                    <small class="text-muted">Status: ${conn.last_status} ${conn.last_synced_at ? `· Last sync ${new Date(conn.last_synced_at).toLocaleString()}` : ''}</small>
+                    ${conn.last_message ? `<div class="small">${conn.last_message}</div>` : ''}
+                </div>
+            `).join('');
+            listEl.innerHTML = cards;
+        } catch (error) {
+            console.error('refreshConnectors error', error);
+            listEl.innerHTML = `<div class="text-danger small">${error.message}</div>`;
+        }
+    }
+
+    async function createConnector(event) {
+        event.preventDefault();
+        if (!currentPortfolioId) {
+            alert('Open a portfolio first.');
+            return false;
+        }
+        const nameInput = document.getElementById('connector-name');
+        const providerSelect = document.getElementById('connector-provider');
+        const credentialInput = document.getElementById('connector-credentials');
+        const statusEl = document.getElementById('connector-status');
+
+        statusEl.textContent = 'Saving connector...';
+        try {
+            const payload = {
+                name: nameInput.value.trim(),
+                provider: providerSelect.value,
+                credentials: credentialInput.value.trim() || undefined,
+            };
+            const response = await fetch(`/portfolios/${currentPortfolioId}/connectors`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || 'Failed to save connector');
+            }
+            nameInput.value = '';
+            credentialInput.value = '';
+            statusEl.textContent = 'Connector added.';
+            refreshConnectors();
+        } catch (error) {
+            console.error('createConnector error', error);
+            statusEl.textContent = error.message;
+        }
+        return false;
+    }
+
+    function setSimulationGroupFilter(slug = 'all') {
+        currentSimulationGroupFilter = slug || 'all';
+        const label = document.getElementById('journal-group-filter-label');
+        if (label) {
+            label.textContent = currentSimulationGroupFilter === 'all'
+                ? 'Journal filter: All groups'
+                : `Journal filter: ${currentSimulationGroupFilter}`;
+        }
+        loadJournalEntries();
+    }
+
+    async function loadSimulationGroups() {
+        if (!currentPortfolioId) return;
+        const statusEl = document.getElementById('simulation-lab-status');
+        const container = document.getElementById('simulation-groups-container');
+        if (!statusEl || !container) return;
+        statusEl.textContent = 'Loading Strategy Lab...';
+        container.innerHTML = '<div class="text-muted small">Fetching hypotheses...</div>';
+        try {
+            const response = await fetch(`/portfolios/${currentPortfolioId}/simulation-groups`);
+            if (!response.ok) throw new Error('Failed to load Strategy Lab');
+            simulationGroups = await response.json();
+            statusEl.textContent = simulationGroups.length
+                ? `Tracking ${simulationGroups.length} hypothesis${simulationGroups.length > 1 ? 'es' : ''}.`
+                : 'No simulations tracked yet.';
+            renderSimulationGroups();
+        } catch (error) {
+            console.error('loadSimulationGroups error', error);
+            statusEl.textContent = error.message;
+            container.innerHTML = '<div class="text-danger small">Unable to load simulations.</div>';
+        }
+    }
+
+    function guardrailBadgeMarkup(guardrail) {
+        const state = guardrail?.state || 'ok';
+        const config = {
+            ok: { cls: 'success', text: 'Guardrail OK' },
+            warning: { cls: 'warning text-dark', text: 'Guardrail Warn' },
+            blocked: { cls: 'danger', text: 'Guardrail Blocked' },
+        };
+        const meta = config[state] || config.ok;
+        return `<span class="badge bg-${meta.cls}">${meta.text}</span>`;
+    }
+
+    function renderSimulationGroups() {
+        const container = document.getElementById('simulation-groups-container');
+        if (!container) return;
+        if (!simulationGroups.length) {
+            container.innerHTML = '<div class="text-muted small">No hypotheses created yet.</div>';
+            return;
+        }
+        container.innerHTML = simulationGroups.map(group => {
+            const stats = group.stats || {};
+            const guardrail = guardrailBadgeMarkup(group.guardrail);
+            const followUp = group.follow_up_date ? new Date(group.follow_up_date).toLocaleDateString() : '—';
+            const autoTasks = (group.auto_tasks || []).map(task => `<li>${escapeHtmlLite(task)}</li>`).join('') || '<li class="text-muted">No auto tasks</li>';
+            return `
+                <div class="border rounded p-3 mb-3">
+                    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+                        <div>
+                            <h6 class="mb-1">${escapeHtmlLite(group.name)} ${guardrail}</h6>
+                            <div class="text-muted small">Slug: ${escapeHtmlLite(group.slug)} · Follow-up: ${followUp}</div>
+                            <div class="mt-2 small">${escapeHtmlLite(group.hypothesis || 'No hypothesis yet.')}</div>
+                        </div>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button class="btn btn-outline-primary" onclick="setSimulationGroupFilter('${group.slug}')">Filter Journal</button>
+                            <button class="btn btn-outline-success" onclick="bulkPromoteSimulationGroup(${group.id})">Bulk Promote</button>
+                            <button class="btn btn-outline-secondary" onclick="openSimulationGroupModal(${group.id})">Edit</button>
+                        </div>
+                    </div>
+                    <div class="row g-3 mt-2 small">
+                        <div class="col-md-4">
+                            <strong>Stats</strong>
+                            <div class="text-muted">Sim entries: ${stats.simulated_entries ?? 0}</div>
+                            <div class="text-muted">Promoted: ${stats.promoted_entries ?? 0}</div>
+                            <div class="text-muted">Sim notional: $${(stats.simulated_notional ?? 0).toLocaleString()}</div>
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Guardrails</strong>
+                            <div class="text-muted">Max trades: ${group.guardrail_max_positions ?? '—'}</div>
+                            <div class="text-muted">Max capital: ${group.guardrail_max_capital ? `$${group.guardrail_max_capital.toLocaleString()}` : '—'}</div>
+                            ${(group.guardrail?.alerts || []).map(alert => `<div class="text-danger">${escapeHtmlLite(alert)}</div>`).join('')}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Auto Tasks</strong>
+                            <ul class="mb-0 small ps-3">${autoTasks}</ul>
+                        </div>
+                    </div>
+                </div>`;
+        }).join('');
+    }
+
+    function openSimulationGroupModal(groupId = null) {
+        if (!currentPortfolioId) {
+            alert('Open a portfolio first.');
+            return;
+        }
+        editingSimulationGroupId = groupId;
+        const modalEl = document.getElementById('simulation-group-modal');
+        if (!modalEl) return;
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        const titleEl = document.getElementById('simulation-group-modal-title');
+        const formStatus = document.getElementById('simulation-group-form-status');
+        const fields = {
+            name: document.getElementById('sim-group-name'),
+            hypothesis: document.getElementById('sim-group-hypothesis'),
+            guardrailPositions: document.getElementById('sim-group-guardrail-positions'),
+            guardrailCapital: document.getElementById('sim-group-guardrail-capital'),
+            followUp: document.getElementById('sim-group-follow-up'),
+            autoTasks: document.getElementById('sim-group-auto-tasks'),
+        };
+        Object.values(fields).forEach(el => { if (el) el.value = ''; });
+        if (formStatus) formStatus.textContent = '';
+
+        if (groupId) {
+            const group = simulationGroups.find(g => g.id === groupId);
+            if (!group) {
+                alert('Simulation group not found');
+                return;
+            }
+            titleEl.textContent = 'Edit Strategy Lab Hypothesis';
+            fields.name.value = group.name || '';
+            fields.hypothesis.value = group.hypothesis || '';
+            fields.guardrailPositions.value = group.guardrail_max_positions ?? '';
+            fields.guardrailCapital.value = group.guardrail_max_capital ?? '';
+            fields.followUp.value = group.follow_up_date ? group.follow_up_date.slice(0, 10) : '';
+            fields.autoTasks.value = (group.auto_tasks || []).join('\n');
+        } else {
+            titleEl.textContent = 'New Strategy Lab Hypothesis';
+        }
+
+        modal.show();
+    }
+
+    async function submitSimulationGroupForm(event) {
+        event.preventDefault();
+        if (!currentPortfolioId) return false;
+        const formStatus = document.getElementById('simulation-group-form-status');
+        if (formStatus) formStatus.textContent = 'Saving...';
+        const payload = {
+            name: document.getElementById('sim-group-name').value.trim(),
+            hypothesis: document.getElementById('sim-group-hypothesis').value.trim(),
+            guardrail_max_positions: document.getElementById('sim-group-guardrail-positions').value || null,
+            guardrail_max_capital: document.getElementById('sim-group-guardrail-capital').value || null,
+            follow_up_date: document.getElementById('sim-group-follow-up').value || null,
+            auto_tasks: document.getElementById('sim-group-auto-tasks').value
+                .split('\n')
+                .map(line => line.trim())
+                .filter(Boolean),
+        };
+        if (!payload.name) {
+            formStatus.textContent = 'Name is required';
+            return false;
+        }
+
+        try {
+            const url = editingSimulationGroupId
+                ? `/portfolios/${currentPortfolioId}/simulation-groups/${editingSimulationGroupId}`
+                : `/portfolios/${currentPortfolioId}/simulation-groups`;
+            const method = editingSimulationGroupId ? 'PATCH' : 'POST';
+            const response = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || 'Failed to save Strategy Lab');
+            }
+            bootstrap.Modal.getInstance(document.getElementById('simulation-group-modal'))?.hide();
+            editingSimulationGroupId = null;
+            loadSimulationGroups();
+        } catch (error) {
+            console.error('submitSimulationGroupForm error', error);
+            if (formStatus) formStatus.textContent = error.message;
+        }
+        return false;
+    }
+
+    async function bulkPromoteSimulationGroup(groupId) {
+        if (!currentPortfolioId) return;
+        if (!confirm('Promote simulated trades in this hypothesis into the live portfolio?')) return;
+        try {
+            const response = await fetch(`/portfolios/${currentPortfolioId}/simulation-groups/${groupId}/bulk-promote`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({}),
+            });
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.detail || 'Bulk promote failed');
+            }
+            alert(`Promoted ${result.promoted} entries.`);
+            loadSimulationGroups();
+            loadJournalEntries();
+            loadEquityCurves();
+        } catch (error) {
+            alert(error.message);
+        }
+    }
+
+    async function deleteConnector(connectorId) {
+        if (!currentPortfolioId) return;
+        if (!confirm('Remove this connector? This cannot be undone.')) return;
+        const statusEl = document.getElementById('connector-status');
+        statusEl.textContent = 'Removing connector...';
+        try {
+            const response = await fetch(`/portfolios/${currentPortfolioId}/connectors/${connectorId}`, {
+                method: 'DELETE',
+            });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || 'Failed to delete connector');
+            }
+            statusEl.textContent = 'Connector removed.';
+            refreshConnectors();
+        } catch (error) {
+            console.error('deleteConnector error', error);
+            statusEl.textContent = error.message;
+        }
+    }
+
+    async function commitOcrPositions() {
+        if (!currentPortfolioId) {
+            alert('Open a portfolio first.');
+            return;
+        }
+        const statusEl = document.getElementById('screenshot-status');
+        const previewEl = document.getElementById('screenshot-preview');
+        if (!pendingOcrPositions.length) {
+            statusEl.textContent = 'No OCR positions to apply.';
+            return;
+        }
+
+        const normalized = pendingOcrPositions
+            .map(normalizeOcrPosition)
+            .filter(Boolean);
+        if (!normalized.length) {
+            statusEl.textContent = 'Parsed rows are missing tickers.';
+            return;
+        }
+
+        statusEl.textContent = 'Saving parsed positions...';
+        try {
+            const response = await fetch(`/portfolios/${currentPortfolioId}/positions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(normalized),
+            });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || 'Failed to save positions');
+            }
+            pendingOcrPositions = [];
+            statusEl.textContent = 'Positions saved. Refreshing...';
+            previewEl.innerHTML = '';
+            await viewPortfolio(currentPortfolioId);
+        } catch (error) {
+            console.error('commitOcrPositions error', error);
+            statusEl.textContent = error.message;
+        }
+    }
+
+    async function loadPortfolios() {
+        const container = document.getElementById('portfolio-list');
+        const countEl = document.getElementById('portfolio-count');
+        if (!container || !countEl) return;
+        currentPortfolioId = null;
+        currentPortfolioSyntheticSymbol = null;
+        currentPortfolioName = '';
+        clearSyntheticTickerEntries();
+        container.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
+        try {
+            const response = await fetch('/portfolios/');
+            if (!response.ok) throw new Error('Failed to load portfolios');
+            portfoliosCache = await response.json();
+            countEl.textContent = `${portfoliosCache.length} total`;
+
+            if (!portfoliosCache.length) {
+                container.innerHTML = '<p class="text-muted mb-0">No portfolios yet. Create one to get started.</p>';
+                return;
+            }
+
+            const listHtml = portfoliosCache.map(portfolio => `
+                <div class="border rounded p-3 mb-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>${portfolio.name}</strong>
+                            <span class="badge bg-secondary ms-2">${portfolio.synthetic_symbol}</span>
+                        </div>
+                        <small class="text-muted">Updated ${portfolio.updated_at ? new Date(portfolio.updated_at).toLocaleString() : 'n/a'}</small>
+                    </div>
+                    <div class="mt-2">
+                        <small class="text-muted">Positions: ${portfolio.position_count}</small>
+                    </div>
+                    <div class="mt-2">
+                        <button class="btn btn-sm btn-outline-primary" onclick="viewPortfolio(${portfolio.id})">View</button>
+                    </div>
+                </div>
+            `).join('');
+            container.innerHTML = listHtml;
+        } catch (error) {
+            console.error('loadPortfolios error', error);
+            container.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
+        }
+    }
+
+    async function createPortfolio(event) {
+        event.preventDefault();
+        const nameInput = document.getElementById('portfolio-name');
+        const notesInput = document.getElementById('portfolio-notes');
+        const statusEl = document.getElementById('portfolio-form-status');
+
+        statusEl.textContent = 'Saving...';
+        try {
+            const payload = {
+                name: nameInput.value.trim(),
+                notes: notesInput.value.trim() || undefined,
+                starting_positions: pendingPortfolioPositions
+                    .filter(pos => pos.ticker && pos.target_value > 0)
+                    .map(pos => ({ ticker: pos.ticker, target_value: pos.target_value })),
+            };
+            const response = await fetch('/portfolios/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || 'Failed to create portfolio');
+            }
+            nameInput.value = '';
+            notesInput.value = '';
+            statusEl.textContent = 'Portfolio created.';
+            const bootstrapLib = getBootstrapLib();
+            bootstrapLib?.Modal?.getInstance(document.getElementById('create-portfolio-modal'))?.hide();
+            loadPortfolios();
+        } catch (error) {
+            console.error('createPortfolio error', error);
+            statusEl.textContent = error.message;
+        }
+        return false;
+    }
+
+    async function viewPortfolio(portfolioId) {
+        const container = document.getElementById('portfolio-list');
+        if (!container) return;
+        currentPortfolioId = portfolioId;
+        currentPortfolioSyntheticSymbol = null;
+        currentPortfolioName = '';
+        pendingOcrPositions = [];
+        container.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
+        try {
+            const response = await fetch(`/portfolios/${portfolioId}`);
+            if (!response.ok) throw new Error('Failed to load portfolio');
+            const data = await response.json();
+            currentPortfolioSyntheticSymbol = data.synthetic_symbol || null;
+            currentPortfolioName = data.name || '';
+            const positionsHtml = (data.positions || []).map(pos => `
+                <tr>
+                    <td>${pos.ticker}</td>
+                    <td>${pos.quantity.toFixed(2)}</td>
+                    <td>${pos.avg_cost.toFixed(2)}</td>
+                    <td>${pos.current_price.toFixed(2)}</td>
+                    <td>${pos.weight.toFixed(2)}%</td>
+                </tr>
+            `).join('') || '<tr><td colspan="5" class="text-muted">No positions yet</td></tr>';
+
+            const portfolioTabs = ['overview', 'analytics', 'strategy', 'journal', 'automation', 'manage'];
+            if (!portfolioTabs.includes(currentPortfolioSubTab)) {
+                currentPortfolioSubTab = 'overview';
+            }
+
+            container.innerHTML = `
+                <div class="mb-3">
+                    <button class="btn btn-sm btn-outline-secondary" onclick="loadPortfolios()">← Back to list</button>
+                </div>
+                <h5>${data.name} <span class="badge bg-secondary">${data.synthetic_symbol}</span></h5>
+                <p class="text-muted">${data.notes || 'No notes provided.'}</p>
+                <div class="d-flex flex-wrap gap-2 mb-3" role="tablist">
+                    ${[
+                        { id: 'overview', label: 'Overview' },
+                        { id: 'analytics', label: 'Analytics' },
+                        { id: 'strategy', label: 'Strategy Lab' },
+                        { id: 'journal', label: 'Journal' },
+                        { id: 'automation', label: 'Automation' },
+                        { id: 'manage', label: 'Manage' },
+                    ].map(tab => `
+                        <button type="button" role="tab" aria-selected="${tab.id === currentPortfolioSubTab}" class="btn btn-sm btn-outline-primary${tab.id === currentPortfolioSubTab ? ' active' : ''}" data-portfolio-tab-btn="${tab.id}" onclick="setPortfolioSubTab('${tab.id}')">${tab.label}</button>
+                    `).join('')}
+                </div>
+                <div class="portfolio-subtab" data-tab="overview">
+                    <div class="table-responsive mb-3">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Ticker</th>
+                                    <th>Qty</th>
+                                    <th>Avg Cost</th>
+                                    <th>Last Price</th>
+                                    <th>Weight</th>
+                                </tr>
+                            </thead>
+                            <tbody>${positionsHtml}</tbody>
+                        </table>
+                    </div>
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span>Trading Log Ingestion (CSV)</span>
+                            <small class="text-muted">Columns: action,ticker,quantity,price,executed_at</small>
+                        </div>
+                        <div class="card-body">
+                            <textarea class="form-control mb-2" id="trading-log-input" rows="5" placeholder="action,ticker,quantity,price,executed_at\nbuy,AAPL,10,150,2025-05-01T15:30:00\nsell,MSFT,5,320"></textarea>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <small class="text-muted">Paste CSV (comma or tab-delimited). executed_at optional.</small>
+                                <button class="btn btn-sm btn-outline-primary" onclick="ingestTradingLogs()">Ingest Trades</button>
+                            </div>
+                            <div id="trading-log-status" class="small text-muted"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="portfolio-subtab d-none" data-tab="analytics">
+                    <div class="card">
+                    <div class="card-header d-flex flex-wrap justify-content-between align-items-center">
+                        <div>
+                            <span>Portfolio Equity Dashboard</span>
+                            <small class="text-muted ms-2">Live vs Sim + strategy attribution</small>
+                        </div>
+                        <div class="d-flex gap-2 align-items-center flex-wrap">
+                            <div class="form-check form-check-inline mb-0">
+                                <input class="form-check-input" type="checkbox" id="equity-toggle-live" checked onchange="renderEquityCharts()">
+                                <label class="form-check-label small" for="equity-toggle-live">Live</label>
+                            </div>
+                            <div class="form-check form-check-inline mb-0">
+                                <input class="form-check-input" type="checkbox" id="equity-toggle-sim" checked onchange="renderEquityCharts()">
+                                <label class="form-check-label small" for="equity-toggle-sim">Simulated</label>
+                            </div>
+                            <div class="form-check form-check-inline mb-0">
+                                <input class="form-check-input" type="checkbox" id="equity-toggle-all" checked onchange="renderEquityCharts()">
+                                <label class="form-check-label small" for="equity-toggle-all">All</label>
+                            </div>
+                            <div class="form-check form-check-inline mb-0">
+                                <input class="form-check-input" type="checkbox" id="equity-overlay-drawdown" checked onchange="renderEquityCharts()">
+                                <label class="form-check-label small" for="equity-overlay-drawdown">Drawdown</label>
+                            </div>
+                            <div class="form-check form-check-inline mb-0">
+                                <input class="form-check-input" type="checkbox" id="equity-overlay-discipline" checked onchange="renderEquityCharts()">
+                                <label class="form-check-label small" for="equity-overlay-discipline">Journal badges</label>
+                            </div>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button class="btn btn-outline-dark" onclick="exportEquityCsv()">Export CSV</button>
+                                <button class="btn btn-outline-dark" onclick="exportEquityPng()">Save PNG</button>
+                            </div>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="loadEquityCurves()">Refresh</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="equity-status" class="small text-muted">Load trades to see equity curves.</div>
+                        <div id="equity-insight-badges" class="d-flex flex-wrap gap-2 mt-2 small"></div>
+                        <div class="row g-3 mt-1">
+                            <div class="col-lg-7">
+                                <div class="border rounded p-2 h-100">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <strong>Total Equity</strong>
+                                        <small class="text-muted" id="equity-overview-meta"></small>
+                                    </div>
+                                    <div id="equity-overall-chart" class="mt-2" style="height: 320px;"></div>
+                                </div>
+                            </div>
+                            <div class="col-lg-5">
+                                <div class="border rounded p-2 h-100">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <strong>Strategy Attribution</strong>
+                                        <select class="form-select form-select-sm w-auto" id="strategy-select" onchange="renderStrategyChart()">
+                                            <option value="" selected>Auto</option>
+                                        </select>
+                                    </div>
+                                    <div id="equity-strategy-chart" class="mt-2" style="height: 320px;"></div>
+                                    <div class="small text-muted mt-2" id="strategy-stats"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="border rounded p-2 mt-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <strong>Discipline Heatmap</strong>
+                                <small class="text-muted">Higher intensity = more missing plan/risk steps</small>
+                            </div>
+                            <div id="discipline-heatmap" class="mt-2" style="height: 260px;"></div>
+                        </div>
+                    </div>
+                </div>
+                    <div class="card mt-3">
+                    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <div>
+                            <span>AI Journey Review</span>
+                            <small class="text-muted ms-2">Gemini summary of trades &amp; equity</small>
+                        </div>
+                        <div class="d-flex gap-2 align-items-center">
+                            <div class="form-check form-check-inline mb-0">
+                                <input class="form-check-input" type="checkbox" id="journey-include-sim" checked>
+                                <label class="form-check-label small" for="journey-include-sim">Include simulations</label>
+                            </div>
+                            <select id="journey-trade-limit" class="form-select form-select-sm" style="width: 110px;">
+                                <option value="80">Last 80 trades</option>
+                                <option value="120" selected>Last 120 trades</option>
+                                <option value="200">Last 200 trades</option>
+                                <option value="300">Last 300 trades</option>
+                            </select>
+                            <button class="btn btn-sm btn-outline-primary" id="journey-run-btn" onclick="runJourneyReview()">
+                                <span class="spinner-border spinner-border-sm d-none" id="journey-spinner"></span>
+                                Run Review
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="journey-status" class="small text-muted">Click "Run Review" to generate insights.</div>
+                        <div id="journey-results" class="mt-3"></div>
+                    </div>
+                </div>
+                </div>
+                <div class="portfolio-subtab d-none" data-tab="strategy">
+                    <div class="card" id="strategy-lab-card">
+                    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <div>
+                            <span>Strategy Lab</span>
+                            <small class="text-muted ms-2">Simulated playbooks &amp; guardrails</small>
+                        </div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button class="btn btn-sm btn-outline-secondary" onclick="loadSimulationGroups()">Refresh</button>
+                            <button class="btn btn-sm btn-primary" onclick="openSimulationGroupModal()">New Hypothesis</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                            <div id="simulation-lab-status" class="small text-muted">No simulations tracked yet.</div>
+                            <div class="d-flex gap-2 align-items-center flex-wrap">
+                                <span class="badge bg-light text-dark" id="journal-group-filter-label">Journal filter: All groups</span>
+                                <button class="btn btn-sm btn-outline-dark" onclick="setSimulationGroupFilter('all')">Clear Journal Filter</button>
+                            </div>
+                        </div>
+                        <div id="simulation-groups-container" class="mt-3"></div>
+                        <div class="alert alert-light border mt-3" role="alert">
+                            <div class="d-flex flex-wrap justify-content-between gap-2 align-items-center">
+                                <div>
+                                    <strong>Workflow tips</strong>
+                                    <div class="small text-muted">Bucket AI playbooks by hypothesis, enforce guardrails, then bulk-promote once validated.</div>
+                                </div>
+                                <div class="small">
+                                    <span class="badge bg-success me-1">OK</span>Guardrail clear
+                                    <span class="badge bg-warning text-dark mx-1">Warn</span>Near limit
+                                    <span class="badge bg-danger">Blocked</span>Limit hit
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                </div>
+                <div class="portfolio-subtab d-none" data-tab="journal">
+                    <div class="card">
+                    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <div>
+                            <span>Trading Journal</span>
+                            <small class="text-muted ms-2">Real &amp; simulated entries</small>
+                        </div>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-secondary active" data-journal-filter="all" onclick="setJournalFilter('all')">All</button>
+                            <button type="button" class="btn btn-outline-secondary" data-journal-filter="real" onclick="setJournalFilter('real')">Live</button>
+                            <button type="button" class="btn btn-outline-secondary" data-journal-filter="simulated" onclick="setJournalFilter('simulated')">Simulated</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                            <div id="journal-status" class="small text-muted">No entries loaded.</div>
+                            <div class="d-flex gap-2 flex-wrap align-items-center">
+                                <div class="input-group input-group-sm" style="width: 240px;">
+                                    <label class="input-group-text" for="journal-template-select">Template</label>
+                                    <select class="form-select" id="journal-template-select">
+                                        <option value="">Choose...</option>
+                                        <option value="momentum_breakout">Momentum Breakout</option>
+                                        <option value="mean_reversion">Mean Reversion</option>
+                                    </select>
+                                </div>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="loadJournalEntries()">Refresh</button>
+                                <button class="btn btn-sm btn-outline-primary" onclick="handleAddSimulationWithTemplate()">Add Simulation</button>
+                            </div>
+                        </div>
+                        <div class="card border-0 bg-light mt-3">
+                            <div class="card-body py-2">
+                                <div class="d-flex justify-content-between flex-wrap gap-2 align-items-center">
+                                    <div>
+                                        <strong>AI Suggestions</strong>
+                                        <p class="small mb-0 text-muted">Capture plan → emotion → reflection so Gemini can flag streaks and discipline signals.</p>
+                                    </div>
+                                    <div>
+                                        <button class="btn btn-sm btn-outline-success" onclick="handleAddSimulationWithTemplate('momentum_breakout')">Use Momentum Plan</button>
+                                        <button class="btn btn-sm btn-outline-success" onclick="handleAddSimulationWithTemplate('mean_reversion')">Use Mean Reversion</button>
+                                        <button class="btn btn-sm btn-outline-info" onclick="runJourneyReview()">Ask AI to summarize streaks</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="table-responsive mt-3">
+                            <table class="table table-sm align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th scope="col">Date</th>
+                                        <th scope="col">Symbol</th>
+                                        <th scope="col">Position</th>
+                                        <th scope="col">Strategy</th>
+                                        <th scope="col">Notes</th>
+                                        <th scope="col">Tags</th>
+                                        <th scope="col">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="trading-journal-body">
+                                    <tr>
+                                        <td colspan="7" class="text-center text-muted">No entries yet.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                </div>
+                <div class="portfolio-subtab d-none" data-tab="automation">
+                    <div class="card mt-3 mt-lg-0">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>Screenshot Upload (OCR)</span>
+                        <small class="text-muted">PNG/JPG screenshots of brokerage holdings</small>
+                    </div>
+                    <div class="card-body">
+                        <input class="form-control mb-2" type="file" id="portfolio-screenshot" accept="image/png,image/jpeg,image/jpg,image/webp">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <small class="text-muted">Gemini will attempt to extract tickers, quantity, price, cost basis.</small>
+                            <button class="btn btn-sm btn-outline-primary" onclick="uploadPortfolioScreenshot()">Upload &amp; Parse</button>
+                        </div>
+                        <div id="screenshot-status" class="small text-muted"></div>
+                        <div id="screenshot-preview" class="mt-3"></div>
+                    </div>
+                </div>
+                    <div class="card mt-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>AI Portfolio Strategy</span>
+                        <small class="text-muted">Gemini scenario playbook</small>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <label class="form-label small mb-1" for="portfolio-strategy-scenario">Market Scenario</label>
+                                <select id="portfolio-strategy-scenario" class="form-select form-select-sm">
+                                    <option value="neutral" selected>Neutral / Rangebound</option>
+                                    <option value="bullish">Bullish</option>
+                                    <option value="bearish">Bearish</option>
+                                    <option value="volatile">Volatile</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small mb-1" for="portfolio-strategy-timeframe">Timeframe</label>
+                                <select id="portfolio-strategy-timeframe" class="form-select form-select-sm">
+                                    <option value="swing" selected>Swing (days-weeks)</option>
+                                    <option value="position">Position (weeks-months)</option>
+                                    <option value="long_term">Long Term</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small mb-1" for="portfolio-strategy-notes">Notes to AI (optional)</label>
+                                <input id="portfolio-strategy-notes" class="form-control form-control-sm" placeholder="Focus on hedging tech risk">
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mt-3">
+                            <button class="btn btn-sm btn-outline-primary" id="run-portfolio-strategy-btn" onclick="runPortfolioStrategy()">
+                                <span class="spinner-border spinner-border-sm d-none" id="portfolio-strategy-spinner"></span>
+                                Run Playbook
+                            </button>
+                            <small class="text-muted">Uses stored holdings + synthetic ticker context.</small>
+                        </div>
+                        <div id="portfolio-strategy-status" class="small text-muted mt-2"></div>
+                        <div id="portfolio-strategy-results" class="mt-3"></div>
+                    </div>
+                </div>
+                    <div class="card mt-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>Broker Connectors</span>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="refreshConnectors()">↻</button>
+                    </div>
+                    <div class="card-body">
+                        <div id="connector-list" class="mb-3 text-muted">No connectors yet.</div>
+                        <form class="border rounded p-3" onsubmit="return createConnector(event)">
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <label class="form-label small mb-1" for="connector-name">Display Name</label>
+                                    <input id="connector-name" class="form-control form-control-sm" maxlength="80" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small mb-1" for="connector-provider">Provider</label>
+                                    <select id="connector-provider" class="form-select form-select-sm" required>
+                                        <option value="schwab">Charles Schwab</option>
+                                        <option value="fidelity">Fidelity</option>
+                                        <option value="etrade">E*TRADE</option>
+                                        <option value="robinhood">Robinhood</option>
+                                        <option value="ibkr">Interactive Brokers</option>
+                                        <option value="tda">TD Ameritrade</option>
+                                        <option value="other">Other / Custom</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small mb-1" for="connector-credentials">API Key / Notes</label>
+                                    <input id="connector-credentials" class="form-control form-control-sm" placeholder="Token or instructions" maxlength="2000">
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mt-3">
+                                <small class="text-muted">Credentials stay encrypted locally until sync runners are built.</small>
+                                <button class="btn btn-sm btn-outline-primary" type="submit">Add Connector</button>
+                            </div>
+                            <div id="connector-status" class="small text-muted mt-2"></div>
+                        </form>
+                    </div>
+                    </div>
+                </div>
+                </div>
+                <div class="portfolio-subtab d-none" data-tab="manage">
+                    <div class="card mt-3">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span>Manage &amp; Create Portfolios</span>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-outline-secondary" type="button" onclick="loadPortfolios()">↻</button>
+                                <button class="btn btn-sm btn-primary" type="button" onclick="openCreatePortfolioModal()">New Portfolio</button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <p class="small text-muted mb-3">Spin up a new workspace or maintain existing ones. Future controls for renaming/archiving will live here.</p>
+                            <ul class="small text-muted mb-0">
+                                <li>Use <strong>New Portfolio</strong> for instant creation without leaving this portfolio.</li>
+                                <li>All saved portfolios stay visible in the list sidebar for quick switching.</li>
+                                <li>Bulk guardrail settings will surface alongside Strategy Lab soon.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal fade" id="journal-modal" tabindex="-1" aria-labelledby="journal-modal-title" aria-hidden="true">
+                    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                        <div class="modal-content">
+                            <form id="journal-form" onsubmit="return submitJournalForm(event)">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="journal-modal-title">Journal Entry</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="row g-2">
+                                        <div class="col-md-3">
+                                            <label class="form-label small" for="journal-action">Action</label>
+                                            <select id="journal-action" class="form-select form-select-sm">
+                                                <option value="buy">Buy</option>
+                                                <option value="sell">Sell</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label small" for="journal-ticker">Ticker</label>
+                                            <input id="journal-ticker" class="form-control form-control-sm" maxlength="10" required>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label small" for="journal-quantity">Quantity</label>
+                                            <input type="number" step="0.01" id="journal-quantity" class="form-control form-control-sm" required>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label small" for="journal-price">Price</label>
+                                            <input type="number" step="0.01" id="journal-price" class="form-control form-control-sm" required>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label small" for="journal-executed-at">Executed At</label>
+                                            <input type="datetime-local" id="journal-executed-at" class="form-control form-control-sm">
+                                        </div>
+                                        <div class="col-md-6 d-flex align-items-end justify-content-between">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" role="switch" id="journal-is-simulated" checked>
+                                                <label class="form-check-label" for="journal-is-simulated">Simulated trade</label>
+                                            </div>
+                                            <div class="w-50 ms-3">
+                                                <label class="form-label small" for="journal-emotion">Emotion</label>
+                                                <input id="journal-emotion" class="form-control form-control-sm" maxlength="120">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label small" for="journal-strategy-name">Strategy Name</label>
+                                            <input id="journal-strategy-name" class="form-control form-control-sm" maxlength="120">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label small" for="journal-setup-name">Setup Name</label>
+                                            <input id="journal-setup-name" class="form-control form-control-sm" maxlength="120">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label small" for="journal-risk-amount">Risk Amount ($)</label>
+                                            <input type="number" step="0.01" id="journal-risk-amount" class="form-control form-control-sm">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label small" for="journal-confidence">Confidence (0-1)</label>
+                                            <input type="number" step="0.01" min="0" max="1" id="journal-confidence" class="form-control form-control-sm">
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label small" for="journal-thesis">Thesis</label>
+                                            <textarea id="journal-thesis" class="form-control form-control-sm" rows="2" maxlength="4000"></textarea>
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label small" for="journal-entry-plan">Entry Plan</label>
+                                            <textarea id="journal-entry-plan" class="form-control form-control-sm" rows="2" maxlength="2000"></textarea>
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label small" for="journal-exit-plan">Exit Plan</label>
+                                            <textarea id="journal-exit-plan" class="form-control form-control-sm" rows="2" maxlength="2000"></textarea>
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label small" for="journal-risk-notes">Risk Notes</label>
+                                            <textarea id="journal-risk-notes" class="form-control form-control-sm" rows="2" maxlength="2000"></textarea>
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label small" for="journal-notes">Journal Notes</label>
+                                            <textarea id="journal-notes" class="form-control form-control-sm" rows="3" maxlength="4000"></textarea>
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label small" for="journal-tags">Tags (comma separated)</label>
+                                            <input id="journal-tags" class="form-control form-control-sm" maxlength="400">
+                                        </div>
+                                    </div>
+                                    <div id="journal-form-status" class="small text-muted mt-3"></div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                                    <button type="submit" class="btn btn-primary">Save Entry</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal fade" id="journey-modal" tabindex="-1" aria-labelledby="journey-modal-title" aria-hidden="true">
+                    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="journey-modal-title">AI Journey Review</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div id="journey-modal-body" class="markdown-content"></div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            refreshConnectors();
+            loadJournalEntries();
+            loadEquityCurves();
+            updatePortfolioSubTabs();
+            const headerButton = document.querySelector('[data-portfolio-tab-btn="manage"]');
+            if (headerButton) {
+                headerButton.classList.remove('btn-outline-primary');
+            }
+        } catch (error) {
+            console.error('viewPortfolio error', error);
+            container.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
+        }
+    }
+
+    function parseTradingLogCSV(rawText) {
+        const clean = rawText.trim();
+        if (!clean) {
+            throw new Error('No trading log data provided');
+        }
+
+        const lines = clean.split(/\r?\n/).filter(line => line.trim().length);
+        if (!lines.length) {
+            throw new Error('Trading log is empty');
+        }
+
+        const delimiter = lines[0].includes('\t') ? '\t' : ',';
+        const headers = lines[0].split(delimiter).map(h => h.trim().toLowerCase());
+        const required = ['action', 'ticker', 'quantity', 'price'];
+        for (const key of required) {
+            if (!headers.includes(key)) {
+                throw new Error(`Missing required column: ${key}`);
+            }
+        }
+
+        const entries = [];
+        for (let i = 1; i < lines.length; i++) {
+            const parts = lines[i].split(delimiter).map(p => p.trim());
+            if (parts.length < 4) continue;
+            const row = {};
+            headers.forEach((header, idx) => {
+                row[header] = parts[idx];
+            });
+            if (!row.action || !row.ticker) continue;
+            entries.push({
+                action: row.action,
+                ticker: row.ticker,
+                quantity: parseFloat(row.quantity || '0'),
+                price: parseFloat(row.price || '0'),
+                executed_at: row.executed_at || undefined,
+                source: 'csv',
+                raw_payload: lines[i],
+            });
+        }
+
+        if (!entries.length) {
+            throw new Error('No valid rows found in trading log');
+        }
+        return entries;
+    }
+
+    async function ingestTradingLogs() {
+        if (!currentPortfolioId) {
+            alert('Open a portfolio first.');
+            return;
+        }
+        const textarea = document.getElementById('trading-log-input');
+        const statusEl = document.getElementById('trading-log-status');
+        if (!textarea) return;
+
+        statusEl.textContent = 'Parsing log...';
+        let entries;
+        try {
+            entries = parseTradingLogCSV(textarea.value);
+        } catch (err) {
+            statusEl.textContent = err.message;
+            return;
+        }
+
+        statusEl.textContent = 'Uploading trades...';
+        try {
+            const response = await fetch(`/portfolios/${currentPortfolioId}/trading-log/ingest`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ entries }),
+            });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || 'Ingestion failed');
+            }
+            const result = await response.json();
+            statusEl.textContent = `Ingested ${result.entries} trade(s). Refreshing...`;
+            textarea.value = '';
+            viewPortfolio(currentPortfolioId);
+        } catch (error) {
+            console.error('ingestTradingLogs error', error);
+            statusEl.textContent = error.message;
+        }
+    }
+
+    function toDateTimeLocalInput(value) {
+        if (!value) return '';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return '';
+        const pad = num => String(num).padStart(2, '0');
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    }
+
+    async function loadJournalEntries() {
+        if (!currentPortfolioId) return;
+        const statusEl = document.getElementById('journal-status');
+        const tbody = document.getElementById('trading-journal-body');
+        if (!statusEl || !tbody) return;
+
+        statusEl.textContent = 'Loading journal...';
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">Loading...</td></tr>`;
+        try {
+            let url = `/portfolios/${currentPortfolioId}/trading-log`;
+            if (currentSimulationGroupFilter && currentSimulationGroupFilter !== 'all') {
+                const suffix = encodeURIComponent(currentSimulationGroupFilter);
+                url += `?simulation_group=${suffix}`;
+            }
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Failed to load journal');
+            journalEntries = await response.json();
+            statusEl.textContent = `Loaded ${journalEntries.length} entr${journalEntries.length === 1 ? 'y' : 'ies'}.`;
+            renderJournalEntries();
+        } catch (error) {
+            console.error('loadJournalEntries error', error);
+            statusEl.textContent = error.message;
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">${escapeHtmlLite(error.message)}</td></tr>`;
+        }
+    }
+
+    function setJournalFilter(filter) {
+        currentJournalFilter = filter;
+        document.querySelectorAll('[data-journal-filter]').forEach(btn => {
+            btn.classList.toggle('active', btn.getAttribute('data-journal-filter') === filter);
+        });
+        renderJournalEntries();
+    }
+
+    function renderJournalEntries() {
+        const tbody = document.getElementById('trading-journal-body');
+        if (!tbody) return;
+        if (!journalEntries.length) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No entries yet.</td></tr>';
+            return;
+        }
+
+        const filtered = journalEntries.filter(entry => {
+            if (currentJournalFilter === 'real') return !entry.is_simulated;
+            if (currentJournalFilter === 'simulated') return !!entry.is_simulated;
+            return true;
+        });
+
+        if (!filtered.length) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No entries match this filter.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = filtered.map(entry => {
+            const strategy = entry.strategy_name || entry.setup_name || '—';
+            const notesSnippet = entry.thesis || entry.journal_notes || entry.entry_plan || '';
+            const truncatedNotes = notesSnippet.length > 100 ? `${escapeHtmlLite(notesSnippet.slice(0, 97))}…` : escapeHtmlLite(notesSnippet);
+            const tags = entry.tags ? entry.tags.split(',').map(tag => tag.trim()).filter(Boolean).map(tag => `<span class="badge bg-light text-dark me-1 mb-1">${escapeHtmlLite(tag)}</span>`).join('') : '<span class="text-muted">—</span>';
+            const statusBadge = entry.is_simulated
+                ? '<span class="badge bg-warning text-dark">Sim</span>'
+                : '<span class="badge bg-success">Live</span>';
+            const promoteDisabled = entry.is_simulated ? '' : 'disabled';
+            return `
+                <tr>
+                    <td><div>${formatDateTime(entry.executed_at)}</div><div class="text-muted small">${formatDateTime(entry.updated_at)}</div></td>
+                    <td><strong>${escapeHtmlLite(entry.ticker)}</strong><div class="small text-muted text-uppercase">${escapeHtmlLite(entry.action)}</div></td>
+                    <td>${entry.quantity?.toFixed ? entry.quantity.toFixed(2) : entry.quantity || '-'}<div class="small text-muted">@ ${entry.price?.toFixed ? entry.price.toFixed(2) : entry.price || '-'}</div></td>
+                    <td>${statusBadge} ${escapeHtmlLite(strategy)}</td>
+                    <td>${truncatedNotes || '<span class="text-muted">—</span>'}</td>
+                    <td>${tags}</td>
+                    <td>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button class="btn btn-outline-secondary" onclick="openJournalModal(${entry.id})">Edit</button>
+                            <button class="btn btn-outline-primary" ${promoteDisabled} onclick="promoteJournalEntry(${entry.id})">Promote</button>
+                            <button class="btn btn-outline-danger" onclick="deleteJournalEntry(${entry.id})">Delete</button>
+                        </div>
+                    </td>
+                </tr>`;
+        }).join('');
+    }
+
+    function handleAddSimulationWithTemplate(forceTemplateKey = null) {
+        const dropdown = document.getElementById('journal-template-select');
+        const templateKey = forceTemplateKey || dropdown?.value || null;
+        openJournalModal(null, templateKey || null);
+    }
+
+    function applyJournalTemplateToForm(templateKey) {
+        if (!templateKey || !journalTemplates[templateKey]) return false;
+        const template = journalTemplates[templateKey];
+        const setters = {
+            'journal-strategy-name': template.strategy_name,
+            'journal-thesis': template.thesis,
+            'journal-entry-plan': template.entry_plan,
+            'journal-exit-plan': template.exit_plan,
+            'journal-risk-notes': template.risk_notes,
+            'journal-tags': template.tags,
+        };
+        Object.entries(setters).forEach(([id, value]) => {
+            const el = document.getElementById(id);
+            if (el !== null && typeof value === 'string') {
+                el.value = value;
+            }
+        });
+        return true;
+    }
+
+    function openJournalModal(entryId = null, templateKey = null) {
+        if (!currentPortfolioId) {
+            alert('Open a portfolio first.');
+            return;
+        }
+
+        const modalEl = document.getElementById('journal-modal');
+        if (!modalEl) return;
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        const isEditing = Boolean(entryId);
+        editingJournalEntryId = entryId;
+        document.getElementById('journal-modal-title').textContent = isEditing ? 'Edit Journal Entry' : 'Add Journal Entry';
+        const fields = {
+            action: document.getElementById('journal-action'),
+            ticker: document.getElementById('journal-ticker'),
+            quantity: document.getElementById('journal-quantity'),
+            price: document.getElementById('journal-price'),
+            executedAt: document.getElementById('journal-executed-at'),
+            isSimulated: document.getElementById('journal-is-simulated'),
+            emotion: document.getElementById('journal-emotion'),
+            strategy: document.getElementById('journal-strategy-name'),
+            setup: document.getElementById('journal-setup-name'),
+            riskAmount: document.getElementById('journal-risk-amount'),
+            confidence: document.getElementById('journal-confidence'),
+            thesis: document.getElementById('journal-thesis'),
+            entryPlan: document.getElementById('journal-entry-plan'),
+            exitPlan: document.getElementById('journal-exit-plan'),
+            riskNotes: document.getElementById('journal-risk-notes'),
+            notes: document.getElementById('journal-notes'),
+            tags: document.getElementById('journal-tags'),
+        };
+
+        Object.values(fields).forEach(el => { if (el) el.disabled = false; });
+
+        if (isEditing) {
+            const entry = journalEntries.find(e => e.id === entryId);
+            if (!entry) {
+                alert('Entry not found');
+                return;
+            }
+            fields.action.value = entry.action || 'buy';
+            fields.ticker.value = entry.ticker || '';
+            fields.quantity.value = entry.quantity ?? '';
+            fields.price.value = entry.price ?? '';
+            fields.executedAt.value = toDateTimeLocalInput(entry.executed_at);
+            fields.isSimulated.checked = !!entry.is_simulated;
+            fields.emotion.value = entry.emotion || '';
+            fields.strategy.value = entry.strategy_name || '';
+            fields.setup.value = entry.setup_name || '';
+            fields.riskAmount.value = entry.risk_amount ?? '';
+            fields.confidence.value = entry.confidence ?? '';
+            fields.thesis.value = entry.thesis || '';
+            fields.entryPlan.value = entry.entry_plan || '';
+            fields.exitPlan.value = entry.exit_plan || '';
+            fields.riskNotes.value = entry.risk_notes || '';
+            fields.notes.value = entry.journal_notes || '';
+            fields.tags.value = entry.tags || '';
+
+            // Lock trade execution fields for now (metadata-only edits)
+            ['action', 'ticker', 'quantity', 'price', 'executedAt'].forEach(key => {
+                if (fields[key]) fields[key].disabled = true;
+            });
+        } else {
+            fields.action.value = 'buy';
+            fields.ticker.value = '';
+            fields.quantity.value = '';
+            fields.price.value = '';
+            fields.executedAt.value = '';
+            fields.isSimulated.checked = true;
+            fields.emotion.value = '';
+            fields.strategy.value = '';
+            fields.setup.value = '';
+            fields.riskAmount.value = '';
+            fields.confidence.value = '';
+            fields.thesis.value = '';
+            fields.entryPlan.value = '';
+            fields.exitPlan.value = '';
+            fields.riskNotes.value = '';
+            fields.notes.value = '';
+            fields.tags.value = '';
+            if (templateKey && applyJournalTemplateToForm(templateKey)) {
+                document.getElementById('journal-form-status').textContent = `Applied template: ${journalTemplates[templateKey].label}`;
+            }
+        }
+
+        document.getElementById('journal-form-status').textContent = '';
+        modal.show();
+    }
+
+    async function submitJournalForm(event) {
+        event.preventDefault();
+        if (!currentPortfolioId) {
+            alert('Open a portfolio first.');
+            return false;
+        }
+        const statusEl = document.getElementById('journal-form-status');
+        statusEl.textContent = 'Saving...';
+
+        const payloadCommon = {
+            strategy_name: document.getElementById('journal-strategy-name').value.trim(),
+            setup_name: document.getElementById('journal-setup-name').value.trim(),
+            thesis: document.getElementById('journal-thesis').value.trim(),
+            entry_plan: document.getElementById('journal-entry-plan').value.trim(),
+            exit_plan: document.getElementById('journal-exit-plan').value.trim(),
+            risk_notes: document.getElementById('journal-risk-notes').value.trim(),
+            risk_amount: document.getElementById('journal-risk-amount').value || null,
+            confidence: document.getElementById('journal-confidence').value || null,
+            emotion: document.getElementById('journal-emotion').value.trim(),
+            journal_notes: document.getElementById('journal-notes').value.trim(),
+            tags: document.getElementById('journal-tags').value.trim(),
+            is_simulated: document.getElementById('journal-is-simulated').checked,
+        };
+
+        try {
+            if (editingJournalEntryId) {
+                const updatePayload = {};
+                Object.entries(payloadCommon).forEach(([key, value]) => {
+                    if (value !== '' && value !== null) {
+                        updatePayload[key] = key.includes('risk_amount') || key.includes('confidence') ? Number(value) : value;
+                    } else {
+                        // Allow clearing fields by sending empty string
+                        if (['strategy_name', 'setup_name', 'thesis', 'entry_plan', 'exit_plan', 'risk_notes', 'emotion', 'journal_notes', 'tags'].includes(key)) {
+                            updatePayload[key] = '';
+                        } else if (['risk_amount', 'confidence'].includes(key)) {
+                            updatePayload[key] = null;
+                        }
+                    }
+                });
+                updatePayload.is_simulated = payloadCommon.is_simulated;
+
+                const response = await fetch(`/portfolios/${currentPortfolioId}/trading-log/${editingJournalEntryId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updatePayload),
+                });
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || 'Failed to update entry');
+                }
+            } else {
+                const entryPayload = {
+                    action: document.getElementById('journal-action').value,
+                    ticker: document.getElementById('journal-ticker').value.trim().toUpperCase(),
+                    quantity: parseFloat(document.getElementById('journal-quantity').value || '0'),
+                    price: parseFloat(document.getElementById('journal-price').value || '0'),
+                    executed_at: document.getElementById('journal-executed-at').value || undefined,
+                    source: 'journal_form',
+                    raw_payload: null,
+                    ...payloadCommon,
+                };
+
+                if (!entryPayload.ticker || !entryPayload.quantity || !entryPayload.price) {
+                    throw new Error('Ticker, quantity, and price are required');
+                }
+
+                const response = await fetch(`/portfolios/${currentPortfolioId}/trading-log/ingest`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ entries: [entryPayload] }),
+                });
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || 'Failed to save entry');
+                }
+            }
+
+            const result = await response.json();
+            if (result.guardrail_alerts && Object.keys(result.guardrail_alerts).length) {
+                statusEl.textContent = Object.values(result.guardrail_alerts).map(alert => alert.alerts.join(' ')).join(' | ');
+            } else {
+                statusEl.textContent = '';
+            }
+            loadSimulationGroups();
+            loadJournalEntries();
+            statusEl.textContent = '';
+        } catch (error) {
+            console.error('submitJournalForm error', error);
+            statusEl.textContent = error.message;
+        }
+
+        return false;
+    }
+
+    async function promoteJournalEntry(entryId) {
+        if (!currentPortfolioId) return;
+        try {
+            const response = await fetch(`/portfolios/${currentPortfolioId}/trading-log/${entryId}/promote`, {
+                method: 'POST',
+            });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || 'Failed to promote entry');
+            }
+            loadJournalEntries();
+        } catch (error) {
+            alert(error.message);
+        }
+    }
+
+    async function deleteJournalEntry(entryId) {
+        if (!currentPortfolioId) return;
+        if (!confirm('Delete this journal entry? This cannot be undone.')) return;
+        try {
+            const response = await fetch(`/portfolios/${currentPortfolioId}/trading-log/${entryId}`, {
+                method: 'DELETE',
+            });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || 'Failed to delete entry');
+            }
+            loadJournalEntries();
+        } catch (error) {
+            alert(error.message);
+        }
+    }
+
+    // Apply custom date range for compare chart
+    function applyCompareDateRange() {
+        compareFromDate = document.getElementById('compare-from-date').value;
+        compareToDate = document.getElementById('compare-to-date').value;
+        
+        // Clear quick range selection
+        document.querySelectorAll('#compare-quick-range .btn').forEach(btn => btn.classList.remove('active'));
+        
+        compareStocks();
+    }
+
+    // Reset compare date range to default (All)
+    function resetCompareDateRange() {
+        setCompareQuickRange('ALL', document.querySelector('#compare-quick-range .btn:last-child'));
+    }
+
+    // Set quick date range for compare chart
+    function setCompareQuickRange(range, btn) {
+        const today = new Date();
+        let fromDate = new Date();
+        
+        switch(range) {
+            case '6M':
+                fromDate.setMonth(today.getMonth() - 6);
+                break;
+            case '1Y':
+                fromDate.setFullYear(today.getFullYear() - 1);
+                break;
+            case '3Y':
+                fromDate.setFullYear(today.getFullYear() - 3);
+                break;
+            case '5Y':
+                fromDate.setFullYear(today.getFullYear() - 5);
+                break;
+            case 'ALL':
+            default:
+                fromDate = null;
+                break;
+        }
+        
+        // Update date inputs
+        document.getElementById('compare-to-date').value = today.toISOString().split('T')[0];
+        if (fromDate) {
+            document.getElementById('compare-from-date').value = fromDate.toISOString().split('T')[0];
+            compareFromDate = fromDate.toISOString().split('T')[0];
+        } else {
+            const tenYearsAgo = new Date();
+            tenYearsAgo.setFullYear(today.getFullYear() - 10);
+            document.getElementById('compare-from-date').value = tenYearsAgo.toISOString().split('T')[0];
+            compareFromDate = null;
+        }
+        compareToDate = today.toISOString().split('T')[0];
+        
+        // Update button states
+        document.querySelectorAll('#compare-quick-range .btn').forEach(b => b.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+        
+        // Refresh compare chart if tickers are entered
+        const tickersInput = document.getElementById('compare-tickers').value.trim();
+        if (tickersInput) {
+            compareStocks();
+        }
+    }
+
+    // Apply custom date range
+    function applyDateRange() {
+        chartFromDate = document.getElementById('chart-from-date').value;
+        chartToDate = document.getElementById('chart-to-date').value;
+        
+        // Clear quick range selection
+        document.querySelectorAll('.btn-group-sm .btn').forEach(btn => btn.classList.remove('active'));
+        currentQuickRange = null;
+        
+        if (currentTicker) {
+            fetchChartData(currentTicker, currentTimeframe);
+        }
+    }
+
+    // Reset date range to default (All)
+    function resetDateRange() {
+        setQuickRange('ALL');
+    }
+
+    // Set quick date range
+    function setQuickRange(range) {
+        const today = new Date();
+        let fromDate = new Date();
+        
+        switch(range) {
+            case '6M':
+                fromDate.setMonth(today.getMonth() - 6);
+                break;
+            case '1Y':
+                fromDate.setFullYear(today.getFullYear() - 1);
+                break;
+            case '3Y':
+                fromDate.setFullYear(today.getFullYear() - 3);
+                break;
+            case '5Y':
+                fromDate.setFullYear(today.getFullYear() - 5);
+                break;
+            case 'ALL':
+            default:
+                fromDate = null;
+                break;
+        }
+        
+        // Update date inputs
+        document.getElementById('chart-to-date').value = today.toISOString().split('T')[0];
+        if (fromDate) {
+            document.getElementById('chart-from-date').value = fromDate.toISOString().split('T')[0];
+            chartFromDate = fromDate.toISOString().split('T')[0];
+        } else {
+            // For ALL, set to 10 years ago as a reasonable default
+            const tenYearsAgo = new Date();
+            tenYearsAgo.setFullYear(today.getFullYear() - 10);
+            document.getElementById('chart-from-date').value = tenYearsAgo.toISOString().split('T')[0];
+            chartFromDate = null; // null means no filter
+        }
+        chartToDate = today.toISOString().split('T')[0];
+        
+        // Update button states
+        document.querySelectorAll('.btn-group-sm .btn').forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+        currentQuickRange = range;
+        
+        if (currentTicker) {
+            fetchChartData(currentTicker, currentTimeframe);
+        }
+    }
+
+    // Loading spinner HTML
+    const loadingSpinner = '<div class="d-flex justify-content-center align-items-center p-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>';
+
+    // Multi-select ticker functions
+    function toggleTickerSelection(element, symbol, event) {
+        const checkbox = element.querySelector('.ticker-checkbox');
+        const isCtrlClick = event && (event.ctrlKey || event.metaKey);
+        const isShiftClick = event && event.shiftKey;
+        
+        if (!isCtrlClick && !isShiftClick && !event.target.classList.contains('ticker-checkbox')) {
+            // Single click without modifier - select only this ticker
+            clearTickerSelection();
+            selectedTickers.add(symbol);
+            element.classList.add('active');
+            if (checkbox) checkbox.checked = true;
+        } else {
+            // Ctrl+click or checkbox click - toggle selection
+            if (selectedTickers.has(symbol)) {
+                selectedTickers.delete(symbol);
+                element.classList.remove('active');
+                if (checkbox) checkbox.checked = false;
+            } else {
+                selectedTickers.add(symbol);
+                element.classList.add('active');
+                if (checkbox) checkbox.checked = true;
+            }
+        }
+        
+        updateSelectionCount();
+        onSelectionChanged();
+    }
+    
+    function selectAllTickers() {
+        document.querySelectorAll('.ticker-item').forEach(item => {
+            const symbol = item.getAttribute('data-symbol');
+            const checkbox = item.querySelector('.ticker-checkbox');
+            selectedTickers.add(symbol);
+            item.classList.add('active');
+            if (checkbox) checkbox.checked = true;
+        });
+        updateSelectionCount();
+        currentTicker = null;
+        setStrategyButtonsEnabled(false);
+    }
+    
+    function clearTickerSelection() {
+        selectedTickers.clear();
+        document.querySelectorAll('.ticker-item').forEach(item => {
+            item.classList.remove('active');
+            const checkbox = item.querySelector('.ticker-checkbox');
+            if (checkbox) checkbox.checked = false;
+        });
+        updateSelectionCount();
+        currentTicker = null;
+        setStrategyButtonsEnabled(false);
+    }
+    
+    function updateSelectionCount() {
+        const countEl = document.getElementById('selected-count');
+        if (countEl) countEl.textContent = selectedTickers.size;
+    }
+    
+    function onSelectionChanged() {
+        const tickers = Array.from(selectedTickers);
+        
+        if (tickers.length === 0) return;
+        
+        // Set current ticker to first selected
+        currentTicker = tickers[0];
+        
+        // Enable analysis buttons
+        setStrategyButtonsEnabled(true);
+        
+        // Load single ticker data for chart
+        fetchChartData(currentTicker, currentTimeframe);
+        
+        // Load fundamentals (supports multi-ticker)
+        loadFundamentalsForTickers(tickers);
+        
+        // Update compare input with selected tickers
+        document.getElementById('compare-tickers').value = tickers.join(', ');
+        
+        // Load news and SEC for first ticker
+        fetch(`/news/feed/${currentTicker}`)
+            .then(r => r.text())
+            .then(html => {
+                const container = document.getElementById('news-container');
+                container.innerHTML = html;
+                htmx.process(container); // Process htmx attributes in new content
+            })
+            .catch(e => console.error('News load error:', e));
+        fetch(`/sec/filings/${currentTicker}`)
+            .then(r => r.text())
+            .then(html => {
+                const container = document.getElementById('sec-container');
+                container.innerHTML = html;
+                htmx.process(container); // Process htmx attributes in new content
+                // Execute scripts in loaded SEC content
+                container.querySelectorAll('script').forEach(oldScript => {
+                    const newScript = document.createElement('script');
+                    newScript.textContent = oldScript.textContent;
+                    oldScript.parentNode.replaceChild(newScript, oldScript);
+                });
+            })
+            .catch(e => console.error('SEC load error:', e));
+        
+        // Reset analysis results
+        document.getElementById('analysis-results').innerHTML = '';
+        document.getElementById('buffett-results').innerHTML = '';
+        document.getElementById('buffett-radar').innerHTML = '';
+        restoreTickerStrategyFromCache();
+    }
+    
+    // Load fundamentals for multiple tickers
+    async function loadFundamentalsForTickers(tickers) {
+        const container = document.getElementById('fundamental-container');
+        container.innerHTML = loadingSpinner;
+        
+        if (tickers.length === 1) {
+            // Single ticker - use existing endpoint
+            htmx.ajax('GET', `/analysis/fundamental/${tickers[0]}`, {target: '#fundamental-container', swap: 'innerHTML'});
+        } else {
+            // Multiple tickers - fetch comparison and execute scripts manually
+            try {
+                const response = await fetch(`/analysis/fundamental/compare?tickers=${tickers.join(',')}`);
+                const html = await response.text();
+                container.innerHTML = html;
+                
+                // Execute any scripts in the loaded content
+                container.querySelectorAll('script').forEach(oldScript => {
+                    const newScript = document.createElement('script');
+                    newScript.textContent = oldScript.textContent;
+                    oldScript.parentNode.replaceChild(newScript, oldScript);
+                });
+            } catch (error) {
+                console.error('Error loading fundamentals:', error);
+                container.innerHTML = '<div class="alert alert-danger">Error loading fundamental data</div>';
+            }
+        }
+    }
+
+    // Gallery function - opens multi-timeframe gallery for current list
+    function openGallery() {
+        if (currentListId) {
+            window.open(`/charts/gallery/${currentListId}`, '_blank');
+        } else {
+            alert('Please select a ticker list first');
+        }
+    }
+
+    // Language toggle function
+    async function toggleLanguage() {
+        const newLang = currentLanguage === 'en' ? 'zh' : 'en';
+        try {
+            const response = await fetch(`/settings/language/${newLang}`, { method: 'POST' });
+            if (response.ok) {
+                currentLanguage = newLang;
+                document.getElementById('lang-label').textContent = newLang.toUpperCase();
+                // Update button style to indicate current language
+                const btn = document.getElementById('lang-btn');
+                btn.classList.toggle('btn-outline-info', newLang === 'en');
+                btn.classList.toggle('btn-info', newLang === 'zh');
+            }
+        } catch (error) {
+            console.error('Error switching language:', error);
+        }
+    }
+
+    // Initialize language button on page load
+    async function initLanguage() {
+        try {
+            const response = await fetch('/settings/language');
+            const data = await response.json();
+            currentLanguage = data.language;
+            document.getElementById('lang-label').textContent = currentLanguage.toUpperCase();
+            const btn = document.getElementById('lang-btn');
+            btn.classList.toggle('btn-outline-info', currentLanguage === 'en');
+            btn.classList.toggle('btn-info', currentLanguage === 'zh');
+        } catch (error) {
+            console.error('Error getting language:', error);
+        }
+    }
+    
+    // Call on page load
+    initLanguage();
+    initDateInputs();
+
+    // Generic news loader function
+    async function loadNewsType(newsType, endpoint) {
+        // Switch to News tab
+        const newsTab = document.getElementById('news-tab');
+        if (newsTab) {
+            const tab = new bootstrap.Tab(newsTab);
+            tab.show();
+        }
+        
+        const container = document.getElementById('news-container');
+        container.innerHTML = loadingSpinner;
+        
+        try {
+            const response = await fetch(endpoint);
+            const html = await response.text();
+            container.innerHTML = html;
+        } catch (error) {
+            console.error(`Error loading ${newsType} news:`, error);
+            container.innerHTML = `<div class="alert alert-danger">Error loading ${newsType} news</div>`;
+        }
+    }
+
+    // Market News function - fetches Finviz v=3 feed
+    async function loadMarketNews() {
+        await loadNewsType('market', '/news/market');
+    }
+    
+    // Stock News function - fetches Finviz v=1 feed (stock-specific news)
+    async function loadStockNews() {
+        await loadNewsType('stock', '/news/stocks');
+    }
+    
+    // ETF News function
+    async function loadETFNews() {
+        await loadNewsType('ETF', '/news/etf');
+    }
+    
+    // Crypto News function
+    async function loadCryptoNews() {
+        await loadNewsType('crypto', '/news/crypto');
+    }
+    
+    // Summarize Clipboard function
+    async function summarizeClipboard() {
+        try {
+            const text = await navigator.clipboard.readText();
+            if (!text || text.trim().length === 0) {
+                alert('Clipboard is empty. Copy some text first.');
+                return;
+            }
+            
+            // Switch to News tab
+            const newsTab = document.getElementById('news-tab');
+            if (newsTab) {
+                const tab = new bootstrap.Tab(newsTab);
+                tab.show();
+            }
+            
+            const container = document.getElementById('news-container');
+            container.innerHTML = loadingSpinner;
+            
+            const response = await fetch('/news/summarize-clipboard', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: text })
+            });
+            const html = await response.text();
+            container.innerHTML = html;
+        } catch (error) {
+            console.error('Error summarizing clipboard:', error);
+            if (error.name === 'NotAllowedError') {
+                alert('Clipboard access denied. Please allow clipboard access in your browser settings.');
+            } else {
+                document.getElementById('news-container').innerHTML = '<div class="alert alert-danger">Error summarizing clipboard content</div>';
+            }
+        }
+    }
+
+    // Track current list when selected
+    function setCurrentList(listId) {
+        currentListId = listId;
+        document.getElementById('gallery-btn').disabled = false;
+        // Clear selection when switching lists
+        selectedTickers.clear();
+        updateSelectionCount();
+    }
+    
+    // Save extracted tickers to a temporary list
+    async function saveExtractedTickers(tickersCsv) {
+        try {
+            const response = await fetch('/tickers/save-temp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tickers: tickersCsv })
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                // Refresh the ticker lists in sidebar
+                htmx.ajax('GET', '/tickers/list', {target: '#ticker-lists-container', swap: 'innerHTML'});
+                alert(`Saved ${data.count} tickers to "${data.list_name}" list!`);
+            } else {
+                alert('Error saving tickers');
+            }
+        } catch (error) {
+            console.error('Error saving tickers:', error);
+            alert('Error saving tickers');
+        }
+    }
+    window.saveExtractedTickers = saveExtractedTickers;
+
+    // Chart toolbar functions
+    let galleryStyle = 'candle';  // 'candle' or 'line'
+    let chartSettings = {
+        showVolume: true,
+        showMA: true,
+        showGrid: true
+    };
+    
+    // Get all tickers from current list
+    function getListTickers() {
+        const tickerItems = document.querySelectorAll('#current-ticker-list .ticker-item');
+        return Array.from(tickerItems)
+            .filter(item => item.getAttribute('data-synthetic') !== 'true')
+            .map(item => item.getAttribute('data-symbol'))
+            .filter(Boolean);
+    }
+
+    function openListGallery(timeframe) {
+        const tickers = getListTickers();
+        if (tickers.length === 0) {
+            alert('No tickers in current list. Please select a ticker list first.');
+            return;
+        }
+
+        // Update SC timeframe for future SC button clicks
+        scTimeframe = timeframe;
+
+        // Open gallery in new window/tab with candlestick style
+        const tickerParam = tickers.join(',');
+        const url = `/charts/gallery?tickers=${encodeURIComponent(tickerParam)}&timeframe=${timeframe}&style=candle`;
+        window.open(url, '_blank', 'width=1400,height=900');
+    }
+    window.openListGallery = openListGallery;
+    
+    // SC timeframe tracking (set by D/W/M buttons)
+    let scTimeframe = 'D';  // Default to Daily
+    
+    // Open multi-timeframe gallery (D+W+M for all tickers)
+    function openMultiTFGallery() {
+        const tickers = getListTickers();
+        if (tickers.length === 0) {
+            alert('No tickers in current list. Please select a ticker list first.');
+            return;
+        }
+        
+        const tickerParam = tickers.join(',');
+        const url = `/charts/gallery?tickers=${encodeURIComponent(tickerParam)}&timeframe=multi&style=${galleryStyle}`;
+        window.open(url, '_blank', 'width=1400,height=900');
+    }
+    window.openMultiTFGallery = openMultiTFGallery;
+    
+    // Open Line chart gallery (always multi-timeframe)
+    function openLineGallery() {
+        const tickers = getListTickers();
+        if (tickers.length === 0) {
+            alert('No tickers in current list. Please select a ticker list first.');
+            return;
+        }
+        
+        const tickerParam = tickers.join(',');
+        const url = `/charts/gallery?tickers=${encodeURIComponent(tickerParam)}&timeframe=multi&style=line`;
+        window.open(url, '_blank', 'width=1400,height=900');
+    }
+    window.openLineGallery = openLineGallery;
+    
+    // Open SC (candlestick) gallery - uses current timeframe from D/W/M buttons
+    function openSCGallery() {
+        const tickers = getListTickers();
+        if (tickers.length === 0) {
+            alert('No tickers in current list. Please select a ticker list first.');
+            return;
+        }
+        
+        const tickerParam = tickers.join(',');
+        const url = `/charts/gallery?tickers=${encodeURIComponent(tickerParam)}&timeframe=${scTimeframe}&style=candle`;
+        window.open(url, '_blank', 'width=1400,height=900');
+    }
+    window.openSCGallery = openSCGallery;
+    
+    // Update list ticker count badge
+    function updateListTickerCount() {
+        const count = getListTickers().length;
+        const badge = document.getElementById('list-ticker-count');
+        if (badge) {
+            badge.textContent = `${count} ticker${count !== 1 ? 's' : ''}`;
+        }
+    }
+    window.updateListTickerCount = updateListTickerCount;
+    
+    // Listen for HTMX events to update ticker count when list loads
+    document.body.addEventListener('htmx:afterSwap', function(event) {
+        if (event.detail.target.id === 'current-ticker-list') {
+            // Small delay to ensure DOM is updated
+            setTimeout(() => {
+                updateListTickerCount();
+                if (currentPortfolioSyntheticSymbol) {
+                    ensureSyntheticTickerEntry(currentPortfolioSyntheticSymbol, currentPortfolioName || 'Portfolio');
+                }
+            }, 50);
+        }
+    });
+    
+    // Open external URLs for current ticker
+    function openTickerUrl(site) {
+        if (!currentTicker) {
+            alert('Please select a ticker first');
+            return;
+        }
+        const urls = {
+            'yahoo': `https://finance.yahoo.com/quote/${currentTicker}`,
+            'finviz': `https://finviz.com/quote.ashx?t=${currentTicker}`,
+            'tradingview': `https://www.tradingview.com/chart/?symbol=${currentTicker}`,
+            'stockcharts': `https://stockcharts.com/h-sc/ui?s=${currentTicker}`,
+            'sec': `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${currentTicker}&type=10-K&dateb=&owner=include&count=40`,
+            'earnings': `https://www.earningswhispers.com/stocks/${currentTicker}`
+        };
+        if (urls[site]) {
+            window.open(urls[site], '_blank');
+        }
+    }
+    window.openTickerUrl = openTickerUrl;
+    
+    // Toggle chart settings
+    function toggleChartSetting(setting) {
+        chartSettings[setting] = !chartSettings[setting];
+        const checkbox = document.getElementById(`setting-${setting.replace('show', '').toLowerCase()}`);
+        if (checkbox) checkbox.checked = chartSettings[setting];
+        // Re-render chart with new settings
+        if (currentTicker) {
+            fetchChartData(currentTicker, currentTimeframe);
+        }
+    }
+    window.toggleChartSetting = toggleChartSetting;
+    
+    // Set chart theme
+    function setChartTheme(theme) {
+        document.body.setAttribute('data-chart-theme', theme);
+        // Re-render chart with new theme
+        if (currentTicker) {
+            fetchChartData(currentTicker, currentTimeframe);
+        }
+    }
+    window.setChartTheme = setChartTheme;
+    
+    // Update current ticker badge
+    function updateTickerBadge(symbol) {
+        const badge = document.getElementById('current-ticker-badge');
+        if (badge) {
+            badge.textContent = symbol || 'No ticker';
+            badge.classList.toggle('bg-info', !!symbol);
+            badge.classList.toggle('bg-secondary', !symbol);
+        }
+        // Enable/disable Multi-TF button
+        const multiTfBtn = document.getElementById('multi-tf-btn');
+        if (multiTfBtn) {
+            multiTfBtn.disabled = !symbol;
+        }
+    }
+
+    // Make loadTicker globally accessible (for backward compatibility)
+    window.loadTicker = function(symbol) {
+        // Clear previous selection and select this ticker
+        clearTickerSelection();
+        selectedTickers.add(symbol);
+        
+        // Update UI if the ticker item exists
+        const tickerItem = document.querySelector(`.ticker-item[data-symbol="${symbol}"]`);
+        if (tickerItem) {
+            tickerItem.classList.add('active');
+            const checkbox = tickerItem.querySelector('.ticker-checkbox');
+            if (checkbox) checkbox.checked = true;
+        }
+        updateSelectionCount();
+        
         currentTicker = symbol;
+        updateTickerBadge(symbol);
         fetchChartData(symbol, currentTimeframe);
 
-        // HTMX triggers for other tabs are handled in ticker_list_items.html
+        // Show loading states for tabs
+        document.getElementById('fundamental-container').innerHTML = loadingSpinner;
+        document.getElementById('news-container').innerHTML = loadingSpinner;
+        document.getElementById('sec-container').innerHTML = loadingSpinner;
+
+        // Enable analysis buttons and reset results
+        setStrategyButtonsEnabled(true);
+        document.getElementById('analysis-results').innerHTML = '';
+        document.getElementById('buffett-results').innerHTML = '';
+        document.getElementById('buffett-radar').innerHTML = '';
+        restoreTickerStrategyFromCache();
+
+        // Load other tabs
+        fetch(`/analysis/fundamental/${symbol}`)
+            .then(r => r.text())
+            .then(html => {
+                document.getElementById('fundamental-container').innerHTML = html;
+                // Execute scripts in loaded content
+                document.getElementById('fundamental-container').querySelectorAll('script').forEach(oldScript => {
+                    const newScript = document.createElement('script');
+                    newScript.textContent = oldScript.textContent;
+                    oldScript.parentNode.replaceChild(newScript, oldScript);
+                });
+            });
+        fetch(`/news/feed/${symbol}`)
+            .then(r => r.text())
+            .then(html => {
+                const container = document.getElementById('news-container');
+                container.innerHTML = html;
+                htmx.process(container);
+            });
+        fetch(`/sec/filings/${symbol}`)
+            .then(r => r.text())
+            .then(html => {
+                const container = document.getElementById('sec-container');
+                container.innerHTML = html;
+                htmx.process(container);
+                // Execute scripts in loaded SEC content
+                container.querySelectorAll('script').forEach(oldScript => {
+                    const newScript = document.createElement('script');
+                    newScript.textContent = oldScript.textContent;
+                    oldScript.parentNode.replaceChild(newScript, oldScript);
+                });
+            });
+    }
+
+    // AI Chat functionality
+    async function sendChatMessage() {
+        const input = document.getElementById('chat-input');
+        const message = input.value.trim();
+        if (!message) return;
+        
+        const btn = document.getElementById('chat-send-btn');
+        const spinner = document.getElementById('chat-spinner');
+        const messagesContainer = document.getElementById('chat-messages');
+        
+        // Clear placeholder if first message
+        if (messagesContainer.querySelector('.text-center.text-muted')) {
+            messagesContainer.innerHTML = '';
+        }
+        
+        // Add user message
+        const userMsgHtml = `
+            <div class="d-flex justify-content-end mb-2">
+                <div class="bg-primary text-white rounded px-3 py-2" style="max-width: 80%;">
+                    ${escapeHtml(message)}
+                </div>
+            </div>`;
+        messagesContainer.innerHTML += userMsgHtml;
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        
+        // Clear input and show loading
+        input.value = '';
+        btn.disabled = true;
+        spinner.classList.remove('d-none');
+        
+        // Add loading indicator
+        const loadingId = 'chat-loading-' + Date.now();
+        messagesContainer.innerHTML += `
+            <div class="d-flex mb-2" id="${loadingId}">
+                <div class="bg-white border rounded px-3 py-2">
+                    <span class="spinner-border spinner-border-sm text-primary"></span> Thinking...
+                </div>
+            </div>`;
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        
+        try {
+            const response = await fetch('/analysis/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    message: message,
+                    ticker: currentTicker  // Include current ticker for context
+                })
+            });
+            const html = await response.text();
+            
+            // Remove loading indicator and add AI response
+            document.getElementById(loadingId)?.remove();
+            messagesContainer.innerHTML += `
+                <div class="d-flex mb-2">
+                    <div class="bg-white border rounded px-3 py-2 markdown-content" style="max-width: 85%;">
+                        ${html}
+                    </div>
+                </div>`;
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        } catch (error) {
+            document.getElementById(loadingId)?.remove();
+            messagesContainer.innerHTML += `
+                <div class="d-flex mb-2">
+                    <div class="bg-danger text-white rounded px-3 py-2">
+                        Error: ${error.message}
+                    </div>
+                </div>`;
+        } finally {
+            btn.disabled = false;
+            spinner.classList.add('d-none');
+        }
+    }
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // AI Business Analysis
+    async function runAIAnalysis() {
+        if (!currentTicker) {
+            alert('Please select a ticker first');
+            return;
+        }
+
+        const btn = document.getElementById('run-analysis-btn');
+        const spinner = document.getElementById('analysis-spinner');
+        const resultsContainer = document.getElementById('analysis-results');
+
+        // Show loading state
+        btn.disabled = true;
+        spinner.classList.remove('d-none');
+        resultsContainer.innerHTML = loadingSpinner;
+
+        try {
+            const response = await fetch(`/analysis/business/${currentTicker}`, { method: 'POST' });
+            const html = await response.text();
+            resultsContainer.innerHTML = `<div class="p-3">${html}</div>`;
+        } catch (error) {
+            console.error('AI analysis error:', error);
+            resultsContainer.innerHTML = `<div class="alert alert-danger">Error running analysis: ${error.message}</div>`;
+        } finally {
+            btn.disabled = false;
+            spinner.classList.add('d-none');
+        }
+    }
+
+    // Buffett/CANSLIM Analysis
+    async function runBuffettAnalysis() {
+        if (!currentTicker) {
+            alert('Please select a ticker first');
+            return;
+        }
+
+        const btn = document.getElementById('run-buffett-btn');
+        const spinner = document.getElementById('buffett-spinner');
+        const resultsContainer = document.getElementById('buffett-results');
+        const radarContainer = document.getElementById('buffett-radar');
+
+        // Show loading state
+        btn.disabled = true;
+        spinner.classList.remove('d-none');
+        resultsContainer.innerHTML = loadingSpinner;
+        radarContainer.innerHTML = '';
+
+        try {
+            // Fetch HTML results
+            const response = await fetch(`/analysis/buffett/${currentTicker}`, { method: 'POST' });
+            const html = await response.text();
+            resultsContainer.innerHTML = html;
+
+            // Fetch radar chart data
+            const chartResponse = await fetch(`/analysis/buffett/${currentTicker}/data`);
+            if (chartResponse.ok) {
+                const chartData = await chartResponse.json();
+                renderRadarChart(chartData, radarContainer);
+            }
+        } catch (error) {
+            console.error('Buffett analysis error:', error);
+            resultsContainer.innerHTML = `<div class="alert alert-danger">Error running analysis: ${error.message}</div>`;
+        } finally {
+            btn.disabled = false;
+            spinner.classList.add('d-none');
+        }
+    }
+
+    function renderRadarChart(data, container) {
+        if (data.error) {
+            container.innerHTML = `<div class="alert alert-warning">${data.error}</div>`;
+            return;
+        }
+
+        const buffettTrace = {
+            type: 'scatterpolar',
+            r: data.buffett.r,
+            theta: data.buffett.theta,
+            fill: 'toself',
+            fillcolor: data.buffett.fillcolor,
+            line: { color: data.buffett.line.color },
+            name: data.buffett.name
+        };
+
+        const canslimTrace = {
+            type: 'scatterpolar',
+            r: data.canslim.r,
+            theta: data.canslim.theta,
+            fill: 'toself',
+            fillcolor: data.canslim.fillcolor,
+            line: { color: data.canslim.line.color },
+            name: data.canslim.name
+        };
+
+        const layout = {
+            polar: {
+                radialaxis: {
+                    visible: true,
+                    range: [0, 10]
+                }
+            },
+            showlegend: true,
+            title: `${data.ticker} Investment Profile (${data.investor_type})`,
+            height: 400
+        };
+
+        Plotly.newPlot(container, [buffettTrace, canslimTrace], layout, { responsive: true });
     }
 
     function updateTimeframe(tf, btn) {
@@ -120,7 +3556,16 @@
         container.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>';
         container.classList.remove('text-center', 'p-5');
 
-        fetch(`/charts/data/${ticker}?timeframe=${timeframe}`)
+        // Build URL with optional date range parameters
+        let url = `/charts/data/${ticker}?timeframe=${timeframe}`;
+        if (chartFromDate) {
+            url += `&from_date=${chartFromDate}`;
+        }
+        if (chartToDate) {
+            url += `&to_date=${chartToDate}`;
+        }
+
+        fetch(url)
             .then(response => response.json())
             .then(data => {
                 if (data.error) {
@@ -189,6 +3634,105 @@
         };
 
         Plotly.newPlot('chart-container', [trace1, trace2], layout, {responsive: true});
+    }
+
+    // Compare functionality
+    let compareTimeframe = 'D';
+    let compareTickers = [];
+
+    function updateCompareTimeframe(tf, btn) {
+        compareTimeframe = tf;
+        document.querySelectorAll('#compare .btn-group .btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        if (compareTickers.length > 0) {
+            compareStocks();
+        }
+    }
+
+    async function compareStocks() {
+        const input = document.getElementById('compare-tickers').value;
+        const tickers = input.split(',').map(t => t.trim().toUpperCase()).filter(t => t.length > 0);
+        
+        if (tickers.length === 0) {
+            document.getElementById('compare-chart').innerHTML = '<p class="text-danger text-center pt-5">Please enter at least one ticker</p>';
+            return;
+        }
+
+        compareTickers = tickers;
+        const container = document.getElementById('compare-chart');
+        container.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100"><div class="spinner-border text-primary" role="status"></div></div>';
+
+        try {
+            // Build URL with optional date range parameters
+            const buildUrl = (ticker) => {
+                const encodedTicker = encodeURIComponent(ticker);
+                let url = `/charts/data/${encodedTicker}?timeframe=${compareTimeframe}`;
+                if (compareFromDate) {
+                    url += `&from_date=${compareFromDate}`;
+                }
+                if (compareToDate) {
+                    url += `&to_date=${compareToDate}`;
+                }
+                return url;
+            };
+
+            // Fetch data for all tickers
+            const promises = tickers.map(ticker => 
+                fetch(buildUrl(ticker))
+                    .then(r => r.json())
+                    .catch(() => null)
+            );
+            const results = await Promise.all(promises);
+
+            // Filter out failed requests
+            const validData = results.filter(d => d && !d.error);
+            
+            if (validData.length === 0) {
+                container.innerHTML = '<p class="text-danger text-center pt-5">Could not fetch data for any of the tickers</p>';
+                return;
+            }
+
+            renderCompareChart(validData);
+        } catch (error) {
+            console.error('Compare error:', error);
+            container.innerHTML = '<p class="text-danger text-center pt-5">Error comparing stocks</p>';
+        }
+    }
+
+    function renderCompareChart(datasets) {
+        const container = document.getElementById('compare-chart');
+        container.innerHTML = '';
+
+        // Normalize prices to percentage change from first day
+        const traces = datasets.map((data, idx) => {
+            const colors = ['#2196F3', '#4CAF50', '#FF9800', '#E91E63', '#9C27B0', '#00BCD4'];
+            const basePrice = data.close[0];
+            const normalizedClose = data.close.map(p => ((p - basePrice) / basePrice) * 100);
+            
+            return {
+                x: data.dates,
+                y: normalizedClose,
+                type: 'scatter',
+                mode: 'lines',
+                name: data.ticker,
+                line: { color: colors[idx % colors.length], width: 2 }
+            };
+        });
+
+        const layout = {
+            title: { text: 'Stock Comparison (% Change)' },
+            xaxis: { type: 'date' },
+            yaxis: { 
+                title: { text: '% Change' },
+                ticksuffix: '%'
+            },
+            legend: { orientation: 'h', y: -0.1 },
+            autosize: true,
+            height: 500,
+            margin: { t: 40, b: 60, l: 60, r: 40 }
+        };
+
+        Plotly.newPlot('compare-chart', traces, layout, { responsive: true });
     }
 </script>
 {% endblock %}
