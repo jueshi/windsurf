@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Dashboard</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary">Share</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary">Export</button>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle">
+            <span data-feather="calendar"></span>
+            This week
+        </button>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Ticker Selection Panel -->
+    <div class="col-md-3 mb-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Current List</span>
+                <span class="badge bg-secondary" id="ticker-count">0</span>
+            </div>
+            <div class="card-body p-0" style="overflow-y: auto; max-height: 500px;">
+                <div id="current-ticker-list" class="list-group list-group-flush">
+                    <div class="p-3 text-center text-muted">Select a list from the sidebar</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart/Analysis Area -->
+    <div class="col-md-9 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <ul class="nav nav-tabs card-header-tabs" id="mainTab" role="tablist">
+                    <li class="nav-item">
+                        <a class="nav-link active" id="chart-tab" data-bs-toggle="tab" href="#chart" role="tab">Chart</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="compare-tab" data-bs-toggle="tab" href="#compare" role="tab">Compare</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="fundamental-tab" data-bs-toggle="tab" href="#fundamental" role="tab">Fundamentals</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="analysis-tab" data-bs-toggle="tab" href="#analysis" role="tab">Analysis (AI)</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="news-tab" data-bs-toggle="tab" href="#news" role="tab">News</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="sec-tab" data-bs-toggle="tab" href="#sec" role="tab">SEC Filings</a>
+                    </li>
+                </ul>
+            </div>
+            <div class="card-body">
+                <div class="tab-content" id="mainTabContent">
+                    <div class="tab-pane fade show active" id="chart" role="tabpanel">
+                        <div class="d-flex justify-content-end mb-2">
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-outline-secondary btn-sm active" onclick="updateTimeframe('D', this)">Daily</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="updateTimeframe('W', this)">Weekly</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="updateTimeframe('M', this)">Monthly</button>
+                            </div>
+                        </div>
+                        <div id="chart-container" class="text-center p-5" style="height: 600px;">
+                            <p class="text-muted">Select a ticker to view chart</p>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="compare" role="tabpanel">
+                        <div id="compare-container">Comparison View</div>
+                    </div>
+                    <div class="tab-pane fade" id="fundamental" role="tabpanel">
+                        <div id="fundamental-container">Fundamental Data</div>
+                    </div>
+                    <div class="tab-pane fade" id="analysis" role="tabpanel">
+                        <div id="analysis-container">AI Analysis</div>
+                    </div>
+                    <div class="tab-pane fade" id="news" role="tabpanel">
+                        <div id="news-container">News</div>
+                    </div>
+                    <div class="tab-pane fade" id="sec" role="tabpanel">
+                        <div id="sec-container">SEC Filings</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentTicker = null;
+    let currentTimeframe = 'D';
+
+    function loadTicker(symbol) {
+        currentTicker = symbol;
+        fetchChartData(symbol, currentTimeframe);
+
+        // HTMX triggers for other tabs are handled in ticker_list_items.html
+    }
+
+    function updateTimeframe(tf, btn) {
+        currentTimeframe = tf;
+
+        // Update active button state
+        document.querySelectorAll('#chart .btn-group .btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        if (currentTicker) {
+            fetchChartData(currentTicker, currentTimeframe);
+        }
+    }
+
+    function fetchChartData(ticker, timeframe) {
+        const container = document.getElementById('chart-container');
+        // Keep height to prevent layout jump
+        container.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>';
+        container.classList.remove('text-center', 'p-5');
+
+        fetch(`/charts/data/${ticker}?timeframe=${timeframe}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    container.innerHTML = `<div class="d-flex justify-content-center align-items-center h-100 text-danger">${data.error}</div>`;
+                    return;
+                }
+                renderChart(data);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                container.innerHTML = `<div class="d-flex justify-content-center align-items-center h-100 text-danger">Error loading chart</div>`;
+            });
+    }
+
+    function renderChart(data) {
+        const container = document.getElementById('chart-container');
+        container.innerHTML = '';
+
+        const trace1 = {
+            x: data.dates,
+            close: data.close,
+            decreasing: {line: {color: '#ef5350'}},
+            high: data.high,
+            increasing: {line: {color: '#26a69a'}},
+            low: data.low,
+            open: data.open,
+            type: 'candlestick',
+            xaxis: 'x',
+            yaxis: 'y',
+            name: data.ticker
+        };
+
+        const trace2 = {
+            x: data.dates,
+            y: data.volume,
+            type: 'bar',
+            yaxis: 'y2',
+            marker: {color: '#999999', opacity: 0.3},
+            name: 'Volume'
+        };
+
+        const layout = {
+            dragmode: 'zoom',
+            title: { text: `${data.ticker} Stock Price` },
+            xaxis: {
+                rangeslider: { visible: false },
+                type: 'date'
+            },
+            yaxis: {
+                title: {text: 'Price'},
+                domain: [0.3, 1]
+            },
+            yaxis2: {
+                title: {text: 'Volume'},
+                domain: [0, 0.2],
+                showgrid: false
+            },
+            grid: {
+                rows: 2,
+                columns: 1,
+                roworder: 'bottom to top'
+            },
+            autosize: true,
+            height: 600,
+            margin: { t: 40, b: 40, l: 60, r: 40 }
+        };
+
+        Plotly.newPlot('chart-container', [trace1, trace2], layout, {responsive: true});
+    }
+</script>
+{% endblock %}

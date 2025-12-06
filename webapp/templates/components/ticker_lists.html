@@ -1,0 +1,19 @@
+<div class="list-group list-group-flush">
+    {% for ticker_list in lists %}
+    <a href="#" class="list-group-item list-group-item-action bg-dark text-light border-secondary py-2"
+       hx-get="/tickers/list/{{ ticker_list.id }}"
+       hx-target="#current-ticker-list"
+       onclick="document.querySelectorAll('#ticker-lists-container a').forEach(el => el.classList.remove('active')); this.classList.add('active');">
+       <div class="d-flex w-100 justify-content-between">
+           <span class="mb-1">{{ ticker_list.name }}</span>
+           <span class="badge bg-secondary rounded-pill">{{ ticker_list.tickers|length }}</span>
+       </div>
+    </a>
+    {% endfor %}
+</div>
+<div class="p-2 border-top border-secondary">
+    <form hx-post="/tickers/list" hx-target="#ticker-lists-container" class="input-group input-group-sm">
+        <input type="text" name="name" class="form-control bg-dark text-light border-secondary" placeholder="New List...">
+        <button class="btn btn-outline-light" type="submit">+</button>
+    </form>
+</div>
