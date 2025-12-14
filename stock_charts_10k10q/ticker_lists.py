@@ -199,26 +199,11 @@ FUNDS_stocks = ['goog','aapl', 'meta', 'msft', 'amzn', 'nvda', 'tsla', 'brk-b']
 # China_FUNDS_stocks = ['baba', 'bidu', 'nio', 'jd', '0700.HK']
 
 
-AI_ticker_extractor_tickers = [
-    "ATOM",
-    "JOBY",
-    "KD",  
-    "BBAR",
-    "TSSI",
-    "RDW", 
-    "NEXT",
-    "JBL", 
-    "RGTI",
-    "HTGC",
-    "GRRR",
-    "CRNC",
-    "OUST",
-    "RIVN",
-    "NNOX",
-    "SERV",
-    "VSTM",
-    "NUS", 
-]
+AI_ticker_extractor_tickers = ["ATOM", "JOBY", "KD", "BBAR", "TSSI", "RDW", "NEXT", "JBL", "RGTI", "HTGC", "GRRR", "CRNC", "OUST", "RIVN", "NNOX", "SERV", "VSTM", "NUS", "LITE", "ALAB", "COHR", "CRDO"]
+
+
+
+
 
 new_high_sector_tickers = [
     "NVDA",  # Nvidia
@@ -549,7 +534,17 @@ earnings_ww_11_17_25_stocks = ["NVDA", "PANW", "BIDU", "BULL", "KC", "INTU", "VE
 
 options_11_24_stocks = ["NXT", "SOXX", "SEI", "CARR", "DHI", "AR", "CAPR", "VLO", "XBI", "ANF", "INFY", "HPQ", "PCT", "CELH", "SVIX", "DKS", "BURL", "FMC", "SYM", "LQDA", "NVO", "BIIB", "CPRT", "ZM", "BBY", "OSCR", "RUM", "AS", "SGHC", "MRK", "CNC", "ADI", "WDAY", "CRMD", "FIGR", "SIRI", "CPRI", "HSAI", "ALT", "NEE", "EPD", "BFLY", "COMP", "FRMI", "GDS", "FIVN", "PRME", "UPWK", "EA", "EH", "QQQM", "QQQ"]
 
-demo_stocks = ["NVDA", "INTC", "GOOG", "AAPL", "OKTA", "COST", "CRDO", "ALAB"]
+demo_stocks = ["NVDA", "INTC", "GOOG", "AAPL", "OKTA", "COST", "CRDO", "ALAB", "LASE"]
+
+
+
+
+
+comet_stocks = ["QQQ", "CRDO", "ALAB", "AMD", "INTC"]
+
+
+
+
 
 
 # Function to check if a ticker symbol is valid and suggest alternatives if not
@@ -724,23 +719,7 @@ if __name__ == '__main__':
 
 
 
-temp_stocks = [
-    "EXE",
-    "NVDA",
-    "AMZN",
-    "GAP",
-    "ROST",
-    "TJX",
-    "WMT",
-    "ALAB",
-    "SOUN",
-    "AMC",
-    "BYND",
-    "GME",
-    "AMD",
-    "PYPL",
-    "DIS",
-    "IMAX",
-    "CME",
-    "APLD"
-]
+temp_stocks = ["NVDA", "KYMR", "TERN", "TSLA", "GPCR", "AMZN", "GOOG", "GOOGL", "META", "MU", "GEV", "JPM", "PLTR", "HD", "CVS", "CHWY", "AFJK", "AEG", "LLY", "BHP", "BLK", "CPNG", "TSM", "INTC", "CRM", "CASY", "ORCL", "ADBE", "SNPS", "NDSN", "MTN", "PL", "AVGO", "COST", "CIEN", "LULU", "LEN", "JMG", "CDNL", "LMRI", "SFDX", "WLTH", "BUDA"]
+
+
+

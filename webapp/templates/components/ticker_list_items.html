@@ -1,42 +1,51 @@
-<div class="list-group">
+{% if error %}
+<div class="alert alert-danger alert-dismissible fade show m-2 py-1" role="alert">
+    <small>{{ error }}</small>
+    <button type="button" class="btn-close btn-sm" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+
+<!-- Selection controls -->
+<div class="d-flex justify-content-between align-items-center px-2 py-1 border-bottom" style="background: #f8f9fa;">
+    <small class="text-muted"><span id="selected-count">0</span> sel</small>
+    <div>
+        <button type="button" class="btn btn-link btn-sm p-0 text-primary" onclick="selectAllTickers()">All</button>
+        <span class="text-muted mx-1">|</span>
+        <button type="button" class="btn btn-link btn-sm p-0 text-secondary" onclick="clearTickerSelection()">Clear</button>
+    </div>
+</div>
+
+<!-- Ticker list -->
+<div id="ticker-items">
     {% for ticker in tickers %}
-    <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
-            onclick="loadTicker('{{ ticker.symbol }}')">
-        {{ ticker.symbol }}
-        <span class="badge bg-danger rounded-pill pointer"
+    <div class="d-flex align-items-center px-2 py-1 border-bottom ticker-item"
+         data-symbol="{{ ticker.symbol }}"
+         onclick="toggleTickerSelection(this, '{{ ticker.symbol }}', event)"
+         style="cursor: pointer; font-size: 0.85rem;">
+        <input type="checkbox" class="form-check-input me-2 ticker-checkbox" style="margin: 0; width: 14px; height: 14px;"
+               onclick="event.stopPropagation(); toggleTickerSelection(this.parentElement, '{{ ticker.symbol }}', event)">
+        <span class="flex-grow-1 fw-medium">{{ ticker.symbol }}</span>
+        <span class="text-danger" style="cursor: pointer; font-size: 0.75rem; opacity: 0.6;"
               hx-delete="/tickers/{{ ticker.id }}"
               hx-target="#current-ticker-list"
-              hx-confirm="Remove {{ ticker.symbol }}?">×</span>
-    </button>
+              hx-confirm="Remove {{ ticker.symbol }}?"
+              onclick="event.stopPropagation();"
+              onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">✕</span>
+    </div>
     {% else %}
-    <div class="p-3 text-center text-muted">No tickers in this list.</div>
+    <div class="p-2 text-center text-muted small">No tickers</div>
     {% endfor %}
 </div>
 
-<div class="p-2 border-top">
-    <form hx-post="/tickers/add/{{ list_id }}" hx-target="#current-ticker-list" class="input-group input-group-sm">
-        <input type="text" name="symbol" class="form-control" placeholder="Add Ticker (e.g. AAPL)">
-        <button class="btn btn-primary" type="submit">Add</button>
+<!-- Add ticker form -->
+<div class="p-1 border-top">
+    <form hx-post="/tickers/add/{{ list_id }}" hx-target="#current-ticker-list" class="d-flex gap-1">
+        <input type="text" name="symbol" class="form-control form-control-sm" placeholder="Add..." maxlength="6" style="font-size: 0.8rem;">
+        <button class="btn btn-primary btn-sm px-2" type="submit" style="font-size: 0.75rem;">+</button>
     </form>
 </div>
 
 <script>
     // Update badge count
     document.getElementById('ticker-count').textContent = '{{ tickers|length }}';
-
-    function loadTicker(symbol) {
-        // Load chart
-        if (typeof window.loadTicker === 'function') {
-            window.loadTicker(symbol);
-        }
-
-        // Load Fundamental tab
-        htmx.ajax('GET', `/analysis/fundamental/${symbol}`, '#fundamental-container');
-
-        // Load News tab
-        htmx.ajax('GET', `/news/feed/${symbol}`, '#news-container');
-
-        // Load SEC tab
-        htmx.ajax('GET', `/sec/filings/${symbol}`, '#sec-container');
-    }
 </script>

@@ -15,6 +15,14 @@ from functools import wraps
 from datetime import datetime, timedelta
 from threading import Lock
 
+# Optional OpenAI import - will be used as first choice if OPENAI_API_KEY is set
+try:
+    from openai import OpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+    logging.info("OpenAI package not installed. Will use Gemini API only.")
+
 # Helper to list accessible Gemini models that support generateContent
 def _list_supported_gemini_models() -> list:
     """Return the Gemini model names accessible to the current API key."""
@@ -149,6 +157,130 @@ class GeminiAnalyzer:
         return response
 
 import random
+
+# ----- Unified LLM Interface -----
+# Priority: OpenAI (if OPENAI_API_KEY is set) -> Gemini (fallback)
+
+def _get_openai_client():
+    """
+    Get OpenAI client if OPENAI_API_KEY is available.
+    Returns None if OpenAI is not available or API key is not set.
+    """
+    if not OPENAI_AVAILABLE:
+        return None
+    
+    load_dotenv()
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return None
+    
+    try:
+        return OpenAI(api_key=api_key)
+    except Exception as e:
+        logging.warning(f"Failed to initialize OpenAI client: {e}")
+        return None
+
+
+def _get_openai_model_name() -> str:
+    """Get OpenAI model name from environment or use default."""
+    return os.getenv("OPENAI_MODEL_NAME", "gpt-4o-mini")
+
+
+def _call_openai(prompt: str, client=None) -> str:
+    """
+    Call OpenAI API with the given prompt.
+    
+    Args:
+        prompt: The prompt to send to OpenAI
+        client: Optional pre-initialized OpenAI client
+    
+    Returns:
+        The response text from OpenAI, or None if failed
+    """
+    if client is None:
+        client = _get_openai_client()
+    
+    if client is None:
+        return None
+    
+    model_name = _get_openai_model_name()
+    
+    try:
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        logging.warning(f"OpenAI API call failed: {e}")
+        return None
+
+
+def _call_llm(prompt: str, use_openai_first: bool = True) -> str:
+    """
+    Unified LLM interface that tries OpenAI first, then falls back to Gemini.
+    
+    Args:
+        prompt: The prompt to send to the LLM
+        use_openai_first: If True, try OpenAI first before Gemini (default: True)
+    
+    Returns:
+        The response text from the LLM
+    
+    Raises:
+        Exception: If both OpenAI and Gemini fail
+    """
+    load_dotenv()
+    
+    # Try OpenAI first if enabled and available
+    if use_openai_first:
+        openai_client = _get_openai_client()
+        if openai_client:
+            logging.info("Using OpenAI API as primary LLM...")
+            result = _call_openai(prompt, openai_client)
+            if result:
+                return result
+            logging.info("OpenAI call failed, falling back to Gemini...")
+    
+    # Fall back to Gemini
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise Exception("No LLM API key available. Set OPENAI_API_KEY or GEMINI_API_KEY in environment variables.")
+    
+    logging.info("Using Gemini API...")
+    genai.configure(api_key=api_key)
+    
+    try:
+        model = _init_gemini_model_with_fallback()
+    except Exception as e:
+        raise Exception(_format_gemini_error(e))
+    
+    rate_limiter = GeminiRateLimiter()
+    
+    try:
+        response = rate_limiter.make_api_call_with_retry(
+            model.generate_content, prompt
+        )
+        return response.text
+    except Exception as e:
+        raise Exception(_format_gemini_error(e))
+
+
+def get_active_llm_provider() -> str:
+    """
+    Returns the name of the LLM provider that will be used.
+    Useful for displaying to users which API is active.
+    """
+    load_dotenv()
+    if OPENAI_AVAILABLE and os.getenv("OPENAI_API_KEY"):
+        return f"OpenAI ({_get_openai_model_name()})"
+    elif os.getenv("GEMINI_API_KEY"):
+        return f"Gemini ({os.getenv('GEMINI_MODEL_NAME', 'gemini-2.5-flash')})"
+    return "No LLM configured"
+
 
 class GeminiRateLimiter:
     _instance = None
@@ -295,32 +427,15 @@ def _init_gemini_model_with_fallback() -> genai.GenerativeModel:
 
 def analyze_ticker(ticker, company_info):
     """
-    Analyzes a stock ticker using Google Gemini API with rate limiting.
+    Analyzes a stock ticker using OpenAI (first choice) or Gemini API with rate limiting.
 
     Args:
         ticker (str): The stock ticker symbol.
         company_info (dict): A dictionary containing fundamental data about the company.
 
     Returns:
-        str: The business analysis from Gemini API.
+        str: The business analysis from LLM API.
     """
-    load_dotenv()
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        return "Error: GEMINI_API_KEY not found in environment variables."
-
-    # Initialize rate limiter
-    rate_limiter = GeminiRateLimiter()
-    
-    # Configure Gemini
-    genai.configure(api_key=api_key)
-    try:
-        model = _init_gemini_model_with_fallback()
-    except Exception as e:
-        # If API is disabled or unauthorized, return actionable guidance
-        return _format_gemini_error(e)
-
-
     prompt = f"""
     对以下公司进行详细的商业分析，公司股票代码为 '{ticker}'。
     这是该公司的一些基本数据：
@@ -347,13 +462,10 @@ def analyze_ticker(ticker, company_info):
     """
 
     try:
-        # Use make_api_call_with_retry to handle 429 quota errors automatically
-        response = rate_limiter.make_api_call_with_retry(
-            model.generate_content, prompt
-        )
-        return response.text
+        # Use unified LLM interface - tries OpenAI first, falls back to Gemini
+        return _call_llm(prompt)
     except Exception as e:
-        return _format_gemini_error(e)
+        return f"Error during analysis: {e}"
 
 def _get_filing_url(ticker, filing_type):
     """
@@ -933,18 +1045,7 @@ def analyze_10k_report(ticker):
         
         print(f"Total text length: {len(text):,} characters")
     
-    print("Content fetched. Analyzing with Gemini...")
-
-    load_dotenv()
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        return "Error: GEMINI_API_KEY not found in environment variables."
-
-    genai.configure(api_key=api_key)
-    try:
-        model = genai.GenerativeModel('gemini-2.5-flash')
-    except Exception as e:
-        return f"Error: Could not initialize Gemini model: {e}"
+    print("Content fetched. Analyzing with LLM...")
 
     prompt = f"""
     你是一位专业的财务分析师，精通财务报表分析和公司估值。请分析以下公司的10-K年度报告，并提供深入见解。
@@ -969,18 +1070,12 @@ def analyze_10k_report(ticker):
     """
 
     try:
-        # Initialize rate limiter and use retry logic for quota errors
-        rate_limiter = GeminiRateLimiter()
-        
-        # Use make_api_call_with_retry to handle 429 quota errors automatically
-        response = rate_limiter.make_api_call_with_retry(
-            model.generate_content, prompt
-        )
-        return response.text
+        # Use unified LLM interface - tries OpenAI first, falls back to Gemini
+        return _call_llm(prompt)
     except Exception as e:
         error_msg = str(e)
         if "429" in error_msg or "quota" in error_msg.lower():
-            return f"Gemini API quota exceeded. Please wait a few minutes and try again.\n\nDetails: {e}"
+            return f"API quota exceeded. Please wait a few minutes and try again.\n\nDetails: {e}"
         return f"在最终分析过程中发生错误: {e}"
 
 def analyze_10q_report(ticker):
@@ -1036,17 +1131,6 @@ def analyze_10q_report(ticker):
         
         print(f"Total text length: {len(text):,} characters")
 
-    load_dotenv()
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        return "Error: GEMINI_API_KEY not found in environment variables."
-
-    genai.configure(api_key=api_key)
-    try:
-        model = genai.GenerativeModel('gemini-2.5-flash')
-    except Exception as e:
-        return f"Error: Could not initialize Gemini model: {e}"
-
     prompt = f"""
     你是一位专业的财务分析师，精通财务报表分析和公司估值。请分析以下公司的10-Q季度报告，并提供深入见解。
 
@@ -1069,23 +1153,17 @@ def analyze_10q_report(ticker):
     """
 
     try:
-        # Initialize rate limiter and use retry logic for quota errors
-        rate_limiter = GeminiRateLimiter()
-        
-        # Use make_api_call_with_retry to handle 429 quota errors automatically
-        response = rate_limiter.make_api_call_with_retry(
-            model.generate_content, prompt
-        )
-        return response.text
+        # Use unified LLM interface - tries OpenAI first, falls back to Gemini
+        return _call_llm(prompt)
     except Exception as e:
         error_msg = str(e)
         if "429" in error_msg or "quota" in error_msg.lower():
-            return f"Gemini API quota exceeded. Please wait a few minutes and try again.\n\nDetails: {e}"
+            return f"API quota exceeded. Please wait a few minutes and try again.\n\nDetails: {e}"
         return f"在最终分析过程中发生错误: {e}"
 
 def analyze_news(news_articles):
     """
-    Analyzes a list of news articles using Google Gemini API.
+    Analyzes a list of news articles using OpenAI (first choice) or Gemini API.
 
     Args:
         news_articles (list): A list of news articles from Tavily.
@@ -1093,40 +1171,23 @@ def analyze_news(news_articles):
     Returns:
         str: A structured summary of the news.
     """
-    load_dotenv()
-    # load_dotenv(dotenv_path=Path(__file__).resolve().parents[1] / ".env") 
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        return "Error: GEMINI_API_KEY not found in environment variables."
-
-    genai.configure(api_key=api_key)
-    try:
-        model = genai.GenerativeModel('gemini-2.5-flash')
-    except Exception as e:
-        return f"Error: Could not initialize Gemini model: {e}"
-
     good_news = []
     bad_news = []
 
     for article in news_articles:
         prompt = f"""
-        请用中文总结以下新闻文章，并将其分类为“利好”、“利空”或“中性”。
+        请用中文总结以下新闻文章，并将其分类为"利好"、"利空"或"中性"。
         并提供具体数据和百分比变化。Followed by an English version of the response in a separate paragraph as well.
-        请以JSON格式返回，包含“summary”和“sentiment”两个字段。
+        请以JSON格式返回，包含"summary"和"sentiment"两个字段。
 
         新闻标题: {article.get('title', 'N/A')}
         新闻内容: {article.get('content', 'N/A')}
         """
         try:
-            # Initialize rate limiter
-            rate_limiter = GeminiRateLimiter()
-            
-            # Use make_api_call_with_retry to handle 429 quota errors automatically
-            response = rate_limiter.make_api_call_with_retry(
-                model.generate_content, prompt
-            )
+            # Use unified LLM interface - tries OpenAI first, falls back to Gemini
+            response_text = _call_llm(prompt)
             # Clean the response to make it valid JSON
-            cleaned_response = response.text.strip().replace("```json", "").replace("```", "")
+            cleaned_response = response_text.strip().replace("```json", "").replace("```", "")
             result = json.loads(cleaned_response)
 
             summary = result.get('summary', '无法生成摘要。')
@@ -1158,7 +1219,7 @@ def analyze_news(news_articles):
 
 def general_search(ticker, company_info, query):
     """
-    Performs a general AI search about a company using Google Gemini API.
+    Performs a general AI search about a company using OpenAI (first choice) or Gemini API.
 
     Args:
         ticker (str): The stock ticker symbol.
@@ -1166,20 +1227,8 @@ def general_search(ticker, company_info, query):
         query (str): The user's search query.
 
     Returns:
-        str: The search result from Gemini API.
+        str: The search result from LLM API.
     """
-    load_dotenv()
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        return "Error: GEMINI_API_KEY not found in environment variables."
-
-    genai.configure(api_key=api_key)
-    try:
-        model = _init_gemini_model_with_fallback()
-    except Exception as e:
-        print(f"Could not initialize model: {e}")
-        return _format_gemini_error(e)
-
     prompt = f"""
     针对股票代码为 '{ticker}' 的公司 '{company_info.get('longName', 'N/A')}'，请回答以下问题。
 
@@ -1194,34 +1243,16 @@ def general_search(ticker, company_info, query):
     """
 
     try:
-        # Initialize rate limiter
-        rate_limiter = GeminiRateLimiter()
-        
-        # Make the API call with retry mechanism
-        def make_api_call():
-            return model.generate_content(prompt)
-            
-        response = rate_limiter.make_api_call_with_retry(make_api_call)
-        return response.text
+        # Use unified LLM interface - tries OpenAI first, falls back to Gemini
+        return _call_llm(prompt)
     except Exception as e:
-        return f"An error occurred while communicating with the Gemini API: {e}"
+        return f"An error occurred while communicating with the LLM API: {e}"
 
 
 def summarize_market_news(articles, tickers=None):
-    """Use Gemini to convert market news articles into a bilingual blog post."""
+    """Use OpenAI (first choice) or Gemini to convert market news articles into a bilingual blog post."""
     if not articles:
         return "未提供市场新闻数据。\nNo market news articles were provided."
-
-    load_dotenv()
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        return "Error: GEMINI_API_KEY not found in environment variables."
-
-    genai.configure(api_key=api_key)
-    try:
-        model = _init_gemini_model_with_fallback()
-    except Exception as e:
-        return _format_gemini_error(e)
 
     # Keep prompt concise by limiting number of articles
     max_items = min(len(articles), 12)
@@ -1252,33 +1283,17 @@ def summarize_market_news(articles, tickers=None):
 3. 采用资讯型博客语气，提炼主线逻辑并点出潜在影响。
 """
 
-    rate_limiter = GeminiRateLimiter()
-
     try:
-        def make_api_call():
-            return model.generate_content(prompt)
-
-        response = rate_limiter.make_api_call_with_retry(make_api_call)
-        return response.text
+        # Use unified LLM interface - tries OpenAI first, falls back to Gemini
+        return _call_llm(prompt)
     except Exception as e:
-        return _format_gemini_error(e)
+        return f"Error summarizing market news: {e}"
 
 
 def summarize_crypto_news(articles, tickers=None):
-    """Summarize Finviz v=5 crypto headlines into a bilingual blog."""
+    """Summarize Finviz v=5 crypto headlines into a bilingual blog using OpenAI (first choice) or Gemini."""
     if not articles:
         return "未找到任何加密货币新闻。\nNo crypto news items were provided."
-
-    load_dotenv()
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        return "Error: GEMINI_API_KEY not found in environment variables."
-
-    genai.configure(api_key=api_key)
-    try:
-        model = _init_gemini_model_with_fallback()
-    except Exception as e:
-        return _format_gemini_error(e)
 
     max_items = min(len(articles), 12)
     bullet_lines = []
@@ -1308,33 +1323,17 @@ def summarize_crypto_news(articles, tickers=None):
 3. 语气需兼顾专业与博客风格，可加入要点列表帮助投资者快速吸收。
 """
 
-    rate_limiter = GeminiRateLimiter()
-
     try:
-        def make_api_call():
-            return model.generate_content(prompt)
-
-        response = rate_limiter.make_api_call_with_retry(make_api_call)
-        return response.text
+        # Use unified LLM interface - tries OpenAI first, falls back to Gemini
+        return _call_llm(prompt)
     except Exception as e:
-        return _format_gemini_error(e)
+        return f"Error summarizing crypto news: {e}"
 
 
 def summarize_etf_news(articles, tickers=None):
-    """Summarize Finviz v=4 ETF headlines into a bilingual insights blog."""
+    """Summarize Finviz v=4 ETF headlines into a bilingual insights blog using OpenAI (first choice) or Gemini."""
     if not articles:
         return "未找到任何ETF新闻。\nNo ETF news items were provided."
-
-    load_dotenv()
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        return "Error: GEMINI_API_KEY not found in environment variables."
-
-    genai.configure(api_key=api_key)
-    try:
-        model = _init_gemini_model_with_fallback()
-    except Exception as e:
-        return _format_gemini_error(e)
 
     max_items = min(len(articles), 12)
     bullet_lines = []
@@ -1364,16 +1363,11 @@ def summarize_etf_news(articles, tickers=None):
 3. 语气保持专业且具有博客风格，在结尾附上对ETF投资者的观察建议。
 """
 
-    rate_limiter = GeminiRateLimiter()
-
     try:
-        def make_api_call():
-            return model.generate_content(prompt)
-
-        response = rate_limiter.make_api_call_with_retry(make_api_call)
-        return response.text
+        # Use unified LLM interface - tries OpenAI first, falls back to Gemini
+        return _call_llm(prompt)
     except Exception as e:
-        return _format_gemini_error(e)
+        return f"Error summarizing ETF news: {e}"
 
 
 def _collect_article_tickers(articles):
@@ -1389,20 +1383,9 @@ def _collect_article_tickers(articles):
 
 
 def summarize_stock_news(articles, tickers=None):
-    """Summarize Finviz v=3 stock headlines (general feed) into a bilingual blog."""
+    """Summarize Finviz v=3 stock headlines (general feed) into a bilingual blog using OpenAI (first choice) or Gemini."""
     if not articles:
         return "未找到任何股票新闻。\nNo stock news items were provided."
-
-    load_dotenv()
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        return "Error: GEMINI_API_KEY not found in environment variables."
-
-    genai.configure(api_key=api_key)
-    try:
-        model = _init_gemini_model_with_fallback()
-    except Exception as e:
-        return _format_gemini_error(e)
 
     max_items = min(len(articles), 12)
     bullet_lines = []
@@ -1432,20 +1415,16 @@ def summarize_stock_news(articles, tickers=None):
 3. 语气需兼具专业与博客风格，让投资者快速抓住重点，可在结尾给出观察建议。
 """
 
-    rate_limiter = GeminiRateLimiter()
-
     try:
-        def make_api_call():
-            return model.generate_content(prompt)
-
-        response = rate_limiter.make_api_call_with_retry(make_api_call)
-        return response.text
+        # Use unified LLM interface - tries OpenAI first, falls back to Gemini
+        return _call_llm(prompt)
     except Exception as e:
-        return _format_gemini_error(e)
+        return f"Error summarizing stock news: {e}"
 
 def summarize_clipboard_content(content, urls=None):
     """
     Summarize content from clipboard which may contain URLs or direct text.
+    Uses OpenAI (first choice) or Gemini API.
     
     Args:
         content (str): The clipboard content (text or fetched webpage content).
@@ -1456,17 +1435,6 @@ def summarize_clipboard_content(content, urls=None):
     """
     if not content or not content.strip():
         return "剪贴板为空或无有效内容。\nClipboard is empty or contains no valid content."
-
-    load_dotenv()
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        return "Error: GEMINI_API_KEY not found in environment variables."
-
-    genai.configure(api_key=api_key)
-    try:
-        model = _init_gemini_model_with_fallback()
-    except Exception as e:
-        return _format_gemini_error(e)
 
     # Truncate content if too long (keep first ~15000 chars to stay within token limits)
     max_content_len = 15000
@@ -1492,40 +1460,23 @@ def summarize_clipboard_content(content, urls=None):
 5. 如果内容不是财经相关，仍然提供有价值的摘要。
 """
 
-    rate_limiter = GeminiRateLimiter()
-
     try:
-        def make_api_call():
-            return model.generate_content(prompt)
-
-        response = rate_limiter.make_api_call_with_retry(make_api_call)
-        return response.text
+        # Use unified LLM interface - tries OpenAI first, falls back to Gemini
+        return _call_llm(prompt)
     except Exception as e:
-        return _format_gemini_error(e)
+        return f"Error summarizing clipboard content: {e}"
 
 
 def general_ai_search(query):
     """
-    Performs a general AI search using Google Gemini API without requiring ticker information.
+    Performs a general AI search using OpenAI (first choice) or Gemini API without requiring ticker information.
 
     Args:
         query (str): The user's search query.
 
     Returns:
-        str: The search result from Gemini API.
+        str: The search result from LLM API.
     """
-    load_dotenv()
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        return "Error: GEMINI_API_KEY not found in environment variables."
-
-    genai.configure(api_key=api_key)
-    try:
-        model = genai.GenerativeModel('gemini-2.5-flash')
-    except Exception as e:
-        print(f"Could not initialize model: {e}")
-        return "Error: Could not initialize Gemini model."
-
     prompt = f"""
     请回答以下问题，提供详细和准确的信息：
 
@@ -1535,14 +1486,7 @@ def general_ai_search(query):
     """
 
     try:
-        # Initialize rate limiter
-        rate_limiter = GeminiRateLimiter()
-        
-        # Make the API call with retry mechanism
-        def make_api_call():
-            return model.generate_content(prompt)
-            
-        response = rate_limiter.make_api_call_with_retry(make_api_call)
-        return response.text
+        # Use unified LLM interface - tries OpenAI first, falls back to Gemini
+        return _call_llm(prompt)
     except Exception as e:
-        return f"An error occurred while communicating with the Gemini API: {e}"
+        return f"An error occurred while communicating with the LLM API: {e}"

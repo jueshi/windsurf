@@ -1,16 +1,89 @@
-<div class="list-group list-group-flush">
+<!-- Toolbar for edit/delete actions -->
+<div class="d-flex justify-content-end px-2 py-1 border-bottom border-secondary" style="background: #2d3238;">
+    <button class="btn btn-link btn-sm p-0 text-warning me-2" onclick="editSelectedList()" title="Rename selected">✏️</button>
+    <button class="btn btn-link btn-sm p-0 text-danger" onclick="deleteSelectedList()" title="Delete selected">🗑️</button>
+</div>
+
+<!-- List items -->
+<div class="list-group list-group-flush" id="ticker-lists-group">
     {% for ticker_list in lists %}
-    <a href="#" class="list-group-item list-group-item-action bg-dark text-light border-secondary py-2"
-       hx-get="/tickers/list/{{ ticker_list.id }}"
-       hx-target="#current-ticker-list"
-       onclick="document.querySelectorAll('#ticker-lists-container a').forEach(el => el.classList.remove('active')); this.classList.add('active');">
-       <div class="d-flex w-100 justify-content-between">
-           <span class="mb-1">{{ ticker_list.name }}</span>
-           <span class="badge bg-secondary rounded-pill">{{ ticker_list.tickers|length }}</span>
-       </div>
-    </a>
+    <div class="list-group-item list-group-item-action bg-dark text-light border-secondary py-1 px-2 d-flex align-items-center ticker-list-item"
+         data-list-id="{{ ticker_list.id }}"
+         data-list-name="{{ ticker_list.name }}">
+        <!-- Checkbox for selection -->
+        <input type="radio" name="list-select" class="form-check-input me-2 list-radio" 
+               value="{{ ticker_list.id }}" 
+               onclick="event.stopPropagation();"
+               style="margin: 0; flex-shrink: 0;">
+        <!-- Clickable area for loading list -->
+        <div class="flex-grow-1 d-flex align-items-center" style="min-width: 0; cursor: pointer;"
+             hx-get="/tickers/list/{{ ticker_list.id }}"
+             hx-target="#current-ticker-list"
+             onclick="document.querySelectorAll('#ticker-lists-container .list-group-item').forEach(el => el.classList.remove('active')); this.parentElement.classList.add('active'); setCurrentList({{ ticker_list.id }});">
+            <span class="list-name text-truncate flex-grow-1" style="font-size: 0.85rem;">{{ ticker_list.name }}</span>
+            <span class="badge bg-secondary rounded-pill ms-1" style="font-size: 0.7rem;">{{ ticker_list.tickers|length }}</span>
+        </div>
+    </div>
     {% endfor %}
 </div>
+
+<script>
+    /**
+     * Get the selected list from radio buttons
+     */
+    function getSelectedList() {
+        const radio = document.querySelector('input[name="list-select"]:checked');
+        if (!radio) return null;
+        const listItem = radio.closest('.ticker-list-item');
+        return {
+            id: radio.value,
+            name: listItem?.dataset.listName || '',
+            element: listItem
+        };
+    }
+    
+    /**
+     * Edit the selected list name
+     */
+    function editSelectedList() {
+        const selected = getSelectedList();
+        if (!selected) {
+            alert('Please select a list first');
+            return;
+        }
+        
+        const newName = prompt('Enter new name:', selected.name);
+        if (newName && newName.trim() && newName.trim() !== selected.name) {
+            fetch(`/tickers/list/${selected.id}/rename`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newName.trim() })
+            }).then(r => {
+                if (r.ok) {
+                    // Update the name in the UI
+                    const nameSpan = selected.element.querySelector('.list-name');
+                    if (nameSpan) nameSpan.textContent = newName.trim();
+                    selected.element.dataset.listName = newName.trim();
+                }
+            }).catch(e => console.error('Rename failed:', e));
+        }
+    }
+    
+    /**
+     * Delete the selected list
+     */
+    function deleteSelectedList() {
+        const selected = getSelectedList();
+        if (!selected) {
+            alert('Please select a list first');
+            return;
+        }
+        
+        if (confirm(`Delete list "${selected.name}" and all its tickers?`)) {
+            htmx.ajax('DELETE', `/tickers/list/${selected.id}`, {target: '#ticker-lists-container'});
+        }
+    }
+</script>
 <div class="p-2 border-top border-secondary">
     <form hx-post="/tickers/list" hx-target="#ticker-lists-container" class="input-group input-group-sm">
         <input type="text" name="name" class="form-control bg-dark text-light border-secondary" placeholder="New List...">

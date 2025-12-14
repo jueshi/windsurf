@@ -5,20 +5,61 @@ import json
 import time
 import logging
 import math
+import hashlib
 import numpy as np
 import pandas as pd
 import yfinance as yf
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any, Tuple
 from random import uniform
+from functools import lru_cache
 
-# Define directory for stock data
-STOCK_DATA_DIR = 'webapp/stock_data'
+# Use absolute paths based on this file's location
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STOCK_DATA_DIR = os.path.join(BASE_DIR, 'stock_data')
 os.makedirs(STOCK_DATA_DIR, exist_ok=True)
 
-# Define directory for plots (though we might generate them on the fly for web)
-PLOTS_DIR = 'webapp/static/plots'
+# Define directory for plots
+PLOTS_DIR = os.path.join(BASE_DIR, 'static', 'plots')
 os.makedirs(PLOTS_DIR, exist_ok=True)
+
+
+# Simple in-memory cache with TTL
+class SimpleCache:
+    """
+    Simple in-memory cache with time-to-live (TTL) support.
+    Used for caching API responses like fundamental data.
+    """
+    def __init__(self, default_ttl: int = 300):
+        self._cache: Dict[str, Tuple[Any, float]] = {}
+        self.default_ttl = default_ttl  # 5 minutes default
+    
+    def get(self, key: str) -> Optional[Any]:
+        """Get value from cache if not expired."""
+        if key in self._cache:
+            value, expiry = self._cache[key]
+            if time.time() < expiry:
+                return value
+            else:
+                del self._cache[key]
+        return None
+    
+    def set(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
+        """Set value in cache with TTL."""
+        ttl = ttl or self.default_ttl
+        self._cache[key] = (value, time.time() + ttl)
+    
+    def clear(self) -> None:
+        """Clear all cached values."""
+        self._cache.clear()
+    
+    def remove(self, key: str) -> None:
+        """Remove specific key from cache."""
+        self._cache.pop(key, None)
+
+
+# Global cache instance
+_cache = SimpleCache(default_ttl=300)  # 5 minute default TTL
 
 class StockDataManager:
     """
@@ -65,18 +106,18 @@ class StockDataManager:
 
             # Clean and normalize
             if 'Date' in data.columns:
-                data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
-                data = data.dropna(subset=['Date'])
-                data = data.sort_values('Date')
+                data['Date'] = pd.to_datetime(data['Date'], errors='coerce', utc=True)
+            data = data.dropna(subset=['Date'])
+            data = data.sort_values('Date')
 
-                # Ensure numeric
-                numeric_cols = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
-                for col in numeric_cols:
-                    if col in data.columns:
-                        data[col] = pd.to_numeric(data[col], errors='coerce')
+            # Ensure numeric
+            numeric_cols = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
+            for col in numeric_cols:
+                if col in data.columns:
+                    data[col] = pd.to_numeric(data[col], errors='coerce')
 
-                data = data.set_index('Date')
-                return data
+            data = data.set_index('Date')
+            return data
             return None
 
         except Exception as e:
@@ -151,7 +192,7 @@ class StockDataManager:
                             combined = pd.concat([existing_data, recent_data], ignore_index=True)
 
                             # Deduplicate
-                            combined['Date'] = pd.to_datetime(combined['Date'])
+                            combined['Date'] = pd.to_datetime(combined['Date'], utc=True)
                             combined = combined.drop_duplicates(subset='Date', keep='last')
                             combined = combined.sort_values('Date')
 
@@ -176,13 +217,63 @@ class StockDataManager:
 
         return existing_data
 
-    def get_fundamental_data(self, ticker: str) -> Optional[Dict[str, Any]]:
+    def get_fundamental_data(self, ticker: str, use_cache: bool = True) -> Optional[Dict[str, Any]]:
+        """
+        Get fundamental data for a ticker with caching.
+        Cache TTL is 5 minutes by default.
+        """
+        cache_key = f"fundamental_{ticker.upper()}"
+        
+        # Check cache first
+        if use_cache:
+            cached = _cache.get(cache_key)
+            if cached is not None:
+                logging.debug(f"Cache hit for {ticker} fundamental data")
+                return cached
+        
         try:
             ticker_obj = yf.Ticker(ticker)
-            return ticker_obj.info
+            data = ticker_obj.info
+            
+            # Cache the result
+            if data:
+                _cache.set(cache_key, data, ttl=300)  # 5 minutes
+            
+            return data
         except Exception as e:
             logging.error(f"Error fetching fundamental data for {ticker}: {e}")
             return None
+    
+    def get_chart_data_cached(self, ticker: str, timeframe: str = 'D') -> Optional[pd.DataFrame]:
+        """
+        Get chart data with short-term caching (1 minute).
+        Useful for avoiding repeated API calls during page interactions.
+        """
+        cache_key = f"chart_{ticker.upper()}_{timeframe}"
+        
+        cached = _cache.get(cache_key)
+        if cached is not None:
+            return cached
+        
+        data = self.load_data(ticker)
+        if data is None or data.empty:
+            data = self.update_data(ticker)
+        
+        if data is not None and not data.empty:
+            _cache.set(cache_key, data, ttl=60)  # 1 minute cache
+        
+        return data
+    
+    def clear_cache(self, ticker: Optional[str] = None) -> None:
+        """Clear cache for a specific ticker or all cache."""
+        if ticker:
+            _cache.remove(f"fundamental_{ticker.upper()}")
+            _cache.remove(f"chart_{ticker.upper()}_D")
+            _cache.remove(f"chart_{ticker.upper()}_W")
+            _cache.remove(f"chart_{ticker.upper()}_M")
+        else:
+            _cache.clear()
+
 
 # Singleton instance
 data_manager = StockDataManager()

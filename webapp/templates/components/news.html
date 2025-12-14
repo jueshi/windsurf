@@ -1,18 +1,16 @@
 <div class="row">
-    <div class="col-md-7">
+    <div class="col-md-5">
         <h5 class="mb-3">Recent News for {{ ticker }}</h5>
         {% if news and news[0].get("error") %}
             <div class="alert alert-warning">
                 {{ news[0].get("error") }}
             </div>
         {% elif news %}
-            <div class="list-group">
+            <div class="list-group" style="max-height: 500px; overflow-y: auto;">
                 {% for article in news %}
-                <a href="{{ article.url }}" target="_blank" class="list-group-item list-group-item-action">
-                    <div class="d-flex w-100 justify-content-between">
-                        <h6 class="mb-1">{{ article.title }}</h6>
-                    </div>
-                    <p class="mb-1 small text-muted">{{ article.content[:200] }}...</p>
+                <a href="{{ article.url }}" target="_blank" class="list-group-item list-group-item-action py-2">
+                    <h6 class="mb-1 small">{{ article.title }}</h6>
+                    <p class="mb-0 small text-muted" style="font-size: 0.75rem;">{{ article.content[:150] }}...</p>
                 </a>
                 {% endfor %}
             </div>
@@ -20,7 +18,7 @@
             <p class="text-muted">No news found.</p>
         {% endif %}
     </div>
-    <div class="col-md-5">
+    <div class="col-md-7">
         <h5>AI News Analysis</h5>
         <button class="btn btn-primary mb-3 btn-sm"
                 hx-post="/news/analyze/{{ ticker }}"
@@ -33,7 +31,7 @@
             <span class="visually-hidden">Loading...</span>
         </div>
 
-        <div id="news-analysis-content" class="border p-3 bg-white rounded" style="max-height: 600px; overflow-y: auto;">
+        <div id="news-analysis-content" class="border p-3 bg-white rounded" style="max-height: 500px; overflow-y: auto;">
             <p class="text-muted small">Click button to generate AI analysis of these articles.</p>
         </div>
     </div>

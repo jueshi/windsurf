@@ -3193,13 +3193,26 @@ Tabs:
 
             # --- Process Data for Selected Years ---
             year_data = {}
-            all_trading_days = set()
+            # Use a fixed range of trading days (1-252) to represent a full year
+            # This ensures the x-axis always spans the entire year
+            full_year_trading_days = set(range(1, 253))
+            
             for year in selected_years:
                 year_df = data[data['Year'] == year].copy()
                 if len(year_df) < 30: continue
                 
                 year_df = year_df.sort_values('Date').reset_index()
-                year_df['TradingDayNum'] = range(1, len(year_df) + 1)
+                
+                # Calculate the trading day number based on the calendar position within the year
+                # This normalizes all years to start from day 1 (Jan 1) regardless of actual data start
+                year_df['DayOfYear'] = year_df['Date'].dt.dayofyear
+                
+                # Map calendar day of year to approximate trading day number
+                # Assuming ~252 trading days per year and ~365 calendar days
+                # Trading day = (DayOfYear / 365) * 252, rounded to nearest integer
+                year_df['TradingDayNum'] = ((year_df['DayOfYear'] / 365.0) * 252).round().astype(int)
+                year_df['TradingDayNum'] = year_df['TradingDayNum'].clip(lower=1, upper=252)
+                
                 # Convert Close column to float to avoid type mismatch
                 year_df['Close'] = pd.to_numeric(year_df['Close'], errors='coerce')
                 # Drop any rows where conversion failed
@@ -3208,8 +3221,12 @@ Tabs:
                 first_close = float(year_df['Close'].iloc[0])
                 year_df['PctChange'] = ((year_df['Close'] - first_close) / first_close) * 100
                 
-                year_data[year] = year_df[['TradingDayNum', 'PctChange', 'Date']].set_index('TradingDayNum')
-                all_trading_days.update(year_df['TradingDayNum'])
+                # Group by TradingDayNum to handle duplicate mappings (take last value for each day)
+                year_df_grouped = year_df.groupby('TradingDayNum').agg({
+                    'PctChange': 'last',
+                    'Date': 'last'
+                })
+                year_data[year] = year_df_grouped
 
             if not year_data:
                 messagebox.showwarning("Insufficient Data", f"No valid years with enough data for {ticker}.")
@@ -3227,19 +3244,32 @@ Tabs:
 
             # --- Calculate and Plot Average ---
             if len(selected_years) > 1:
-                avg_df = pd.DataFrame(index=sorted(all_trading_days))
+                # Collect all trading days that have actual data from any year
+                all_data_days = set()
+                for year_df in year_data.values():
+                    all_data_days.update(year_df.index.tolist())
+                
+                avg_df = pd.DataFrame(index=sorted(all_data_days))
                 for year, year_df in year_data.items():
                     avg_df[year] = year_df['PctChange']
+                
+                # Calculate average only where we have data, then interpolate gaps
                 avg_df['Average'] = avg_df.mean(axis=1)
-                if len(avg_df) > 5:
-                    avg_df['Average'] = avg_df['Average'].rolling(window=3, min_periods=1, center=True).mean()
+                avg_df['Average'] = avg_df['Average'].interpolate(method='linear', limit_direction='both')
+                
+                # Apply stronger smoothing to reduce choppiness (window=10 for ~2 weeks of trading)
+                if len(avg_df) > 10:
+                    avg_df['Average'] = avg_df['Average'].rolling(window=10, min_periods=1, center=True).mean()
+                
                 fig.add_trace(go.Scatter(x=avg_df.index, y=avg_df['Average'], mode='lines', name='Average', line=dict(color='black', width=3), opacity=0.8))
 
             # --- Finalize and Display Figure ---
-            fig.add_shape(type="line", x0=min(all_trading_days), y0=0, x1=max(all_trading_days), y1=0, line=dict(color="black", width=1, dash="dash"))
+            # Use fixed x-axis range (1-252) to always show full year
+            fig.add_shape(type="line", x0=1, y0=0, x1=252, y1=0, line=dict(color="black", width=1, dash="dash"))
             fig.update_layout(title=f'{ticker} Seasonality - Selected Years', xaxis_title='Trading Day Number', yaxis_title='Percentage Change (%)',
                               height=600, hovermode='closest', legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                              margin=dict(l=50, r=50, t=80, b=50))
+                              margin=dict(l=50, r=50, t=80, b=50),
+                              xaxis=dict(range=[1, 252]))  # Force x-axis to show full year range
             
             self.current_chart_ticker = ticker
             self._display_seasonality_figure(fig)
