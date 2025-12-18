@@ -115,6 +115,7 @@ async def get_chart_data(
     timeframe: str = "D",
     from_date: str = None,
     to_date: str = None,
+    refresh: bool = False,
     db: Session = Depends(get_db),
 ):
     """
@@ -143,8 +144,12 @@ async def get_chart_data(
         return JSONResponse(synthetic_payload)
 
     try:
-        # Check if data exists, if not try to download
-        data = data_manager.load_data(ticker)
+        # Optional forced refresh from source
+        if refresh:
+            data = data_manager.update_data(ticker, force_download=True)
+        else:
+            # Check if data exists, if not try to download
+            data = data_manager.load_data(ticker)
 
         if data is None or data.empty:
             # Trigger download
@@ -152,6 +157,19 @@ async def get_chart_data(
 
         if data is None or data.empty:
             return JSONResponse({"error": "No data found"}, status_code=404)
+
+        # If data looks stale, attempt an update to fetch recent candles
+        try:
+            last_dt = data.index.max()
+            if isinstance(last_dt, pd.Timestamp):
+                now_utc = pd.Timestamp.utcnow()
+                # If the last saved date is older than yesterday, refresh
+                if (now_utc.normalize() - last_dt.normalize()).days >= 1:
+                    fresh = data_manager.update_data(ticker)
+                    if fresh is not None and not fresh.empty:
+                        data = fresh
+        except Exception:
+            pass
 
         # Ensure index is DatetimeIndex for resampling
         if not isinstance(data.index, pd.DatetimeIndex):
@@ -214,10 +232,10 @@ async def get_chart_data(
             "volume": reset_data['Volume'].tolist() if 'Volume' in reset_data.columns else []
         }
 
-        return JSONResponse(result)
+        return JSONResponse(result, headers={"Cache-Control": "no-store, must-revalidate"})
     except Exception as e:
         logging.error(f"Error fetching chart data for {ticker}: {e}")
-        return JSONResponse({"error": str(e)}, status_code=500)
+        return JSONResponse({"error": str(e)}, status_code=500, headers={"Cache-Control": "no-store"})
 
 
 @router.get("/gallery/{list_id}", response_class=HTMLResponse)

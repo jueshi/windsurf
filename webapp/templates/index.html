@@ -211,10 +211,13 @@
                                 </div>
                             </div>
                             <!-- Timeframe Controls -->
-                            <div class="btn-group" role="group">
-                                <button type="button" class="btn btn-outline-secondary btn-sm active" onclick="updateTimeframe('D', this)">Daily</button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="updateTimeframe('W', this)">Weekly</button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="updateTimeframe('M', this)">Monthly</button>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm active" onclick="updateTimeframe('D', this)">Daily</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="updateTimeframe('W', this)">Weekly</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="updateTimeframe('M', this)">Monthly</button>
+                                </div>
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="onRefreshChart()" title="Refresh latest data">Refresh</button>
                             </div>
                         </div>
                         <div id="chart-container" class="text-center p-5" style="height: 600px;">
@@ -3550,7 +3553,7 @@
         }
     }
 
-    function fetchChartData(ticker, timeframe) {
+    function fetchChartData(ticker, timeframe, refresh=false) {
         const container = document.getElementById('chart-container');
         // Keep height to prevent layout jump
         container.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>';
@@ -3564,6 +3567,11 @@
         if (chartToDate) {
             url += `&to_date=${chartToDate}`;
         }
+        if (refresh) {
+            url += `&refresh=true`;
+        }
+        // cache-busting to avoid browser caching
+        url += `&_ts=${Date.now()}`;
 
         fetch(url)
             .then(response => response.json())
@@ -3578,6 +3586,11 @@
                 console.error('Error:', error);
                 container.innerHTML = `<div class="d-flex justify-content-center align-items-center h-100 text-danger">Error loading chart</div>`;
             });
+    }
+
+    function onRefreshChart() {
+        if (!currentTicker) return;
+        fetchChartData(currentTicker, currentTimeframe, true);
     }
 
     function renderChart(data) {

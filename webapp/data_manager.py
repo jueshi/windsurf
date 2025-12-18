@@ -165,43 +165,55 @@ class StockDataManager:
         elif not force_download:
             # Check if data is stale (older than 1 day)
             last_date = existing_data.index.max()
-            if (datetime.now() - last_date).days > 1:
-                # We could implement incremental update here, but for simplicity let's re-download or fetch recent
-                # For this simplified version, let's just re-download recent if force_download is False
-                # But to keep it robust like the original, we might want to merge.
-                # For web speed, maybe just getting last 1y is enough?
-                # Let's stick to full history for consistency.
-                pass
-                # Actually, let's try to just append new data if possible, or re-download if gap is large.
-                # Simplification: If data exists, fetch only recent.
-                try:
-                    start_date = (last_date + timedelta(days=1)).strftime('%Y-%m-%d')
-                    if start_date < datetime.now().strftime('%Y-%m-%d'):
-                        recent_data = yf.download(ticker, start=start_date, progress=False, auto_adjust=True)
-                        if not recent_data.empty:
-                            # Standardize columns
-                            if isinstance(recent_data.columns, pd.MultiIndex):
-                                recent_data.columns = recent_data.columns.get_level_values(0)
+            try:
+                # Normalize timezone handling
+                if hasattr(last_date, "tzinfo") and last_date.tzinfo is not None:
+                    now_dt = datetime.now(timezone.utc)
+                else:
+                    now_dt = datetime.now()
+                if (now_dt.date() - last_date.date()).days > 0:
+                    # We could implement incremental update here, but for simplicity let's re-download or fetch recent
+                    # For this simplified version, let's just re-download recent if force_download is False
+                    # But to keep it robust like the original, we might want to merge.
+                    # For web speed, maybe just getting last 1y is enough?
+                    # Let's stick to full history for consistency.
+                    updated = False
+                    # Actually, let's try to just append new data if possible, or re-download if gap is large.
+                    # Simplification: If data exists, fetch only recent.
+                    try:
+                        start_date = (last_date + timedelta(days=1)).strftime('%Y-%m-%d')
+                        if start_date < datetime.now().strftime('%Y-%m-%d'):
+                            recent_data = yf.download(ticker, start=start_date, progress=False, auto_adjust=True)
+                            if not recent_data.empty:
+                                # Standardize columns
+                                if isinstance(recent_data.columns, pd.MultiIndex):
+                                    recent_data.columns = recent_data.columns.get_level_values(0)
 
-                            # Combine
-                            existing_data = existing_data.reset_index()
-                            recent_data = recent_data.reset_index()
+                                # Combine
+                                existing_data = existing_data.reset_index()
+                                recent_data = recent_data.reset_index()
 
-                            # Align columns
-                            cols = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
-                            combined = pd.concat([existing_data, recent_data], ignore_index=True)
+                                # Align columns
+                                cols = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
+                                combined = pd.concat([existing_data, recent_data], ignore_index=True)
 
-                            # Deduplicate
-                            combined['Date'] = pd.to_datetime(combined['Date'], utc=True)
-                            combined = combined.drop_duplicates(subset='Date', keep='last')
-                            combined = combined.sort_values('Date')
+                                # Deduplicate
+                                combined['Date'] = pd.to_datetime(combined['Date'], utc=True)
+                                combined = combined.drop_duplicates(subset='Date', keep='last')
+                                combined = combined.sort_values('Date')
 
-                            self._save_data_with_consistent_format(combined, data_path)
-                            return combined.set_index('Date')
-                except Exception as e:
-                    logging.error(f"Incremental update failed for {ticker}: {e}")
-                    # Fallback to full download
-                    need_download = True
+                                self._save_data_with_consistent_format(combined, data_path)
+                                updated = True
+                                return combined.set_index('Date')
+                    except Exception as e:
+                        logging.error(f"Incremental update failed for {ticker}: {e}")
+                        # Fallback to full download
+                        need_download = True
+                    if not updated:
+                        need_download = True
+            except Exception as e:
+                logging.error(f"Staleness check failed for {ticker}: {e}")
+                need_download = True
 
         if need_download:
             stock_data = self._download_with_retry(ticker, force_download=True)

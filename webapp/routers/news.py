@@ -7,6 +7,7 @@ from .. import gemini_analyzer
 from .. import finviz_news
 import markdown
 import re
+from urllib.parse import quote_plus
 
 router = APIRouter(
     prefix="/news",
@@ -163,7 +164,8 @@ async def get_news_item(request: Request, news_id: int, slug: str):
         '''
         return HTMLResponse(content=html)
     query = slug.replace("-", " ")
-    fallback = f'https://www.google.com/search?q={re.sub(r"\\s+", "+", query)}'
+    search_q = quote_plus(query)
+    fallback = f"https://www.google.com/search?q={search_q}"
     html = f'''
     <div class="alert alert-info mb-2">No local article found for "{slug}". Showing search link.</div>
     <a href="{fallback}" target="_blank" rel="noopener" class="btn btn-outline-primary">Open search</a>
