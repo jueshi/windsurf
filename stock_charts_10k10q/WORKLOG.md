@@ -65,3 +65,45 @@
   - Added reusable `TooltipManager` module with hover delay control, Shift+F1 activation, and weakref registry cleanup.
   - Integrated manager into `StockDataGUI`, added Show Tooltips toggle, and instrumented ticker list controls plus chart date range widgets with descriptive tooltips aligned to the new PRD.
   - Files: `stock_charts_10k10q/tooltip_manager.py`, `stock_charts_10k10q/gui.py`.
+
+## 2025-12-19
+
+- **Added insider tooltip support**
+  - Goal: Identify which insider sold each block directly on the chart.
+  - Change: Wrapped the scatter plot with `mplcursors` hover tooltips (with graceful fallback if the library isn’t installed) showing name, official title, transaction type, date, shares, value, and price when the user hovers over a bubble.
+  - Files: `stock_charts_10k10q/insider_sale_data.py`.
+
+- **Added trend line to volume dot chart**
+  - Goal: Complement the bubble plot with a continuous view of price action.
+  - Change: Plotted a semi-transparent midnight-blue line connecting the closing prices before drawing the scatter markers so viewers can visually follow the trend between dots.
+  - File: `stock_charts_10k10q/volumn_dot_chart.py`.
+
+- **Fixed matplotlib color array shape in volume dot chart**
+  - Issue: `plt.scatter` raised `ValueError: 'c' argument must be a color...` because `np.where` on pandas Series returned a column vector (`(n, 1)`) instead of a flat list, so matplotlib rejected it.
+  - Change: Convert Open/Close/Volume Series to flattened NumPy arrays before computing colors, then compare those arrays so `np.where` yields a 1-D list of `'green'/'red'` strings that matplotlib accepts.
+  - File: `stock_charts_10k10q/volumn_dot_chart.py`.
+
+- **Restored Insider Sales visualization data parsing**
+  - Issue: Finviz copy/paste delivered a single line containing every row, so `parse_line` never matched and the chart rendered empty.
+  - Change: Added `prepare_lines` to split entries on timestamps and drop the trailing `"Dec 11 04:26 PM"` timestamps before parsing transaction details. The pipeline now produces 100 parsed entries with 64 real sales for plotting.
+  - Validation: Imported the module with a headless Matplotlib backend to ensure the DataFrame is populated (parsed=100, sales=64) before plotting.
+
+- **Hardened insider parser for variable date formats**
+  - Issue: Some Finviz rows omit the leading zero in the day (e.g., `Dec 5 '25`), causing our strict regex to skip entries and leave the scatter empty.
+  - Change: Replaced the ad-hoc line splitter with a true regex-based `parse_transactions` pipeline that supports one- or two-digit days both in the date and trailing timestamp, with a line-by-line fallback for unexpected layouts.
+  - Validation: Re-imported the script under Agg backend to confirm we still parse 100 rows / 64 sales and the chart renders once `plt.show()` is allowed.
+
+- **Fixed yfinance insider sale parser when column names drift**
+  - Issue: `sales_df = df[df['Transaction'].str.contains(...)]` crashed because current yfinance frames expose `Transaction` as a column of dictionaries instead of strings.
+  - Change: Normalize whatever combination of `Transaction`, `Text`, and `Transaction` fields exist (renaming to `TransactionType` / `TransactionText`) and build the sale filter by scanning every available descriptor so the code keeps working even if only one of them is textual.
+  - Validation: Unable to re-run the plot locally because `seaborn` is missing in this environment; logic verified by re-importing the module to ensure no `.str` errors occur. Please install seaborn (`pip install seaborn`) to render the chart.
+
+- **Added retry/backoff + cache fallback for insider fetches**
+  - Issue: Yahoo Finance intermittently returns HTTP 429, leaving the script with an empty DataFrame and no visualization.
+  - Change: Implemented exponential backoff retries, on-disk caching of the most recent successful sales DataFrame under `insider_cache/`, and graceful fallback to cached data whenever live fetches fail or return no sale rows.
+  - Validation: Triggered the fetch with network calls blocked to ensure we now surface “Loaded cached insider sales...” instead of aborting; real fetch still depends on Yahoo lifting the rate limit.
+
+- **Added Finviz HTML fallback when Yahoo blocks us**
+  - Issue: Persistent 429s meant even the cache couldn’t help on first run.
+  - Change: When yfinance is empty or missing transaction columns, fetch the Finviz quote page directly, parse the insider table via `read_html(StringIO(...))`, downcast multi-index headers, filter for Sale rows, and normalize the numeric fields before feeding the rest of the pipeline.
+  - Validation: Re-ran `py -3 insider_sale_data.py` while Yahoo was throttling; script now logs “Trying Finviz fallback...” and proceeds once Finviz responds. FutureWarning about literal HTML is benign and now suppressed by StringIO.
