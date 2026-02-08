@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV Browser Web</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="toolbar">
+            <input type="text" id="directoryInput" placeholder="Enter directory path">
+            <button onclick="loadFiles()">Browse</button>
+            <label><input type="checkbox" id="subfoldersCheck"> Subfolders</label>
+            <select id="recentDirs" onchange="loadRecentDir(this.value)">
+                <option value="">Recent...</option>
+            </select>
+            <button onclick="refreshFiles()">Refresh</button>
+        </div>
+
+        <div class="main-content">
+            <div class="file-pane">
+                <div class="filter-bar">
+                    <input type="text" id="fileFilter" placeholder="Filter files..." onkeyup="debouncedLoadFiles()">
+                    <div class="actions">
+                        <button onclick="deleteSelected()">Delete</button>
+                        <!-- Copy/Move would require a dialog to pick destination, kept simple for now -->
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table id="fileTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Path</th>
+                                <th>Size</th>
+                                <th>Modified</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="csv-pane">
+                <div class="filter-bar">
+                    <input type="text" id="rowFilter" placeholder="Row Filter (query or search)" onkeyup="debouncedLoadCsv()">
+                    <input type="text" id="colFilter" placeholder="Column Filter" onkeyup="debouncedLoadCsv()">
+                    <span id="csvStatus"></span>
+                </div>
+                <div class="table-container" id="csvContainer">
+                    <table id="csvTable">
+                        <thead></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

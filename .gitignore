@@ -1,8 +1,9 @@
-stock_toolbox.db
-webapp/stock_data/
-uvicorn.log
-verification/
 __pycache__/
-.pytest_cache/
-sec-edgar-filings/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
 .env
+.venv
