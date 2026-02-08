@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Multi-Timeframe Gallery - {{ list_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="mb-0">
+            <a href="/" class="text-decoration-none">← Back</a>
+            Multi-Timeframe Gallery: {{ list_name }}
+        </h4>
+        <div class="btn-group">
+            <a href="/" class="btn btn-outline-secondary btn-sm">Dashboard</a>
+            {% if list_id %}
+            <button class="btn btn-outline-primary btn-sm" onclick="openInNewWindow()">Open in New Window</button>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div id="gallery-container">
+        {% for ticker in tickers %}
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center py-2">
+                <h5 class="mb-0">{{ ticker }}</h5>
+                <div class="btn-group btn-group-sm">
+                    <a href="https://finance.yahoo.com/quote/{{ ticker }}" target="_blank" class="btn btn-outline-secondary">Yahoo</a>
+                    <a href="https://finviz.com/quote.ashx?t={{ ticker }}" target="_blank" class="btn btn-outline-secondary">Finviz</a>
+                    <a href="https://stockcharts.com/h-sc/ui?s={{ ticker }}" target="_blank" class="btn btn-outline-secondary">StockCharts</a>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="row g-0">
+                    <div class="col-md-4 text-center border-end">
+                        <small class="text-muted d-block py-1 bg-light">Daily</small>
+                        <img src="https://charts2-node.finviz.com/chart.ashx?cs=&t={{ ticker }}&tf=d&s=linear&pm=240&am=1200&ct=candle_stick&tm=d&o[0][ot]=sma&o[0][op]=50&o[0][oc]=FF8F33C6&o[1][ot]=sma&o[1][op]=200&o[1][oc]=DCB3326D&o[2][ot]=patterns&o[2][op]=&o[2][oc]=000" 
+                             alt="{{ ticker }} Daily" 
+                             class="img-fluid chart-img"
+                             loading="lazy">
+                    </div>
+                    <div class="col-md-4 text-center border-end">
+                        <small class="text-muted d-block py-1 bg-light">Weekly</small>
+                        <img src="https://charts2-node.finviz.com/chart.ashx?cs=&t={{ ticker }}&tf=w&s=linear&pm=240&am=1200&ct=candle_stick&tm=d&r=y5&o[0][ot]=sma&o[0][op]=50&o[0][oc]=FF8F33C6&o[1][ot]=sma&o[1][op]=200&o[1][oc]=DCB3326D&o[2][ot]=patterns&o[2][op]=&o[2][oc]=000" 
+                             alt="{{ ticker }} Weekly" 
+                             class="img-fluid chart-img"
+                             loading="lazy">
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <small class="text-muted d-block py-1 bg-light">Monthly</small>
+                        <img src="https://charts2-node.finviz.com/chart.ashx?cs=&t={{ ticker }}&tf=m&s=linear&pm=240&am=1200&ct=candle_stick&tm=d&r=max&o[0][ot]=sma&o[0][op]=50&o[0][oc]=FF8F33C6&o[1][ot]=sma&o[1][op]=200&o[1][oc]=DCB3326D&o[2][ot]=patterns&o[2][op]=&o[2][oc]=000" 
+                             alt="{{ ticker }} Monthly" 
+                             class="img-fluid chart-img"
+                             loading="lazy">
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<style>
+    .chart-img {
+        height: 280px;
+        object-fit: contain;
+        background-color: #fff;
+    }
+    @media (max-width: 768px) {
+        .chart-img {
+            height: 200px;
+        }
+    }
+</style>
+
+<script>
+    function openInNewWindow() {
+        window.open(window.location.href, '_blank', 'width=1400,height=900');
+    }
+</script>
+{% endblock %}

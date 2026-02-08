@@ -1,0 +1,348 @@
+<div>
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h5 class="mb-0">Fundamental Comparison: {{ tickers|join(', ') }}</h5>
+        <div class="d-flex align-items-center gap-2">
+            <div class="input-group input-group-sm" style="width: 250px;">
+                <span class="input-group-text">🔍</span>
+                <input type="text" class="form-control" id="fundamental-filter" 
+                       placeholder="Filter metrics... (use * for wildcard)"
+                       oninput="filterFundamentalData()">
+                <button class="btn btn-outline-secondary" type="button" onclick="clearFundamentalFilter()">×</button>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="show-all-metrics" onchange="toggleAllMetrics()">
+                <label class="form-check-label small" for="show-all-metrics">Show All</label>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Filter Presets -->
+    <div class="mb-2">
+        <span class="text-muted small me-2">Quick Filters:</span>
+        <div class="btn-group btn-group-sm" role="group">
+            <button type="button" class="btn btn-outline-primary" onclick="applyFilterPreset('p/e p/b price peg ev/ebitda ev/revenue forward trailing')">Value</button>
+            <button type="button" class="btn btn-outline-primary" onclick="applyFilterPreset('growth margin revenue earnings profit gross operating net income eps quarterly annual yoy')">Growth</button>
+            <button type="button" class="btn btn-outline-primary" onclick="applyFilterPreset('dividend yield payout rate ex-date forward annual 5-year')">Dividend</button>
+            <button type="button" class="btn btn-outline-primary" onclick="applyFilterPreset('beta debt ratio current quick cash equity leverage coverage interest short float')">Risk</button>
+            <button type="button" class="btn btn-outline-primary" onclick="applyFilterPreset('52-week avg volume high low moving sma ema rsi target price change return')">Technical</button>
+            <button type="button" class="btn btn-outline-primary" onclick="applyFilterPreset('roe roa roic roi return asset equity capital invested efficiency')">Returns</button>
+            <button type="button" class="btn btn-outline-primary" onclick="applyFilterPreset('cash flow free operating fcf capex working capital')">Cash Flow</button>
+            <button type="button" class="btn btn-outline-secondary" onclick="clearFundamentalFilter()">Clear</button>
+        </div>
+    </div>
+    
+    <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+        <table class="table table-striped table-sm table-hover" id="fundamental-table">
+            <thead class="sticky-top bg-white">
+                <tr>
+                    <th>Metric</th>
+                    {% for ticker in tickers %}
+                    <th class="text-center">{{ ticker }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody id="fundamental-tbody">
+                {% set all_metrics = [] %}
+                {% for ticker in tickers %}
+                    {% if all_data.get(ticker) %}
+                        {% for key in all_data[ticker].keys() %}
+                            {% if key not in all_metrics %}
+                                {% set _ = all_metrics.append(key) %}
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                {% endfor %}
+                
+                {% for metric in all_metrics %}
+                <tr data-metric="{{ metric|lower }}">
+                    <td><strong>{{ metric }}</strong></td>
+                    {% for ticker in tickers %}
+                    <td class="text-center">{{ (all_data.get(ticker) or {}).get(metric, '-') }}</td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="mt-2 text-muted small">
+        <span id="metric-count">{{ all_metrics|length if all_metrics is defined else 0 }}</span> metrics shown
+        | Comparing {{ tickers|length }} tickers
+    </div>
+    
+    <!-- AI Comparative Analysis Section -->
+    <div class="mt-4 border-top pt-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="mb-0">🤖 AI Comparative Analysis</h6>
+            <button class="btn btn-sm btn-primary" id="analyze-compare-btn" onclick="analyzeComparison()">
+                <span class="spinner-border spinner-border-sm d-none" id="compare-ai-spinner"></span>
+                Compare & Analyze
+            </button>
+        </div>
+        <div id="compare-ai-results" class="p-2 bg-light rounded" style="min-height: 100px;">
+            <p class="text-muted mb-0">Click "Compare & Analyze" to get AI insights comparing these stocks based on the visible metrics.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Store data for filtering
+    window.fundamentalFilteredData = {};
+    window.fundamentalRawData = {};
+    {% for ticker in tickers %}
+    window.fundamentalFilteredData['{{ ticker }}'] = {{ (all_data.get(ticker) or {})|tojson|safe }};
+    window.fundamentalRawData['{{ ticker }}'] = {{ (all_raw_data.get(ticker) or {})|tojson|safe }};
+    {% endfor %}
+    window.compareTickers = {{ tickers|tojson|safe }};
+    
+    // Store original table HTML for restoration
+    window.originalTableHTML = document.getElementById('fundamental-tbody').innerHTML;
+    
+    // Debug: log raw data sizes for each ticker
+    let debugMsg = 'Data loaded:\n';
+    for (const t of window.compareTickers) {
+        const rawKeys = Object.keys(window.fundamentalRawData[t] || {});
+        const filteredKeys = Object.keys(window.fundamentalFilteredData[t] || {});
+        debugMsg += `${t}: ${rawKeys.length} raw, ${filteredKeys.length} filtered\n`;
+    }
+    console.log(debugMsg);
+    // Uncomment next line to show alert popup:
+    // alert(debugMsg);
+    
+    function filterFundamentalData() {
+        const filterEl = document.getElementById('fundamental-filter');
+        const filter = filterEl ? filterEl.value.toLowerCase().trim() : '';
+        const rows = document.querySelectorAll('#fundamental-tbody tr');
+        let visibleCount = 0;
+        
+        if (!rows || rows.length === 0) {
+            return;
+        }
+        
+        let pattern = null;
+        if (filter.includes('*')) {
+            const regexPattern = filter.replace(/\*/g, '.*').replace(/\//g, '\\/');
+            try {
+                pattern = new RegExp(regexPattern, 'i');
+            } catch (e) {
+                pattern = null;
+            }
+        }
+        
+        rows.forEach(row => {
+            if (!row) return;
+            const metric = row.getAttribute('data-metric') || '';
+            let matches = false;
+            
+            if (!filter) {
+                matches = true;
+            } else if (pattern) {
+                matches = pattern.test(metric);
+            } else {
+                matches = metric.includes(filter);
+            }
+            
+            if (row.style) {
+                row.style.display = matches ? '' : 'none';
+            }
+            if (matches) visibleCount++;
+        });
+        
+        document.getElementById('metric-count').textContent = visibleCount;
+    }
+    
+    function clearFundamentalFilter() {
+        document.getElementById('fundamental-filter').value = '';
+        filterFundamentalData();
+    }
+    
+    function applyFilterPreset(preset) {
+        // First, show all rows (reset any previous filter)
+        const rows = document.querySelectorAll('#fundamental-tbody tr');
+        rows.forEach(row => row.style.display = '');
+        
+        // Set the filter and apply with OR logic (don't rebuild table)
+        document.getElementById('fundamental-filter').value = preset;
+        filterFundamentalDataWithOR();
+    }
+    
+    // Filter with OR logic for presets (matches any word)
+    function filterFundamentalDataWithOR() {
+        const filterEl = document.getElementById('fundamental-filter');
+        const filter = filterEl ? filterEl.value.toLowerCase().trim() : '';
+        const rows = document.querySelectorAll('#fundamental-tbody tr');
+        let visibleCount = 0;
+        
+        if (!rows || rows.length === 0) {
+            return;
+        }
+        
+        // Split filter into words for OR matching
+        const words = filter.split(/\s+/).filter(w => w.length > 0);
+        
+        rows.forEach(row => {
+            if (!row) return;
+            const metric = row.getAttribute('data-metric') || '';
+            let matches = false;
+            
+            if (!filter || words.length === 0) {
+                matches = true;
+            } else {
+                // OR logic: match if any word is found
+                matches = words.some(word => metric.includes(word));
+            }
+            
+            if (row.style) {
+                row.style.display = matches ? '' : 'none';
+            }
+            if (matches) visibleCount++;
+        });
+        
+        document.getElementById('metric-count').textContent = visibleCount;
+    }
+    
+    function toggleAllMetrics() {
+        const showAll = document.getElementById('show-all-metrics').checked;
+        const tbody = document.getElementById('fundamental-tbody');
+        
+        if (!showAll) {
+            // Restore original filtered table
+            tbody.innerHTML = window.originalTableHTML;
+            document.getElementById('metric-count').textContent = tbody.querySelectorAll('tr').length;
+            
+            // Re-apply filter if any
+            const filter = document.getElementById('fundamental-filter').value;
+            if (filter) {
+                filterFundamentalData();
+            }
+            return;
+        }
+        
+        // Show All: rebuild table with raw data from ALL tickers
+        // Get union of all metrics from ALL tickers
+        const allMetrics = new Set();
+        for (const ticker of window.compareTickers) {
+            const data = window.fundamentalRawData[ticker] || {};
+            for (const key of Object.keys(data)) {
+                const val = data[key];
+                if (val !== null && val !== undefined && val !== 'N/A' && val !== '') {
+                    allMetrics.add(key);
+                }
+            }
+        }
+        
+        // Sort metrics alphabetically for consistency
+        const sortedMetrics = Array.from(allMetrics).sort();
+        
+        // Rebuild table with data from ALL tickers
+        tbody.innerHTML = '';
+        let count = 0;
+        for (const metric of sortedMetrics) {
+            const row = document.createElement('tr');
+            row.setAttribute('data-metric', metric.toLowerCase());
+            
+            let html = `<td><strong>${metric}</strong></td>`;
+            for (const ticker of window.compareTickers) {
+                const tickerData = window.fundamentalRawData[ticker] || {};
+                let value = tickerData[metric];
+                
+                // Format the value for display
+                if (value === null || value === undefined || value === 'N/A' || value === '') {
+                    value = '-';
+                } else if (typeof value === 'number') {
+                    // Format large numbers
+                    if (Math.abs(value) >= 1e12) {
+                        value = '$' + (value / 1e12).toFixed(2) + 'T';
+                    } else if (Math.abs(value) >= 1e9) {
+                        value = '$' + (value / 1e9).toFixed(2) + 'B';
+                    } else if (Math.abs(value) >= 1e6) {
+                        value = '$' + (value / 1e6).toFixed(2) + 'M';
+                    } else if (value < 1 && value > -1 && value !== 0) {
+                        // Likely a percentage or ratio
+                        value = (value * 100).toFixed(2) + '%';
+                    } else {
+                        value = value.toFixed(2);
+                    }
+                }
+                
+                html += `<td class="text-center">${value}</td>`;
+            }
+            row.innerHTML = html;
+            tbody.appendChild(row);
+            count++;
+        }
+        
+        document.getElementById('metric-count').textContent = count;
+        
+        // Re-apply filter if any
+        const filter = document.getElementById('fundamental-filter').value;
+        if (filter) {
+            filterFundamentalData();
+        }
+    }
+    
+    // AI Comparative Analysis - collects visible metrics for all tickers
+    async function analyzeComparison() {
+        const btn = document.getElementById('analyze-compare-btn');
+        const spinner = document.getElementById('compare-ai-spinner');
+        const resultsContainer = document.getElementById('compare-ai-results');
+        
+        // Collect visible metrics for each ticker from the table
+        const comparisonData = {};
+        const rows = document.querySelectorAll('#fundamental-tbody tr');
+        
+        // Initialize data structure for each ticker
+        for (const ticker of window.compareTickers) {
+            comparisonData[ticker] = {};
+        }
+        
+        // Collect visible row data
+        rows.forEach(row => {
+            if (row.style.display !== 'none') {
+                const cells = row.querySelectorAll('td');
+                if (cells.length >= 2) {
+                    const metricName = cells[0].textContent.trim();
+                    // Get value for each ticker (columns after the metric name)
+                    for (let i = 1; i < cells.length && i <= window.compareTickers.length; i++) {
+                        const ticker = window.compareTickers[i - 1];
+                        const value = cells[i].textContent.trim();
+                        if (value && value !== '-') {
+                            comparisonData[ticker][metricName] = value;
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Check if we have any data
+        const totalMetrics = Object.values(comparisonData).reduce((sum, d) => sum + Object.keys(d).length, 0);
+        if (totalMetrics === 0) {
+            resultsContainer.innerHTML = '<div class="alert alert-warning mb-0">No metrics visible to analyze. Clear the filter or select different metrics.</div>';
+            return;
+        }
+        
+        // Show loading state
+        btn.disabled = true;
+        spinner.classList.remove('d-none');
+        resultsContainer.innerHTML = '<div class="d-flex justify-content-center p-3"><div class="spinner-border text-primary" role="status"></div></div>';
+        
+        try {
+            const response = await fetch('/analysis/fundamental/compare/ai', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    tickers: window.compareTickers,
+                    metrics: comparisonData 
+                })
+            });
+            const html = await response.text();
+            resultsContainer.innerHTML = html;
+        } catch (error) {
+            console.error('Comparative AI analysis error:', error);
+            resultsContainer.innerHTML = `<div class="alert alert-danger mb-0">Error running analysis: ${error.message}</div>`;
+        } finally {
+            btn.disabled = false;
+            spinner.classList.add('d-none');
+        }
+    }
+</script>

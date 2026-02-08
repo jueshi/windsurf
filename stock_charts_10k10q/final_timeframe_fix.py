@@ -103,7 +103,11 @@ def generate_and_display_timeframe_charts(app, ticker):
 
     # --- Generate Monthly Chart (All Time, Log Scale) ---
     try:
-        monthly_df = df.resample('ME').agg({'Close': 'last'}).dropna()
+        # Use 'ME' for pandas >= 2.2, fall back to 'M' for older versions
+        try:
+            monthly_df = df.resample('ME').agg({'Close': 'last'}).dropna()
+        except ValueError:
+            monthly_df = df.resample('M').agg({'Close': 'last'}).dropna()
         fig_monthly, ax_monthly = plt.subplots(figsize=(8, 2.5))
         ax_monthly.semilogy(monthly_df.index, monthly_df['Close']) # Use log scale
         ax_monthly.set_title(f"{ticker} Monthly (Log Scale)", fontsize=10)

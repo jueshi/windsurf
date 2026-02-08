@@ -3,12 +3,16 @@
 
 """
 SEC API Cache module for handling SEC EDGAR API requests with caching and rate limiting
+
+This is the central module for all SEC API interactions. Other modules should import
+from here rather than implementing their own SEC API calls.
 """
 
 import os
 import json
 import time
 import random
+import shutil
 import requests
 import hashlib
 from datetime import datetime, timedelta
@@ -18,8 +22,51 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Configure cache directory
-CACHE_DIR = Path("sec_cache")
+# =============================================================================
+# Custom Exceptions for SEC API
+# =============================================================================
+
+class SECAPIError(Exception):
+    """Base exception for SEC API errors"""
+    pass
+
+class SECRateLimitError(SECAPIError):
+    """Raised when rate limited by SEC (403 or 429 status)"""
+    pass
+
+class SECNotFoundError(SECAPIError):
+    """Raised when ticker or filing not found"""
+    pass
+
+class SECNetworkError(SECAPIError):
+    """Raised on network failures (connection, timeout, SSL)"""
+    pass
+
+class SECParseError(SECAPIError):
+    """Raised when response cannot be parsed"""
+    pass
+
+# User-friendly error messages
+ERROR_MESSAGES = {
+    SECRateLimitError: "SEC is temporarily limiting requests. Please wait a few minutes and try again.",
+    SECNotFoundError: "Could not find the requested data in SEC database. Please verify the ticker symbol.",
+    SECNetworkError: "Network error connecting to SEC. Please check your internet connection.",
+    SECParseError: "Error parsing SEC response. The filing format may have changed.",
+}
+
+def get_user_friendly_message(exception):
+    """Get user-friendly message for an exception"""
+    for exc_type, message in ERROR_MESSAGES.items():
+        if isinstance(exception, exc_type):
+            return message
+    return str(exception)
+
+# =============================================================================
+# Configuration
+# =============================================================================
+
+# Configure cache directory (can be overridden via environment variable)
+CACHE_DIR = Path(os.getenv("SEC_CACHE_DIR", "sec_cache"))
 CACHE_DIR.mkdir(exist_ok=True)
 
 # Cache expiration (in days)
@@ -29,39 +76,109 @@ CACHE_EXPIRATION = {
     "filing_document": 30,  # Filing documents cache for 30 days
 }
 
-# Minimum delay between requests (in seconds)
-MIN_DELAY = 10  # SEC recommends 10 seconds between requests
-MAX_RETRIES = 5  # Increased from 3 to 5 retries
-BASE_BACKOFF = 10  # Base backoff time in seconds
+# Rate limiting configuration - SEC is very strict, use conservative values
+MIN_DELAY = int(os.getenv("SEC_MIN_DELAY", "12"))  # SEC recommends 10 seconds, use 12 for safety
+MAX_RETRIES = 5  # Maximum retry attempts
+BASE_BACKOFF = 15  # Base backoff time in seconds (increased from 10)
 MAX_BACKOFF = 300  # Maximum backoff time (5 minutes)
+RATE_LIMIT_BACKOFF = 60  # Wait 60 seconds after a 403 error
 
-# Track last request time
+# Track last request time (shared across all SEC requests)
 last_request_time = 0
+_rate_limit_lock = None  # Will be initialized on first use
+
+def _get_rate_limit_lock():
+    """Get or create the rate limit lock for thread safety"""
+    global _rate_limit_lock
+    if _rate_limit_lock is None:
+        import threading
+        _rate_limit_lock = threading.Lock()
+    return _rate_limit_lock
 
 # Global cache for company tickers to avoid repeated lookups
 company_tickers_cache = None
 company_tickers_last_update = None
 
+# =============================================================================
+# Standardized Headers (single source of truth)
+# =============================================================================
+
+# Standard headers for all SEC requests
+# NOTE: SEC blocks browser-like User-Agents with 403!
+# Must use simple User-Agent with app name and email
+SEC_HEADERS_TEMPLATE = {
+    "User-Agent": "StockAnalyzer user@example.com",  # Will be overridden by get_headers()
+    "Accept": "application/json, text/html, */*",
+    "Accept-Encoding": "gzip, deflate",
+}
+
+# =============================================================================
+# Cache Management Functions
+# =============================================================================
+
+def clear_all_cache(include_memory=True):
+    """
+    Clear all SEC API cache (both file and optionally in-memory)
+    
+    Args:
+        include_memory (bool): Also clear in-memory cache
+        
+    Returns:
+        bool: True if successful
+    """
+    global company_tickers_cache, company_tickers_last_update
+    
+    # Clear in-memory cache
+    if include_memory:
+        company_tickers_cache = None
+        company_tickers_last_update = None
+        print("Cleared in-memory SEC cache")
+    
+    # Clear file cache
+    if CACHE_DIR.exists():
+        shutil.rmtree(CACHE_DIR)
+        print(f"Removed cache directory: {CACHE_DIR}")
+    
+    CACHE_DIR.mkdir(exist_ok=True)
+    print(f"Recreated cache directory: {CACHE_DIR}")
+    
+    return True
+
+def configure_cache(cache_dir=None, min_delay=None):
+    """
+    Configure cache settings
+    
+    Args:
+        cache_dir (str): Path to cache directory
+        min_delay (int): Minimum delay between requests in seconds
+    """
+    global CACHE_DIR, MIN_DELAY
+    
+    if cache_dir:
+        CACHE_DIR = Path(cache_dir)
+        CACHE_DIR.mkdir(exist_ok=True)
+        print(f"SEC cache directory set to: {CACHE_DIR}")
+    
+    if min_delay is not None:
+        MIN_DELAY = min_delay
+        print(f"SEC minimum delay set to: {MIN_DELAY}s")
+
 def get_headers():
     """
-    Get headers for SEC EDGAR API requests
+    Get headers for SEC EDGAR API requests.
+    
+    SEC requires a User-Agent with company/app name and email.
+    Browser-like headers cause 403 errors!
     """
     # Try to get email from environment variable
     email = os.getenv("SEC_EDGAR_EMAIL", "jueshi@gmail.com")
     
-    # More realistic browser headers
+    # SEC-compliant headers - simple User-Agent with email
+    # DO NOT use browser-like headers - SEC blocks them with 403!
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 Edg/114.0.1823.67",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Connection": "keep-alive",
-        "Upgrade-Insecure-Requests": "1",
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "none",
-        "Sec-Fetch-User": "?1",
-        "From": email  # Add email header for SEC API
+        "User-Agent": f"StockAnalyzer {email}",
+        "Accept": "application/json, text/html, */*",
+        "Accept-Encoding": "gzip, deflate",
     }
     
     return headers
@@ -171,7 +288,7 @@ def make_sec_request(url, cache_type, max_retries=MAX_RETRIES, force_refresh=Fal
     Returns:
         Response data or None if all retries fail
     """
-    global last_request_time
+    global last_request_time  # Need global to modify the module-level variable
     
     # Check cache first (unless force refresh)
     if not force_refresh:
@@ -183,28 +300,32 @@ def make_sec_request(url, cache_type, max_retries=MAX_RETRIES, force_refresh=Fal
     headers = get_headers()
     print(f"Requesting URL: {url}")
     
-    # Enforce delay between requests
-    current_time = time.time()
-    time_since_last_request = current_time - last_request_time
-    
-    if time_since_last_request < MIN_DELAY:
-        wait_time = MIN_DELAY - time_since_last_request + random.uniform(1, 5)
-        print(f"Waiting {wait_time:.2f} seconds to respect SEC rate limits...")
-        time.sleep(wait_time)
+    # Use lock for thread-safe rate limiting
+    lock = _get_rate_limit_lock()
     
     # Try request with exponential backoff
     for attempt in range(max_retries):
         try:
+            # Thread-safe rate limiting
+            with lock:
+                current_time = time.time()
+                time_since_last_request = current_time - last_request_time
+                
+                if time_since_last_request < MIN_DELAY:
+                    wait_time = MIN_DELAY - time_since_last_request + random.uniform(2, 5)
+                    print(f"Waiting {wait_time:.2f} seconds to respect SEC rate limits...")
+                    time.sleep(wait_time)
+                
+                # Update last request time before releasing lock
+                last_request_time = time.time()
+            
             # Calculate backoff with exponential increase and jitter
             if attempt > 0:
-                # Exponential backoff with jitter
+                # Exponential backoff with jitter - more aggressive for 403 errors
                 max_jitter = min(BASE_BACKOFF * (2 ** attempt), MAX_BACKOFF)
                 delay = max_jitter * 0.5 + max_jitter * 0.5 * random.random()
                 print(f"Retry attempt {attempt+1}/{max_retries}. Waiting {delay:.2f} seconds...")
                 time.sleep(delay)
-            
-            # Update last request time
-            last_request_time = time.time()
             
             # Make request with a longer timeout
             response = requests.get(url, headers=headers, timeout=120)
@@ -221,19 +342,23 @@ def make_sec_request(url, cache_type, max_retries=MAX_RETRIES, force_refresh=Fal
                 
                 return data
             elif response.status_code == 403:
-                print(f"Rate limit exceeded (403). Retrying with longer backoff...")
-                # Force a longer wait time for rate limit errors
-                time.sleep(MIN_DELAY * 2)
-                # Continue to retry with longer delay
+                print(f"Rate limit exceeded (403). Waiting {RATE_LIMIT_BACKOFF}s before retry...")
+                # Force a much longer wait time for rate limit errors
+                time.sleep(RATE_LIMIT_BACKOFF)
+                # Update last_request_time to prevent immediate retry from other threads
+                with lock:
+                    last_request_time = time.time()
             elif response.status_code == 429:
-                print(f"Too many requests (429). Retrying with longer backoff...")
+                print(f"Too many requests (429). Waiting {RATE_LIMIT_BACKOFF * 2}s before retry...")
                 # Force an even longer wait time for explicit rate limiting
-                time.sleep(MIN_DELAY * 4)
+                time.sleep(RATE_LIMIT_BACKOFF * 2)
+                with lock:
+                    last_request_time = time.time()
             else:
                 print(f"Error: Status code {response.status_code}")
                 print(f"Response: {response.text[:500]}...")
                 # For non-rate-limit errors, we might still retry but with shorter backoff
-                time.sleep(MIN_DELAY * 0.5)
+                time.sleep(MIN_DELAY)
         
         except Exception as e:
             print(f"Request error: {str(e)}")

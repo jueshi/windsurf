@@ -1,3 +1,20 @@
+"""
+SEC EDGAR Tables - DEPRECATED
+
+This module is deprecated. Please use sec_api_wrapper instead:
+
+    from sec_api_wrapper import sec_api
+    
+    cik = sec_api.get_company_cik(ticker)
+    filing_info = sec_api.get_latest_filing_info(cik, "10-K")
+    html_content = sec_api.download_filing(filing_info)
+    tables = sec_api.extract_tables(html_content)
+    financial_tables = sec_api.identify_financial_tables(tables)
+
+This module will be removed in a future version.
+"""
+
+import warnings
 import requests
 import pandas as pd
 import sys
@@ -6,6 +23,14 @@ import json
 import time
 from bs4 import BeautifulSoup
 import traceback
+
+# Emit deprecation warning when module is imported
+warnings.warn(
+    "sec_edgar_tables is deprecated. Use sec_api_wrapper instead. "
+    "See module docstring for migration guide.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 def get_company_cik(ticker):
     """Get the CIK number for a company ticker"""

@@ -58,6 +58,8 @@ from thread_safe_tkinter import (
     thread_safe
 )
 from tooltip_manager import TooltipManager
+import gui_styles
+from gui_styles import Colors, Fonts, Spacing, configure_styles
 
 class StockDataGUI:
     """GUI for Stock Data Manager"""
@@ -68,6 +70,9 @@ class StockDataGUI:
         self.manager = manager
         self.current_tickers = []
         self.watch_list = []
+        
+        # Configure modern styles
+        self.style = configure_styles(root)
         
         # Set up thread-safe Tkinter updates
         setup_thread_safe_tkinter(root)
@@ -91,6 +96,15 @@ class StockDataGUI:
         self.tooltip_manager = TooltipManager(self.root)
         self.show_tooltips.trace_add("write", self._update_tooltip_state)
         self._update_tooltip_state()
+
+        # Custom URLs storage
+        self.custom_urls_file = os.path.join(os.path.dirname(__file__), "custom_urls.json")
+        self.custom_urls = self._load_custom_urls()
+        self.urls_menu = None  # Will be set in _create_widgets
+
+        # Settings storage (for StockCharts style ID, etc.)
+        self.settings_file = os.path.join(os.path.dirname(__file__), "gui_settings.json")
+        self.settings = self._load_settings()
 
         # Load ticker lists from ticker_lists.py
         self.ticker_lists = {}
@@ -180,24 +194,35 @@ class StockDataGUI:
             messagebox.showerror("Error", f"Failed to load ticker lists: {e}")
 
     def _set_initial_sash_positions(self):
-        """Set the initial positions of the sashes to make list panes very narrow"""
+        """Set the initial position of the sash for the tabbed ticker panel"""
         try:
             # Get the total width of the paned window
             total_width = self.paned_window.winfo_width()
             
             if total_width > 0:
-                # Set first sash position (between left and middle panes)
-                self.paned_window.sashpos(0, 120)  # 120 pixels from left (doubled from 60)
-                
-                # Set second sash position (between middle and right panes)
-                self.paned_window.sashpos(1, 240)  # 240 pixels from left (doubled from 120)
-                
-                logging.info(f"Set initial sash positions: 120, 240 (total width: {total_width})")
+                # Set sash position (between ticker panel and chart display)
+                # Give ticker panel about 200 pixels
+                self.paned_window.sashpos(0, 200)
+                logging.info(f"Set initial sash position: 200 (total width: {total_width})")
             else:
                 # If window width is not yet available, try again after a delay
                 self.root.after(100, self._set_initial_sash_positions)
         except Exception as e:
             logging.error(f"Error setting sash positions: {e}")
+
+    def _update_ticker_tab_counts(self):
+        """Update the tab labels with current ticker counts"""
+        try:
+            if hasattr(self, 'ticker_notebook'):
+                # Update Available tab
+                available_count = len(self.current_tickers)
+                self.ticker_notebook.tab(0, text=f"📋 Available ({available_count})")
+                
+                # Update Watch tab
+                watch_count = len(self.watch_list)
+                self.ticker_notebook.tab(1, text=f"⭐ Watch ({watch_count})")
+        except Exception as e:
+            logging.debug(f"Error updating ticker tab counts: {e}")
     
     def _filter_ticker_lists(self, event=None):
         """Filter ticker lists dropdown based on filter text"""
@@ -457,521 +482,557 @@ class StockDataGUI:
     
     def _create_widgets(self):
         """Create all GUI widgets"""
-        # Create a vertical paned window so the action bar can be resized
-        self.layout_paned = ttk.PanedWindow(self.root, orient=tk.VERTICAL)
-        self.layout_paned.pack(fill=tk.BOTH, expand=True)
-
-        # Create main frame for the core content (top pane)
-        main_frame = ttk.Frame(self.layout_paned, padding="10")
-        self.layout_paned.add(main_frame, weight=1)
-
-        # Create bottom frame for actions (bottom pane) but populate later
-        bottom_frame = ttk.Frame(self.layout_paned, padding=(10, 2))
-        self.layout_paned.add(bottom_frame, weight=0)
-        try:
-            self.layout_paned.paneconfig(bottom_frame, minsize=55)
-        except Exception:
-            pass
+        # =================================================================
+        # STATUS BAR - At very bottom of window (pack first with side=BOTTOM)
+        # =================================================================
+        status_frame = ttk.Frame(self.root)
+        status_frame.pack(side=tk.BOTTOM, fill=tk.X)
+        
+        # Progress bar (hidden by default)
+        self.progress_var = tk.DoubleVar(value=0)
+        self.progress_bar = ttk.Progressbar(
+            status_frame, 
+            variable=self.progress_var,
+            mode='indeterminate',
+            length=100
+        )
+        # Don't pack yet - will be shown/hidden as needed
+        
+        # Status icon and message
+        self.status_var = tk.StringVar(value="Ready")
+        status_bar_label = ttk.Label(
+            status_frame, 
+            textvariable=self.status_var, 
+            relief=tk.FLAT,
+            anchor=tk.W, 
+            padding=(Spacing.SM, Spacing.XS),
+            font=Fonts.small(),
+            foreground=Colors.TEXT_SECONDARY
+        )
+        status_bar_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        # Keyboard shortcuts hint
+        shortcuts_label = ttk.Label(
+            status_frame,
+            text="Ctrl+D:Download | Ctrl+B:BA | Ctrl+W:Watch | F5:Refresh",
+            font=Fonts.small(),
+            foreground=Colors.TEXT_MUTED
+        )
+        shortcuts_label.pack(side=tk.RIGHT, padx=Spacing.SM)
+        
+        # Create bottom frame for actions (pack BEFORE main content so it's at bottom)
+        bottom_frame = ttk.Frame(self.root, padding=(10, 2))
+        bottom_frame.pack(side=tk.BOTTOM, fill=tk.X)
         self.bottom_frame = bottom_frame
-        self._bottom_sash_initialized = False
 
-        def _init_bottom_sash(event=None):
-            if self._bottom_sash_initialized:
-                return
-            paned = getattr(self, 'layout_paned', None)
-            if not paned:
-                return
-            bottom = getattr(self, 'bottom_frame', None)
-            if not bottom:
-                return
-            paned.update_idletasks()
-            height = paned.winfo_height()
-            bottom_height = bottom.winfo_reqheight()
-            if height <= 0:
-                return
-            try:
-                desired = max(height - bottom_height - 4, 0)
-                paned.sashpos(0, desired)
-                self._bottom_sash_initialized = True
-            except Exception:
-                pass
+        # Create main frame for the core content (fills remaining space)
+        # Padding: left, top, right, bottom - minimal bottom padding to reduce gap above action bar
+        main_frame = ttk.Frame(self.root, padding=(10, 10, 10, 2))
+        main_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
-        self.layout_paned.bind("<Configure>", _init_bottom_sash)
+        # =====================================================================
+        # TOP TOOLBAR - Organized into logical groups per workflow phases
+        # =====================================================================
+        top_frame = ttk.Frame(main_frame, padding=(Spacing.SM, Spacing.XS))
+        top_frame.pack(fill=tk.X, pady=(0, Spacing.XS))
 
-        # Create top frame for ticker list selection
-        top_frame = ttk.Frame(main_frame, padding="10")
-        top_frame.pack(fill=tk.X, pady=5)
+        # --- Row 1: List Management | Chart Generation | Utilities ---
+        row1 = ttk.Frame(top_frame)
+        row1.pack(fill=tk.X, pady=1)
 
-        # Ticker list selection with filter
-        ticker_list_label = ttk.Label(top_frame, text="Ticker List:")
-        ticker_list_label.grid(row=0, column=0, sticky=tk.W, padx=5, pady=5)
-        self._attach_tooltip(
-            ticker_list_label,
-            text="Select which saved ticker list (from ticker_lists.py) should populate the workspace.",
-            tooltip_id="ticker_list.label",
-        )
-
-        # Create a frame for the dropdown and its filter
-        dropdown_frame = ttk.Frame(top_frame)
-        dropdown_frame.grid(row=0, column=1, sticky=tk.W, padx=5, pady=5)
-
-        # Add filter entry for ticker list dropdown
+        # =================================================================
+        # GROUP 1: List Management (Discovery Phase)
+        # =================================================================
+        ttk.Label(row1, text="📋 List:", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
+        
         self.list_filter_var = tk.StringVar()
-        list_filter_entry = ttk.Entry(dropdown_frame, textvariable=self.list_filter_var, width=20)
-        list_filter_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        self._attach_tooltip(
-            list_filter_entry,
-            text="Type to filter saved list names. Supports partial matches and updates immediately.",
-            tooltip_id="ticker_list.filter",
-        )
+        list_filter_entry = ttk.Entry(row1, textvariable=self.list_filter_var, width=8)
+        list_filter_entry.pack(side=tk.LEFT, padx=(0, 2))
+        self._attach_tooltip(list_filter_entry, text="Filter saved list names.", tooltip_id="ticker_list.filter")
         list_filter_entry.bind("<KeyRelease>", self._filter_ticker_lists)
 
-        # Create the combobox for ticker lists
         self.ticker_list_var = tk.StringVar()
-        self.ticker_list_combo = ttk.Combobox(
-            dropdown_frame,
-            textvariable=self.ticker_list_var,
-            values=list(self.ticker_lists.keys()),
-            width=60,
-        )
-        self.ticker_list_combo.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
+        self.ticker_list_combo = ttk.Combobox(row1, textvariable=self.ticker_list_var, values=list(self.ticker_lists.keys()), width=25)
+        self.ticker_list_combo.pack(side=tk.LEFT, padx=(0, 2))
         self.ticker_list_combo.bind("<<ComboboxSelected>>", self._on_list_selected)
-        self._attach_tooltip(
-            self.ticker_list_combo,
-            text="Choose from discovered ticker lists. Selecting a list enables Load/Prev/Next actions.",
-            tooltip_id="ticker_list.combo",
-        )
+        self._attach_tooltip(self.ticker_list_combo, text="Choose from discovered ticker lists.", tooltip_id="ticker_list.combo")
 
-        # Create a frame for the buttons
-        button_frame = ttk.Frame(top_frame)
-        button_frame.grid(row=0, column=2, padx=5, pady=5)
+        # Navigation buttons
+        load_btn = ttk.Button(row1, text="Load", command=self._load_ticker_list, width=5)
+        load_btn.pack(side=tk.LEFT, padx=1)
+        self._attach_tooltip(load_btn, text="Load selected ticker list (Ctrl+L)", tooltip_id="nav.load")
 
-        tooltip_toggle = ttk.Checkbutton(
-            top_frame,
-            text="Show Tooltips",
-            variable=self.show_tooltips,
-        )
-        tooltip_toggle.grid(row=0, column=3, padx=5, pady=5, sticky=tk.W)
-        self._attach_tooltip(
-            tooltip_toggle,
-            text="Toggle inline guidance bubbles. Shift+F1 on any control also shows its tip.",
-            tooltip_id="settings.tooltips_toggle",
-        )
+        prev_btn = ttk.Button(row1, text="◀", command=self._go_prev_list, width=2)
+        prev_btn.pack(side=tk.LEFT, padx=1)
+        self._attach_tooltip(prev_btn, text="Previous list (Ctrl+←)", tooltip_id="nav.prev")
 
-        # Load List button loads the selected list
-        load_button = ttk.Button(button_frame, text="Load", command=self._load_ticker_list)
-        load_button.pack(side=tk.LEFT, padx=(0, 5))
-        self._attach_tooltip(
-            load_button,
-            text="Load the highlighted ticker list into the Available/Watch panes.",
-            tooltip_id="ticker_list.load",
-        )
+        next_btn = ttk.Button(row1, text="▶", command=self._go_next_list, width=2)
+        next_btn.pack(side=tk.LEFT, padx=1)
+        self._attach_tooltip(next_btn, text="Next list (Ctrl+→)", tooltip_id="nav.next")
 
-        refresh_button = ttk.Button(button_frame, text="Refresh", command=self._refresh_ticker_lists)
-        refresh_button.pack(side=tk.LEFT, padx=(0, 5))
-        self._attach_tooltip(
-            refresh_button,
-            text="Reload ticker_lists.py from disk to pick up edits or new watch lists.",
-            tooltip_id="ticker_list.refresh",
-        )
+        refresh_btn = ttk.Button(row1, text="↻", command=self._refresh_ticker_lists, width=2)
+        refresh_btn.pack(side=tk.LEFT, padx=1)
+        self._attach_tooltip(refresh_btn, text="Refresh lists from disk (F5)", tooltip_id="nav.refresh")
 
-        prev_button = ttk.Button(button_frame, text="Prev", command=self._go_prev_list)
-        prev_button.pack(side=tk.LEFT, padx=(0, 5))
-        self._attach_tooltip(
-            prev_button,
-            text="Jump to the previous list based on the combo ordering.",
-            tooltip_id="ticker_list.prev",
-        )
+        ttk.Separator(row1, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=Spacing.SM)
 
-        next_button = ttk.Button(button_frame, text="Next", command=self._go_next_list)
-        next_button.pack(side=tk.LEFT, padx=(0, 5))
-        self._attach_tooltip(
-            next_button,
-            text="Jump forward to the next saved list without opening the dropdown.",
-            tooltip_id="ticker_list.next",
-        )
-
-        remove_button = ttk.Button(button_frame, text="Remove", command=self._remove_current_list)
-        remove_button.pack(side=tk.LEFT)
-        self._attach_tooltip(
-            remove_button,
-            text="Delete the selected list from ticker_lists.py (asks for confirmation).",
-            tooltip_id="ticker_list.remove",
-        )
-
-        daily_button = ttk.Button(
-            button_frame,
-            text="Daily charts",
-            command=lambda: self._open_live_charts_for_current_list(time_frame="d"),
-        )
-        daily_button.pack(side=tk.LEFT, padx=(5, 0))
-        self._attach_tooltip(
-            daily_button,
-            text="Launch browser charts for each ticker using daily candles.",
-            tooltip_id="ticker_list.daily",
-        )
-
-        weekly_button = ttk.Button(
-            button_frame,
-            text="Weekly",
-            command=lambda: self._open_live_charts_for_current_list(time_frame="w"),
-        )
-        weekly_button.pack(side=tk.LEFT, padx=(5, 0))
-        self._attach_tooltip(
-            weekly_button,
-            text="Open StockCharts multi-symbol layout with weekly timeframe.",
-            tooltip_id="ticker_list.weekly",
-        )
-
-        monthly_button = ttk.Button(
-            button_frame,
-            text="Monthly",
-            command=lambda: self._open_live_charts_for_current_list(time_frame="m"),
-        )
-        monthly_button.pack(side=tk.LEFT, padx=(5, 0))
-        self._attach_tooltip(
-            monthly_button,
-            text="Open monthly candle view for the active list.",
-            tooltip_id="ticker_list.monthly",
-        )
-
-        multi_tf_button = ttk.Button(
-            button_frame,
-            text="Multi-TF",
-            command=self._open_multi_timeframe_gallery_for_current_list,
-        )
-        multi_tf_button.pack(side=tk.LEFT, padx=(5, 0))
-        self._attach_tooltip(
-            multi_tf_button,
-            text="Generate StockCharts gallery with daily/weekly/monthly snapshots.",
-            tooltip_id="ticker_list.multi_tf",
-        )
-
-        linecharts_button = ttk.Button(
-            button_frame,
-            text="LineCharts",
-            command=self._open_linecharts_gallery_for_current_list,
-        )
-        linecharts_button.pack(side=tk.LEFT, padx=(5, 0))
-        self._attach_tooltip(
-            linecharts_button,
-            text="Render comparison-focused line chart gallery for the list.",
-            tooltip_id="ticker_list.linecharts",
-        )
-
-        stockcharts_button = ttk.Button(
-            button_frame,
-            text="StockCharts",
-            command=self._open_stockcharts_gallery_for_current_list,
-        )
-        stockcharts_button.pack(side=tk.LEFT, padx=(5, 0))
-        self._attach_tooltip(
-            stockcharts_button,
-            text="Open the traditional StockCharts gallery for this list.",
-            tooltip_id="ticker_list.stockcharts",
-        )
-
-        # StockCharts line style ID entry (for SC-Line gallery)
-        self.stockcharts_line_style_var = tk.StringVar(value="t3327397499c")
-
-        # Clickable label that opens the StockCharts style page in the browser
-        sc_style_label = ttk.Label(button_frame, text="SC style id:", foreground="blue", cursor="hand2")
-        sc_style_label.pack(side=tk.LEFT, padx=(10, 2))
-        sc_style_label.bind(
-            "<Button-1>",
-            lambda e: webbrowser.open("https://stockcharts.com/sc3/ui/?s=ALAB"),
-        )
-        self._attach_tooltip(
-            sc_style_label,
-            text="Click to open StockCharts style builder in your browser.",
-            tooltip_id="ticker_list.sc_style_label",
-        )
-
-        sc_style_entry = ttk.Entry(button_frame, textvariable=self.stockcharts_line_style_var, width=14)
-        sc_style_entry.pack(side=tk.LEFT, padx=(0, 5))
-        self._attach_tooltip(
-            sc_style_entry,
-            text="Paste a StockCharts style ID (t###########c) used for SC-Line gallery requests.",
-            tooltip_id="ticker_list.sc_style_entry",
-        )
-
-        sc_line_button = ttk.Button(
-            button_frame,
-            text="SC-Line",
-            command=self._open_stockcharts_line_gallery_for_current_list,
-        )
-        sc_line_button.pack(side=tk.LEFT, padx=(5, 0))
-        self._attach_tooltip(
-            sc_line_button,
-            text="Generate SC-Line gallery with the supplied style ID.",
-            tooltip_id="ticker_list.sc_line",
-        )
-
-        open_ticker_button = ttk.Button(button_frame, text="Open Ticker", command=self._open_ticker_list_in_notepadpp)
-        open_ticker_button.pack(side=tk.LEFT, padx=(5, 0))
-        self._attach_tooltip(
-            open_ticker_button,
-            text="Open ticker_lists.py in Notepad++ (or default editor) for quick edits.",
-            tooltip_id="ticker_list.open_file",
-        )
-
-        copy_list_button = ttk.Button(button_frame, text="Copy List", command=self._copy_current_list_to_clipboard)
-        copy_list_button.pack(side=tk.LEFT, padx=(5, 0))
-        self._attach_tooltip(
-            copy_list_button,
-            text="Copy all tickers in the current list to clipboard, one per line.",
-            tooltip_id="ticker_list.copy",
-        )
-
-        # Create a frame for the second row with Add Ticker and New List Name
-        second_row_frame = ttk.Frame(top_frame)
-        second_row_frame.grid(row=1, column=0, columnspan=3, sticky=tk.W+tk.E, padx=5, pady=5)
+        # =================================================================
+        # GROUP 2: Technical Analysis (Charts)
+        # =================================================================
+        ttk.Label(row1, text="📊 Charts:", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
         
-        # Add manual ticker entry (left side of second row)
-        ticker_frame = ttk.Frame(second_row_frame)
-        ticker_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        
-        add_ticker_label = ttk.Label(ticker_frame, text="Add Ticker:")
-        add_ticker_label.pack(side=tk.LEFT, padx=(0, 5))
-        self._attach_tooltip(
-            add_ticker_label,
-            text="Manually append a symbol to the currently loaded list.",
-            tooltip_id="ticker_list.add_label",
-        )
+        # D/W/M buttons
+        daily_btn = ttk.Button(row1, text="D", command=lambda: self._open_live_charts_for_current_list(time_frame="d"), width=2)
+        daily_btn.pack(side=tk.LEFT, padx=1)
+        self._attach_tooltip(daily_btn, text="Daily candlestick charts", tooltip_id="chart.daily")
+
+        weekly_btn = ttk.Button(row1, text="W", command=lambda: self._open_live_charts_for_current_list(time_frame="w"), width=2)
+        weekly_btn.pack(side=tk.LEFT, padx=1)
+        self._attach_tooltip(weekly_btn, text="Weekly candlestick charts", tooltip_id="chart.weekly")
+
+        monthly_btn = ttk.Button(row1, text="M", command=lambda: self._open_live_charts_for_current_list(time_frame="m"), width=2)
+        monthly_btn.pack(side=tk.LEFT, padx=1)
+        self._attach_tooltip(monthly_btn, text="Monthly candlestick charts", tooltip_id="chart.monthly")
+
+        # Gallery buttons
+        multi_tf_btn = ttk.Button(row1, text="Multi-TF", command=self._open_multi_timeframe_gallery_for_current_list, width=7)
+        multi_tf_btn.pack(side=tk.LEFT, padx=(Spacing.XS, 1))
+        self._attach_tooltip(multi_tf_btn, text="Multi-Timeframe gallery (D/W/M)", tooltip_id="gallery.multi_tf")
+
+        lines_btn = ttk.Button(row1, text="Lines", command=self._open_linecharts_gallery_for_current_list, width=5)
+        lines_btn.pack(side=tk.LEFT, padx=1)
+        self._attach_tooltip(lines_btn, text="Line chart comparison gallery", tooltip_id="gallery.lines")
+
+        # StockCharts
+        sc_btn = ttk.Button(row1, text="SC", command=self._open_stockcharts_gallery_for_current_list, width=3)
+        sc_btn.pack(side=tk.LEFT, padx=(Spacing.XS, 1))
+        self._attach_tooltip(sc_btn, text="StockCharts.com gallery", tooltip_id="gallery.stockcharts")
+
+        saved_style_id = self.settings.get("stockcharts_style_id", "t3327397499c")
+        self.stockcharts_line_style_var = tk.StringVar(value=saved_style_id)
+        sc_style_entry = ttk.Entry(row1, textvariable=self.stockcharts_line_style_var, width=12)
+        sc_style_entry.pack(side=tk.LEFT, padx=1)
+        self._attach_tooltip(sc_style_entry, text="StockCharts Style ID (auto-saved)", tooltip_id="gallery.sc_style")
+        self.stockcharts_line_style_var.trace_add("write", self._save_stockcharts_style_id)
+
+        sc_line_btn = ttk.Button(row1, text="SC-Line", command=self._open_stockcharts_line_gallery_for_current_list, width=6)
+        sc_line_btn.pack(side=tk.LEFT, padx=1)
+        self._attach_tooltip(sc_line_btn, text="StockCharts with custom style", tooltip_id="gallery.sc_line")
+
+        ttk.Separator(row1, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=Spacing.SM)
+
+        # =================================================================
+        # GROUP 3: Utilities (Right side)
+        # =================================================================
+        # Right-aligned items
+        tooltip_toggle = ttk.Checkbutton(row1, text="Tips", variable=self.show_tooltips)
+        tooltip_toggle.pack(side=tk.RIGHT, padx=2)
+        self._attach_tooltip(tooltip_toggle, text="Toggle tooltips", tooltip_id="settings.tooltips_toggle")
+
+        edit_btn = ttk.Button(row1, text="📝", command=self._open_ticker_list_in_notepadpp, width=2)
+        edit_btn.pack(side=tk.RIGHT, padx=1)
+        self._attach_tooltip(edit_btn, text="Edit ticker_lists.py", tooltip_id="util.edit")
+
+        copy_btn = ttk.Button(row1, text="📋", command=self._copy_current_list_to_clipboard, width=2)
+        copy_btn.pack(side=tk.RIGHT, padx=1)
+        self._attach_tooltip(copy_btn, text="Copy tickers to clipboard", tooltip_id="util.copy")
+
+        remove_btn = ttk.Button(row1, text="✕", command=self._remove_current_list, width=2)
+        remove_btn.pack(side=tk.RIGHT, padx=1)
+        self._attach_tooltip(remove_btn, text="Delete current list", tooltip_id="nav.remove")
+
+        # --- Row 2: Add Ticker | Create List | Menus ---
+        row2 = ttk.Frame(top_frame)
+        row2.pack(fill=tk.X, pady=1)
+
+        # Add ticker section
+        ttk.Label(row2, text="➕ Add:", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
         self.manual_ticker_var = tk.StringVar()
-        manual_ticker_entry = ttk.Entry(ticker_frame, textvariable=self.manual_ticker_var, width=30)
-        manual_ticker_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-        self._attach_tooltip(
-            manual_ticker_entry,
-            text="Enter a ticker symbol (comma-separated for multiples) to append to the list.",
-            tooltip_id="ticker_list.manual_entry",
-        )
-        add_ticker_button = ttk.Button(ticker_frame, text="Add", command=self._add_manual_ticker)
-        add_ticker_button.pack(side=tk.LEFT)
-        self._attach_tooltip(
-            add_ticker_button,
-            text="Append the typed ticker(s) to the current list immediately.",
-            tooltip_id="ticker_list.manual_add",
-        )
+        manual_ticker_entry = ttk.Entry(row2, textvariable=self.manual_ticker_var, width=12)
+        manual_ticker_entry.pack(side=tk.LEFT, padx=(0, 2))
+        self._attach_tooltip(manual_ticker_entry, text="Enter ticker(s) to add (comma-separated)", tooltip_id="ticker_list.manual_entry")
         
-        # Add separator
-        ttk.Separator(second_row_frame, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=10)
-        
-        # Add list name entry and save button (right side of second row)
-        list_frame = ttk.Frame(second_row_frame)
-        list_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        
-        new_list_label = ttk.Label(list_frame, text="New List Name:")
-        new_list_label.pack(side=tk.LEFT, padx=(0, 5))
-        self._attach_tooltip(
-            new_list_label,
-            text="Provide a Python-safe variable name for the list saved to ticker_lists.py.",
-            tooltip_id="ticker_list.new_label",
-        )
+        add_ticker_btn = ttk.Button(row2, text="+", command=self._add_manual_ticker, width=2)
+        add_ticker_btn.pack(side=tk.LEFT, padx=(0, Spacing.MD))
+        self._attach_tooltip(add_ticker_btn, text="Add ticker(s) to list", tooltip_id="ticker_list.add_btn")
+
+        # Create list section
+        ttk.Label(row2, text="📁 New List:", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
         self.list_name_var = tk.StringVar()
-        list_name_entry = ttk.Entry(list_frame, textvariable=self.list_name_var, width=30)
-        list_name_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-        self._attach_tooltip(
-            list_name_entry,
-            text="Name used for the new ticker list variable. Avoid spaces or special characters.",
-            tooltip_id="ticker_list.new_entry",
+        list_name_entry = ttk.Entry(row2, textvariable=self.list_name_var, width=12)
+        list_name_entry.pack(side=tk.LEFT, padx=(0, 2))
+        self._attach_tooltip(list_name_entry, text="Name for new list (no spaces)", tooltip_id="ticker_list.new_entry")
+        
+        create_btn = ttk.Button(row2, text="Create", command=self._save_ticker_list, width=6)
+        create_btn.pack(side=tk.LEFT)
+        self._attach_tooltip(create_btn, text="Create new list from current tickers", tooltip_id="ticker_list.create_btn")
+
+        ttk.Separator(row2, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=Spacing.MD)
+
+        # Dropdown menus
+        urls_menubutton = ttk.Menubutton(row2, text="🔗 URLs ▾", width=8)
+        urls_menubutton.pack(side=tk.LEFT, padx=2)
+        self._attach_tooltip(urls_menubutton, text="Financial websites and tools", tooltip_id="urls.menu")
+
+        urls_menu = tk.Menu(urls_menubutton, tearoff=0)
+        urls_menubutton["menu"] = urls_menu
+        self.urls_menu = urls_menu  # Store reference for dynamic updates
+
+        # Market Data section
+        urls_menu.add_command(label="📊 Finviz Screener", command=lambda: webbrowser.open("https://finviz.com/screener.ashx"))
+        urls_menu.add_command(label="📈 TradingView", command=lambda: webbrowser.open("https://www.tradingview.com/"))
+        urls_menu.add_command(label="📉 StockCharts", command=lambda: webbrowser.open("https://stockcharts.com/"))
+        urls_menu.add_command(label="🏦 Yahoo Finance", command=lambda: webbrowser.open("https://finance.yahoo.com/"))
+        urls_menu.add_command(label="📊 Koyfin", command=lambda: webbrowser.open("https://www.koyfin.com/"))
+        urls_menu.add_separator()
+
+        # News section
+        urls_menu.add_command(label="📰 MarketWatch", command=lambda: webbrowser.open("https://www.marketwatch.com/"))
+        urls_menu.add_command(label="📰 Bloomberg", command=lambda: webbrowser.open("https://www.bloomberg.com/markets"))
+        urls_menu.add_command(label="📰 CNBC", command=lambda: webbrowser.open("https://www.cnbc.com/"))
+        urls_menu.add_command(label="📰 Reuters", command=lambda: webbrowser.open("https://www.reuters.com/markets/"))
+        urls_menu.add_separator()
+
+        # Fundamental Analysis section
+        urls_menu.add_command(label="📝 Seeking Alpha", command=lambda: webbrowser.open("https://seekingalpha.com/"))
+        urls_menu.add_command(label="📊 Simply Wall St", command=lambda: webbrowser.open("https://simplywall.st/"))
+        urls_menu.add_command(label="💎 GuruFocus", command=lambda: webbrowser.open("https://www.gurufocus.com/"))
+        urls_menu.add_command(label="⭐ Morningstar", command=lambda: webbrowser.open("https://www.morningstar.com/"))
+        urls_menu.add_command(label="🎯 TipRanks", command=lambda: webbrowser.open("https://www.tipranks.com/"))
+        urls_menu.add_separator()
+
+        # Earnings & Events section
+        urls_menu.add_command(label="🗓️ Earnings Whispers", command=lambda: webbrowser.open("https://www.earningswhispers.com/"))
+        urls_menu.add_command(label="📊 Zacks", command=lambda: webbrowser.open("https://www.zacks.com/"))
+        urls_menu.add_command(label="📅 Economic Calendar", command=lambda: webbrowser.open("https://www.investing.com/economic-calendar/"))
+        urls_menu.add_separator()
+
+        # Insider & Institutional section
+        urls_menu.add_command(label="🔍 OpenInsider", command=lambda: webbrowser.open("https://openinsider.com/"))
+        urls_menu.add_command(label="🐋 WhaleWisdom", command=lambda: webbrowser.open("https://whalewisdom.com/"))
+        urls_menu.add_command(label="🏆 Dataroma", command=lambda: webbrowser.open("https://www.dataroma.com/m/home.php"))
+        urls_menu.add_separator()
+
+        # Options section
+        urls_menu.add_command(label="🐳 Unusual Whales", command=lambda: webbrowser.open("https://unusualwhales.com/"))
+        urls_menu.add_command(label="📊 CBOE", command=lambda: webbrowser.open("https://www.cboe.com/"))
+        urls_menu.add_separator()
+
+        # Research section
+        urls_menu.add_command(label="📋 SEC EDGAR", command=lambda: webbrowser.open("https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany"))
+        urls_menu.add_command(label="📊 Macrotrends", command=lambda: webbrowser.open("https://www.macrotrends.net/"))
+        urls_menu.add_command(label="📈 Barchart", command=lambda: webbrowser.open("https://www.barchart.com/"))
+        urls_menu.add_command(label="📉 FRED Economic Data", command=lambda: webbrowser.open("https://fred.stlouisfed.org/"))
+        urls_menu.add_separator()
+
+        # Ticker-specific section (uses selected ticker)
+        urls_menu.add_command(label="🔮 Stock Forecast (selected)", command=self._open_stock_forecast)
+        urls_menu.add_command(label="📉 StockCharts UI (selected)", command=self._open_stockcharts_ui)
+        urls_menu.add_separator()
+
+        # Custom URLs section
+        self._rebuild_custom_urls_menu()
+
+        # Help/Guide dropdown menu
+        help_menubutton = ttk.Menubutton(row2, text="📖 Guide ▾", width=9)
+        help_menubutton.pack(side=tk.LEFT, padx=2)
+        self._attach_tooltip(help_menubutton, text="Open user guides and documentation", tooltip_id="help.menu")
+
+        help_menu = tk.Menu(help_menubutton, tearoff=0)
+        help_menubutton["menu"] = help_menu
+
+        help_menu.add_command(label="📊 Online Guide (Google Slides)", 
+                             command=lambda: webbrowser.open("https://docs.google.com/presentation/d/1S9DbnPXyngAKldnp6jWZjJkXLDE5Q4v6/edit?slide=id.p4#slide=id.p4"))
+        help_menu.add_command(label="📄 Local User Guide (Markdown)", 
+                             command=self._open_local_user_guide)
+
+        # Settings dropdown menu
+        settings_menubutton = ttk.Menubutton(row2, text="⚙️ Settings ▾", width=11)
+        settings_menubutton.pack(side=tk.LEFT, padx=2)
+        self._attach_tooltip(settings_menubutton, text="Application settings", tooltip_id="settings.menu")
+
+        settings_menu = tk.Menu(settings_menubutton, tearoff=0)
+        settings_menubutton["menu"] = settings_menu
+        
+        # Language submenu
+        self.language_var = tk.StringVar(value="en")
+        lang_menu = tk.Menu(settings_menu, tearoff=0)
+        settings_menu.add_cascade(label="🌐 Language", menu=lang_menu)
+        lang_menu.add_radiobutton(label="English", variable=self.language_var, value="en", command=self._on_language_change)
+        lang_menu.add_radiobutton(label="中文 (Chinese)", variable=self.language_var, value="zh", command=self._on_language_change)
+        
+        # Theme submenu
+        self.theme_var = tk.StringVar(value="light")
+        theme_menu = tk.Menu(settings_menu, tearoff=0)
+        settings_menu.add_cascade(label="🎨 Theme", menu=theme_menu)
+        theme_menu.add_radiobutton(label="☀️ Light", variable=self.theme_var, value="light", command=self._on_theme_change)
+        theme_menu.add_radiobutton(label="🌙 Dark", variable=self.theme_var, value="dark", command=self._on_theme_change)
+        
+        settings_menu.add_separator()
+        settings_menu.add_command(label="⌨️ Keyboard Shortcuts", command=self._show_keyboard_shortcuts)
+
+        # =================================================================
+        # WORKFLOW QUICK-ACCESS PANEL - Collapsible guide for 5-phase workflow
+        # =================================================================
+        self.workflow_panel_visible = tk.BooleanVar(value=False)
+        
+        # Toggle button for workflow panel
+        workflow_toggle = ttk.Checkbutton(
+            row2, 
+            text="📋 Workflow", 
+            variable=self.workflow_panel_visible,
+            command=self._toggle_workflow_panel
         )
-        create_list_button = ttk.Button(list_frame, text="Create List", command=self._save_ticker_list)
-        create_list_button.pack(side=tk.LEFT)
-        self._attach_tooltip(
-            create_list_button,
-            text="Persist the current set of tickers under the provided list name.",
-            tooltip_id="ticker_list.create",
-        )
+        workflow_toggle.pack(side=tk.RIGHT, padx=Spacing.SM)
+        self._attach_tooltip(workflow_toggle, text="Show/hide research workflow quick-access panel", tooltip_id="workflow.toggle")
+
+        # Workflow panel frame (initially hidden) - Compact single row layout
+        self.workflow_frame = ttk.Frame(main_frame)
+        # Don't pack yet - will be shown/hidden by toggle
+        
+        # All phases in a single compact row
+        workflow_row = ttk.Frame(self.workflow_frame)
+        workflow_row.pack(fill=tk.X, pady=1)
+        
+        # Phase 1: Discovery
+        ttk.Label(workflow_row, text="1⃣", font=Fonts.small()).pack(side=tk.LEFT)
+        ttk.Button(workflow_row, text="News", command=self._summarize_market_news, width=5).pack(side=tk.LEFT, padx=1)
+        ttk.Button(workflow_row, text="D", command=lambda: self._open_live_charts_for_current_list(time_frame="d"), width=2).pack(side=tk.LEFT, padx=1)
+        
+        ttk.Separator(workflow_row, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=3)
+        
+        # Phase 2: Technical
+        ttk.Label(workflow_row, text="2⃣", font=Fonts.small()).pack(side=tk.LEFT)
+        ttk.Button(workflow_row, text="Multi-TF", command=self._open_multi_timeframe_gallery_for_current_list, width=7).pack(side=tk.LEFT, padx=1)
+        ttk.Button(workflow_row, text="SC", command=self._open_stockcharts_gallery_for_current_list, width=3).pack(side=tk.LEFT, padx=1)
+        
+        ttk.Separator(workflow_row, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=3)
+        
+        # Phase 3: Fundamental
+        ttk.Label(workflow_row, text="3⃣", font=Fonts.small()).pack(side=tk.LEFT)
+        ttk.Button(workflow_row, text="Run BA", command=self._run_business_analysis, width=6).pack(side=tk.LEFT, padx=1)
+        ttk.Button(workflow_row, text="Fund", command=lambda: self.chart_notebook.select(3), width=4).pack(side=tk.LEFT, padx=1)
+        
+        ttk.Separator(workflow_row, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=3)
+        
+        # Phase 4: SEC Filing
+        ttk.Label(workflow_row, text="4⃣", font=Fonts.small()).pack(side=tk.LEFT)
+        ttk.Button(workflow_row, text="10-K", command=lambda: self._extract_sec_filing("10-K"), width=4).pack(side=tk.LEFT, padx=1)
+        ttk.Button(workflow_row, text="10-Q", command=lambda: self._extract_sec_filing("10-Q"), width=4).pack(side=tk.LEFT, padx=1)
+        
+        ttk.Separator(workflow_row, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=3)
+        
+        # Phase 5: Decision
+        ttk.Label(workflow_row, text="5⃣", font=Fonts.small()).pack(side=tk.LEFT)
+        ttk.Button(workflow_row, text="⭐Watch", command=self._copy_to_watch_list, width=7).pack(side=tk.LEFT, padx=1)
+        ttk.Button(workflow_row, text="Compare", command=self._compare_percentage_performance, width=7).pack(side=tk.LEFT, padx=1)
 
         # Create a PanedWindow for resizable sections
         self.paned_window = ttk.PanedWindow(main_frame, orient=tk.HORIZONTAL)
-        self.paned_window.pack(fill=tk.BOTH, expand=True, pady=5)
+        self.paned_window.pack(fill=tk.BOTH, expand=True, pady=Spacing.XS)
 
-        # --- Left Pane: Available Tickers ---
-        left_pane_frame = ttk.Frame(self.paned_window, width=50)  # Set very narrow fixed width
-        left_pane_frame.pack_propagate(False)  # Prevent child widgets from changing frame size
-        self.paned_window.add(left_pane_frame, weight=1) # Very minimal weight for ticker list
+        # =================================================================
+        # LEFT PANE: Combined Tabbed Ticker Panel (Available + Watch List)
+        # =================================================================
+        left_pane_frame = ttk.Frame(self.paned_window, width=180)
+        left_pane_frame.pack_propagate(False)
+        self.paned_window.add(left_pane_frame, weight=1)
 
-        left_frame = ttk.LabelFrame(left_pane_frame, text="Available Tickers", padding="5")
-        left_frame.pack(fill=tk.BOTH, expand=True)
+        # Create tabbed notebook for tickers
+        self.ticker_notebook = ttk.Notebook(left_pane_frame)
+        self.ticker_notebook.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
 
-        # Add filter entry for ticker list
-        filter_frame = ttk.Frame(left_frame)
-        filter_frame.pack(fill=tk.X, pady=(0, 5))
+        # --- Tab 1: Available Tickers ---
+        available_tab = ttk.Frame(self.ticker_notebook, padding=Spacing.SM)
+        self.ticker_notebook.add(available_tab, text=f"📋 Available ({len(self.current_tickers)})")
 
-        ttk.Label(filter_frame, text="Filter:").pack(side=tk.LEFT)
+        # Filter entry for available tickers
+        filter_frame = ttk.Frame(available_tab)
+        filter_frame.pack(fill=tk.X, pady=(0, Spacing.SM))
+
+        ttk.Label(filter_frame, text="🔍", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, 4))
         self.filter_var = tk.StringVar()
-        filter_entry = ttk.Entry(filter_frame, textvariable=self.filter_var, width=8)
+        filter_entry = ttk.Entry(filter_frame, textvariable=self.filter_var)
         filter_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
-
-        # Bind filter entry to update the list as user types
+        self._attach_tooltip(filter_entry, text="Filter tickers by name. Type to search.", tooltip_id="available.filter")
         self.filter_var.trace_add("write", self._apply_ticker_filter)
 
-        # Create ticker listbox with scrollbar
-        ticker_frame = ttk.Frame(left_frame)
+        # Ticker listbox with scrollbar
+        ticker_frame = ttk.Frame(available_tab)
         ticker_frame.pack(fill=tk.BOTH, expand=True)
 
         scrollbar = ttk.Scrollbar(ticker_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        self.ticker_listbox = tk.Listbox(ticker_frame, selectmode=tk.EXTENDED, height=20, width=2)
+        self.ticker_listbox = tk.Listbox(
+            ticker_frame, 
+            selectmode=tk.EXTENDED, 
+            height=20,
+            font=Fonts.body(),
+            bg=Colors.SURFACE,
+            fg=Colors.TEXT_PRIMARY,
+            selectbackground=Colors.PRIMARY_LIGHT,
+            selectforeground=Colors.TEXT_INVERSE,
+            highlightthickness=0,
+            borderwidth=1,
+            relief="solid"
+        )
         self.ticker_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self._attach_tooltip(self.ticker_listbox, text="Available tickers from loaded list. Click to select, Ctrl+Click for multiple. Right-click for context menu.", tooltip_id="available.listbox")
 
         self.ticker_listbox.config(yscrollcommand=scrollbar.set)
         scrollbar.config(command=self.ticker_listbox.yview)
 
-        # Add buttons for reordering and sorting tickers
-        ticker_buttons_frame = ttk.Frame(left_frame)
-        ticker_buttons_frame.pack(fill=tk.X, pady=(5, 0))
+        # Action buttons for available tickers
+        ticker_buttons_frame = ttk.Frame(available_tab)
+        ticker_buttons_frame.pack(fill=tk.X, pady=(Spacing.SM, 0))
         
-        ttk.Button(ticker_buttons_frame, text="A-Z", command=self._sort_tickers, width=10).pack(side=tk.LEFT)
-        ttk.Button(ticker_buttons_frame, text="↑", command=self._move_ticker_up, width=10).pack(side=tk.LEFT, padx=(0, 2))
-        ttk.Button(ticker_buttons_frame, text="↓", command=self._move_ticker_down, width=10).pack(side=tk.LEFT, padx=(0, 2))
+        sort_btn = ttk.Button(ticker_buttons_frame, text="Sort A-Z", command=self._sort_tickers, width=8)
+        sort_btn.pack(side=tk.LEFT, padx=(0, 2))
+        self._attach_tooltip(sort_btn, text="Sort tickers alphabetically A-Z", tooltip_id="available.sort")
+        
+        up_btn = ttk.Button(ticker_buttons_frame, text="↑", command=self._move_ticker_up, width=3)
+        up_btn.pack(side=tk.LEFT, padx=(0, 2))
+        self._attach_tooltip(up_btn, text="Move selected ticker up in list", tooltip_id="available.up")
+        
+        down_btn = ttk.Button(ticker_buttons_frame, text="↓", command=self._move_ticker_down, width=3)
+        down_btn.pack(side=tk.LEFT)
+        self._attach_tooltip(down_btn, text="Move selected ticker down in list", tooltip_id="available.down")
 
-        # --- Middle Pane: Watch List ---
-        middle_pane_frame = ttk.Frame(self.paned_window, width=50)  # Set very narrow fixed width
-        middle_pane_frame.pack_propagate(False)  # Prevent child widgets from changing frame size
-        self.paned_window.add(middle_pane_frame, weight=1) # Very minimal weight for watch list
+        # --- Tab 2: Watch List ---
+        watch_tab = ttk.Frame(self.ticker_notebook, padding=Spacing.SM)
+        self.ticker_notebook.add(watch_tab, text=f"⭐ Watch ({len(self.watch_list)})")
 
-        middle_list_frame = ttk.LabelFrame(middle_pane_frame, text="Watch List", padding="5")
-        middle_list_frame.pack(fill=tk.BOTH, expand=True)
-
-        # Create watch list listbox with scrollbar
-        watch_frame = ttk.Frame(middle_list_frame)
+        # Watch list listbox with scrollbar
+        watch_frame = ttk.Frame(watch_tab)
         watch_frame.pack(fill=tk.BOTH, expand=True)
 
         watch_scrollbar = ttk.Scrollbar(watch_frame)
         watch_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        self.watch_listbox = tk.Listbox(watch_frame, selectmode=tk.EXTENDED, height=20, width=2)
+        self.watch_listbox = tk.Listbox(
+            watch_frame, 
+            selectmode=tk.EXTENDED, 
+            height=20,
+            font=Fonts.body(),
+            bg=Colors.SURFACE,
+            fg=Colors.TEXT_PRIMARY,
+            selectbackground=Colors.PRIMARY_LIGHT,
+            selectforeground=Colors.TEXT_INVERSE,
+            highlightthickness=0,
+            borderwidth=1,
+            relief="solid"
+        )
         self.watch_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self._attach_tooltip(self.watch_listbox, text="Personal watch list. Right-click to add/remove tickers. Saved to ticker_lists.py.", tooltip_id="watch.listbox")
 
-        # --- Right Pane: Chart Display ---
-        right_pane_frame = ttk.Frame(self.paned_window)
-        self.paned_window.add(right_pane_frame, weight=20) # Greatly increased weight for chart display
-        
-        # Store references to pane frames for later use
+        # Store references for compatibility
         self.left_pane_frame = left_pane_frame
-        self.middle_pane_frame = middle_pane_frame
+        self.middle_pane_frame = None  # No longer separate
+        self.available_tab = available_tab
+        self.watch_tab = watch_tab
+
+        # =================================================================
+        # RIGHT PANE: Chart Display (now takes more space)
+        # =================================================================
+        right_pane_frame = ttk.Frame(self.paned_window)
+        self.paned_window.add(right_pane_frame, weight=20)
         self.right_pane_frame = right_pane_frame
 
-        self.chart_frame = ttk.LabelFrame(right_pane_frame, text="Chart Display", padding="5")
+        self.chart_frame = ttk.Frame(right_pane_frame)
         self.chart_frame.pack(fill=tk.BOTH, expand=True)
 
-        # Add date range controls at the top of chart frame
-        date_range_frame = ttk.Frame(self.chart_frame, padding="5")
-        date_range_frame.pack(fill=tk.X, expand=False, pady=(0, 5))
-
-        # Start date entry with calendar widget
-        start_label = ttk.Label(date_range_frame, text="Start Date:")
-        start_label.pack(side=tk.LEFT, padx=(0, 5))
-        self._attach_tooltip(
-            start_label,
-            text="Beginning of the date window applied to chart data.",
-            tooltip_id="charts.start_label",
-        )
+        # =================================================================
+        # CONSOLIDATED CHART HEADER - Single row with title and timeframe
+        # =================================================================
+        chart_header = ttk.Frame(self.chart_frame)
+        chart_header.pack(fill=tk.X, pady=(0, Spacing.XS))
+        
+        # Chart title on left
+        ttk.Label(chart_header, text="📈 Chart Display", font=Fonts.h3(), foreground=Colors.PRIMARY).pack(side=tk.LEFT, padx=(Spacing.XS, Spacing.MD))
+        
+        # Timeframe controls inline
+        ttk.Label(chart_header, text="From:", font=Fonts.small()).pack(side=tk.LEFT, padx=(0, 2))
         self.start_date_var = tk.StringVar()
-        self.start_date_entry = DateEntry(date_range_frame, textvariable=self.start_date_var, width=12,
-                                        date_pattern='yyyy-mm-dd', background='darkblue', foreground='white',
-                                      borderwidth=2, locale='en_US')
-        self.start_date_entry.pack(side=tk.LEFT, padx=(0, 10))
-        self._attach_tooltip(
-            self.start_date_entry,
-            text="Pick the earliest date for charts. Defaults to earliest available data.",
-            tooltip_id="charts.start_entry",
+        self.start_date_entry = DateEntry(
+            chart_header, 
+            textvariable=self.start_date_var, 
+            width=10,
+            date_pattern='yyyy-mm-dd', 
+            background=Colors.PRIMARY,
+            foreground=Colors.TEXT_INVERSE,
+            borderwidth=1,
+            locale='en_US'
         )
+        self.start_date_entry.pack(side=tk.LEFT, padx=(0, Spacing.XS))
+        self._attach_tooltip(self.start_date_entry, text="Pick the earliest date for charts.", tooltip_id="charts.start_entry")
 
-        # End date entry with calendar widget
-        end_label = ttk.Label(date_range_frame, text="End Date:")
-        end_label.pack(side=tk.LEFT, padx=(0, 5))
-        self._attach_tooltip(
-            end_label,
-            text="Set the latest date to include in the chart window.",
-            tooltip_id="charts.end_label",
-        )
+        ttk.Label(chart_header, text="To:", font=Fonts.small()).pack(side=tk.LEFT, padx=(0, 2))
         self.end_date_var = tk.StringVar()
-        self.end_date_entry = DateEntry(date_range_frame, textvariable=self.end_date_var, width=12,
-                                      date_pattern='yyyy-mm-dd', background='darkblue', foreground='white',
-                                      borderwidth=2, locale='en_US')
-        self.end_date_entry.pack(side=tk.LEFT, padx=(0, 10))
-        self._attach_tooltip(
-            self.end_date_entry,
-            text="Choose the final date included in generated charts.",
-            tooltip_id="charts.end_entry",
+        self.end_date_entry = DateEntry(
+            chart_header, 
+            textvariable=self.end_date_var, 
+            width=10,
+            date_pattern='yyyy-mm-dd', 
+            background=Colors.PRIMARY,
+            foreground=Colors.TEXT_INVERSE,
+            borderwidth=1,
+            locale='en_US'
         )
+        self.end_date_entry.pack(side=tk.LEFT, padx=(0, Spacing.XS))
+        self._attach_tooltip(self.end_date_entry, text="Choose the final date for charts.", tooltip_id="charts.end_entry")
 
-        apply_range_button = ttk.Button(date_range_frame, text="Apply Date Range", command=self._apply_date_range)
-        apply_range_button.pack(side=tk.LEFT)
-        self._attach_tooltip(
-            apply_range_button,
-            text="Rebuild charts using the specified start/end dates.",
-            tooltip_id="charts.apply_range",
-        )
+        # Apply and Reset buttons (compact)
+        ttk.Button(chart_header, text="✓", command=self._apply_date_range, width=3).pack(side=tk.LEFT, padx=1)
+        ttk.Button(chart_header, text="↺", command=self._reset_date_range, width=3).pack(side=tk.LEFT, padx=(1, Spacing.XS))
 
-        reset_range_button = ttk.Button(date_range_frame, text="Reset Date Range", command=self._reset_date_range)
-        reset_range_button.pack(side=tk.LEFT, padx=(10, 0))
-        self._attach_tooltip(
-            reset_range_button,
-            text="Clear manual bounds and show the full data history.",
-            tooltip_id="charts.reset_range",
-        )
+        # Separator
+        ttk.Separator(chart_header, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=Spacing.XS)
 
-        quick_label = ttk.Label(date_range_frame, text="Quick:")
-        quick_label.pack(side=tk.LEFT, padx=(10, 5))
-        self._attach_tooltip(
-            quick_label,
-            text="Choose a predefined range shortcut.",
-            tooltip_id="charts.quick_label",
-        )
+        # Quick range buttons (compact)
+        ttk.Label(chart_header, text="Quick:", font=Fonts.small()).pack(side=tk.LEFT, padx=(0, 2))
+        
+        for label, days in [("6M", 182), ("1Y", 365), ("3Y", 365*3), ("5Y", 365*5), ("All", None)]:
+            if days is None:
+                btn = ttk.Button(chart_header, text=label, width=3, command=self._reset_date_range)
+            else:
+                btn = ttk.Button(chart_header, text=label, width=3, command=lambda d=days: self._set_quick_range(days=d))
+            btn.pack(side=tk.LEFT, padx=1)
+            self._attach_tooltip(btn, text=f"Show {label} of data" if days else "Show all available data", tooltip_id=f"charts.quick_{label.lower()}")
 
-        quick_6m = ttk.Button(date_range_frame, text="6M", width=4, command=lambda: self._set_quick_range(days=182))
-        quick_6m.pack(side=tk.LEFT)
-        self._attach_tooltip(quick_6m, text="Show the last six months of data.", tooltip_id="charts.quick_6m")
-
-        quick_1y = ttk.Button(date_range_frame, text="1Y", width=4, command=lambda: self._set_quick_range(days=365))
-        quick_1y.pack(side=tk.LEFT, padx=(5, 0))
-        self._attach_tooltip(quick_1y, text="Display trailing twelve months of history.", tooltip_id="charts.quick_1y")
-
-        quick_3y = ttk.Button(date_range_frame, text="3Y", width=4, command=lambda: self._set_quick_range(days=365*3))
-        quick_3y.pack(side=tk.LEFT, padx=(5, 0))
-        self._attach_tooltip(quick_3y, text="Limit view to the last three years.", tooltip_id="charts.quick_3y")
-
-        quick_5y = ttk.Button(date_range_frame, text="5Y", width=4, command=lambda: self._set_quick_range(days=365*5))
-        quick_5y.pack(side=tk.LEFT, padx=(5, 0))
-        self._attach_tooltip(quick_5y, text="Trim dataset to the past five years.", tooltip_id="charts.quick_5y")
-
-        # Create a notebook with tabs for individual, comparison, and seasonality charts
+        # =================================================================
+        # ANALYSIS TABS - With icons for quick recognition
+        # =================================================================
         self.chart_notebook = ttk.Notebook(self.chart_frame)
-        self.chart_notebook.pack(fill=tk.BOTH, expand=True, pady=(5, 0))
+        self.chart_notebook.pack(fill=tk.BOTH, expand=True, pady=(Spacing.XS, 0))
 
         # Create individual chart tab
         self.individual_chart_frame = ttk.Frame(self.chart_notebook)
-        self.chart_notebook.add(self.individual_chart_frame, text="Individual Chart")
+        self.chart_notebook.add(self.individual_chart_frame, text="📈 Chart")
 
         # Create comparison chart tab
         self.comparison_chart_frame = ttk.Frame(self.chart_notebook)
-        self.chart_notebook.add(self.comparison_chart_frame, text="Comparison Chart")
+        self.chart_notebook.add(self.comparison_chart_frame, text="📊 Compare")
         
         # Create seasonality chart tab
         self.seasonality_chart_frame = ttk.Frame(self.chart_notebook)
-        self.chart_notebook.add(self.seasonality_chart_frame, text="Seasonality Chart")
+        self.chart_notebook.add(self.seasonality_chart_frame, text="📆 Seasonal")
 
         # Create fundamental analysis tab
         self.fundamental_analysis_frame = ttk.Frame(self.chart_notebook)
-        self.chart_notebook.add(self.fundamental_analysis_frame, text="Fundamental Analysis")
+        self.chart_notebook.add(self.fundamental_analysis_frame, text="📋 Fundamentals")
 
         # Create business analysis tab
         self.business_analysis_frame = ttk.Frame(self.chart_notebook)
-        self.chart_notebook.add(self.business_analysis_frame, text="Business Analysis")
+        self.chart_notebook.add(self.business_analysis_frame, text="💼 Business")
 
         # Create Market News tab
         self.market_news_frame = ttk.Frame(self.chart_notebook)
-        self.chart_notebook.add(self.market_news_frame, text="Market News Blog")
+        self.chart_notebook.add(self.market_news_frame, text="📰 News")
         
         # Create Buffett & CANSLIM tab
         self.buffett_canslim_frame = ttk.Frame(self.chart_notebook)
-        self.chart_notebook.add(self.buffett_canslim_frame, text="Buffett & CANSLIM")
+        self.chart_notebook.add(self.buffett_canslim_frame, text="🎯 Analysis")
 
         # Layout for Buffett & CANSLIM tab
         bc_outer = ttk.Frame(self.buffett_canslim_frame, padding="10")
@@ -1042,60 +1103,60 @@ class StockDataGUI:
 
         # Create SEC filings tab
         self.sec_filings_frame = ttk.Frame(self.chart_notebook)
-        self.chart_notebook.add(self.sec_filings_frame, text="SEC Filings")
+        self.chart_notebook.add(self.sec_filings_frame, text="📑 SEC")
         
         # Configure SEC filings tab
-        sec_frame = ttk.Frame(self.sec_filings_frame, padding="10")
+        sec_frame = ttk.Frame(self.sec_filings_frame, padding=Spacing.SM)
         sec_frame.pack(fill=tk.BOTH, expand=True)
         
-        # Top control frame for SEC filings tab
-        sec_control_frame = ttk.Frame(sec_frame)
-        sec_control_frame.pack(fill=tk.X, pady=5)
+        # =================================================================
+        # SEC QUICK ACTIONS - Prominent controls for SEC filing analysis
+        # =================================================================
+        sec_quick_frame = ttk.LabelFrame(sec_frame, text="📑 SEC Filing Controls", padding=Spacing.SM)
+        sec_quick_frame.pack(fill=tk.X, pady=(0, Spacing.SM))
         
-        # Ticker label and selection
-        ttk.Label(sec_control_frame, text="Ticker:").pack(side=tk.LEFT, padx=(0, 5))
+        # Row 1: Ticker and Form Type selection
+        sec_row1 = ttk.Frame(sec_quick_frame)
+        sec_row1.pack(fill=tk.X, pady=2)
+        
+        ttk.Label(sec_row1, text="Ticker:", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
         self.sec_ticker_var = tk.StringVar()
-        self.sec_ticker_entry = ttk.Entry(sec_control_frame, textvariable=self.sec_ticker_var, width=10)
-        self.sec_ticker_entry.pack(side=tk.LEFT, padx=(0, 10))
+        self.sec_ticker_entry = ttk.Entry(sec_row1, textvariable=self.sec_ticker_var, width=10)
+        self.sec_ticker_entry.pack(side=tk.LEFT, padx=(0, Spacing.MD))
         
-        # Form type selection
-        ttk.Label(sec_control_frame, text="Form Type:").pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(sec_row1, text="Form:", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
         self.sec_form_type_var = tk.StringVar(value="10-K")
-        form_type_combo = ttk.Combobox(sec_control_frame, textvariable=self.sec_form_type_var, 
-                                     values=["10-K", "10-Q"], width=5, state="readonly")
-        form_type_combo.pack(side=tk.LEFT, padx=(0, 10))
+        form_type_combo = ttk.Combobox(sec_row1, textvariable=self.sec_form_type_var, 
+                                     values=["10-K", "10-Q"], width=6, state="readonly")
+        form_type_combo.pack(side=tk.LEFT, padx=(0, Spacing.MD))
         
-        # Mock data checkbox
+        ttk.Separator(sec_row1, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=Spacing.SM)
+        
+        # Primary action buttons
+        extract_btn = ttk.Button(sec_row1, text="▶ Extract Tables", command=self._extract_sec_tables_from_tab, width=14)
+        extract_btn.pack(side=tk.LEFT, padx=(0, Spacing.XS))
+        self._attach_tooltip(extract_btn, text="Extract financial tables from SEC filing", tooltip_id="sec.extract")
+        
+        ttk.Button(sec_row1, text="📂 Open Folder", command=self._open_sec_output_folder, width=12).pack(side=tk.LEFT, padx=(0, Spacing.XS))
+        
+        ttk.Separator(sec_row1, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=Spacing.SM)
+        
+        # Options
         self.use_mock_data_var = tk.BooleanVar(value=False)
-        mock_data_check = ttk.Checkbutton(sec_control_frame, text="Use Mock Data", 
-                                       variable=self.use_mock_data_var,
-                                       command=self._toggle_mock_data)
-        mock_data_check.pack(side=tk.LEFT, padx=(0, 10))
+        mock_data_check = ttk.Checkbutton(sec_row1, text="Mock Data", variable=self.use_mock_data_var, command=self._toggle_mock_data)
+        mock_data_check.pack(side=tk.LEFT, padx=(0, Spacing.XS))
         
-        # Extract button
-        ttk.Button(sec_control_frame, text="Extract Tables", 
-                  command=self._extract_sec_tables_from_tab).pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Button(sec_row1, text="Clear Cache", command=self._clear_sec_cache, width=10).pack(side=tk.LEFT)
         
-        # Open folder button
-        ttk.Button(sec_control_frame, text="Open Output Folder", 
-                  command=self._open_sec_output_folder).pack(side=tk.LEFT, padx=(0, 10))
+        # Row 2: Status
+        sec_row2 = ttk.Frame(sec_quick_frame)
+        sec_row2.pack(fill=tk.X, pady=(Spacing.XS, 0))
         
-        # Status label
         self.sec_status_var = tk.StringVar(value="Select a ticker and form type, then click 'Extract Tables'")
-        ttk.Label(sec_control_frame, textvariable=self.sec_status_var).pack(side=tk.LEFT, fill=tk.X, expand=True)
+        ttk.Label(sec_row2, textvariable=self.sec_status_var, foreground=Colors.TEXT_SECONDARY).pack(side=tk.LEFT, fill=tk.X, expand=True)
         
-        # Second row for API status and cache info
-        sec_status_frame = ttk.Frame(sec_frame)
-        sec_status_frame.pack(fill=tk.X, pady=(0, 5))
-        
-        # API status label
-        self.sec_api_status_var = tk.StringVar(value="Using real SEC API with caching (recommended for production)")
-        ttk.Label(sec_status_frame, textvariable=self.sec_api_status_var, 
-                 font=("Helvetica", 9, "italic")).pack(side=tk.LEFT, fill=tk.X, expand=True)
-        
-        # Clear cache button
-        ttk.Button(sec_status_frame, text="Clear SEC Cache", 
-                 command=self._clear_sec_cache).pack(side=tk.RIGHT)
+        self.sec_api_status_var = tk.StringVar(value="Using real SEC API with caching")
+        ttk.Label(sec_row2, textvariable=self.sec_api_status_var, font=Fonts.small(), foreground=Colors.TEXT_MUTED).pack(side=tk.RIGHT)
         
         # Create a paned window to split the view
         sec_paned = ttk.PanedWindow(sec_frame, orient=tk.HORIZONTAL)
@@ -1161,24 +1222,82 @@ class StockDataGUI:
         style.configure("Custom.Treeview", font=('Helvetica', 12))  # Set font size to 12
         style.configure("Custom.Treeview.Heading", font=('Helvetica', 14, 'bold')) # Set heading font size
 
+        # =================================================================
+        # BUSINESS SNAPSHOT - Key metrics at a glance
+        # =================================================================
+        snapshot_frame = ttk.LabelFrame(self.fundamental_analysis_frame, text="📊 Business Snapshot", padding=Spacing.SM)
+        snapshot_frame.pack(fill=tk.X, padx=Spacing.SM, pady=(Spacing.SM, Spacing.XS))
+        
+        # Row 1: Company info
+        snapshot_row1 = ttk.Frame(snapshot_frame)
+        snapshot_row1.pack(fill=tk.X, pady=2)
+        
+        self.snapshot_name_var = tk.StringVar(value="Select a ticker")
+        ttk.Label(snapshot_row1, textvariable=self.snapshot_name_var, font=Fonts.h3()).pack(side=tk.LEFT)
+        
+        self.snapshot_sector_var = tk.StringVar(value="")
+        ttk.Label(snapshot_row1, textvariable=self.snapshot_sector_var, foreground=Colors.TEXT_SECONDARY).pack(side=tk.LEFT, padx=(Spacing.MD, 0))
+        
+        # Row 2: Key metrics grid
+        snapshot_row2 = ttk.Frame(snapshot_frame)
+        snapshot_row2.pack(fill=tk.X, pady=Spacing.XS)
+        
+        # Create metric labels with icons
+        metrics_data = [
+            ("💰 Market Cap:", "snapshot_mcap"),
+            ("📈 P/E Ratio:", "snapshot_pe"),
+            ("📊 Revenue:", "snapshot_revenue"),
+            ("💵 Dividend:", "snapshot_div"),
+            ("📉 52W Range:", "snapshot_52w"),
+            ("⚡ Beta:", "snapshot_beta"),
+        ]
+        
+        self.snapshot_vars = {}
+        for i, (label, var_name) in enumerate(metrics_data):
+            frame = ttk.Frame(snapshot_row2)
+            frame.pack(side=tk.LEFT, padx=(0, Spacing.LG))
+            ttk.Label(frame, text=label, font=Fonts.small(), foreground=Colors.TEXT_SECONDARY).pack(side=tk.LEFT)
+            self.snapshot_vars[var_name] = tk.StringVar(value="--")
+            ttk.Label(frame, textvariable=self.snapshot_vars[var_name], font=Fonts.body_bold()).pack(side=tk.LEFT, padx=(Spacing.XS, 0))
+
         # Create a frame for the filter widget
         fa_filter_frame = ttk.Frame(self.fundamental_analysis_frame)
         fa_filter_frame.pack(fill=tk.X, padx=5, pady=5)
-        ttk.Label(fa_filter_frame, text="Filter Metric:").pack(side=tk.LEFT, padx=(0, 5))
-        fa_filter_entry = ttk.Entry(fa_filter_frame, textvariable=self.fundamental_filter_var)
-        fa_filter_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        # Filter presets row
+        fa_presets_row = ttk.Frame(fa_filter_frame)
+        fa_presets_row.pack(fill=tk.X, pady=(0, Spacing.XS))
+        
+        ttk.Label(fa_presets_row, text="Quick Filters:", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
+        
+        # Define filter presets
+        filter_presets = [
+            ("Value", "pe ratio dividend yield book value eps"),
+            ("Growth", "revenue growth earnings growth profit margin"),
+            ("Dividend", "dividend yield payout ratio ex-dividend"),
+            ("Risk", "beta debt volatility short"),
+            ("Clear", ""),
+        ]
+        
+        for label, filter_text in filter_presets:
+            btn = ttk.Button(fa_presets_row, text=label, width=8, 
+                           command=lambda f=filter_text: self._apply_filter_preset(f))
+            btn.pack(side=tk.LEFT, padx=1)
+        
+        # Filter entry row
+        fa_entry_row = ttk.Frame(fa_filter_frame)
+        fa_entry_row.pack(fill=tk.X)
+        
+        ttk.Label(fa_entry_row, text="🔍 Filter:", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
+        fa_filter_entry = ttk.Entry(fa_entry_row, textvariable=self.fundamental_filter_var)
+        fa_filter_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, Spacing.XS))
         fa_filter_entry.bind("<KeyRelease>", self._populate_fundamental_treeview)
         
-        # Add a small help label
-        ttk.Label(fa_filter_frame, text="(Multiple terms use OR logic, ! for exclusion, * to show all)", 
-                 font=("Helvetica", 8)).pack(side=tk.LEFT, padx=5)
+        ttk.Label(fa_entry_row, text="(OR logic, ! exclude, * all)", font=Fonts.small(), foreground=Colors.TEXT_MUTED).pack(side=tk.LEFT, padx=(0, Spacing.XS))
         
-        # Add Save and Load filter buttons
-        save_filter_button = ttk.Button(fa_filter_frame, text="Save Filter", width=10, command=self._save_filter)
-        save_filter_button.pack(side=tk.LEFT, padx=5)
-        
-        load_filter_button = ttk.Button(fa_filter_frame, text="Load Filter", width=10, command=self._load_filter)
-        load_filter_button.pack(side=tk.LEFT, padx=5)
+        # Save and Load filter buttons
+        ttk.Button(fa_entry_row, text="Save", width=6, command=self._save_filter).pack(side=tk.LEFT, padx=1)
+        ttk.Button(fa_entry_row, text="Load", width=6, command=self._load_filter).pack(side=tk.LEFT, padx=1)
 
         # Create a frame to hold the treeview and scrollbar
         fa_tree_frame = ttk.Frame(self.fundamental_analysis_frame)
@@ -1210,65 +1329,102 @@ class StockDataGUI:
         self.fundamental_data_tree.tag_configure("bold", font=("Helvetica", 10, "bold"))
 
         # --- Business Analysis Tab Widgets ---
-        ba_frame = ttk.Frame(self.business_analysis_frame, padding="10")
+        ba_frame = ttk.Frame(self.business_analysis_frame, padding=Spacing.SM)
         ba_frame.pack(fill=tk.BOTH, expand=True)
 
-        ba_button_frame = ttk.Frame(ba_frame)
-        ba_button_frame.pack(fill=tk.X, pady=5)
-
-        ttk.Button(ba_button_frame, text="Run BA", command=self._run_business_analysis).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(ba_button_frame, text="Conduct News Search", command=self._run_news_search).pack(side=tk.LEFT, padx=(0, 5))        
+        # =================================================================
+        # QUICK ACTIONS - Prominent buttons for common workflow tasks
+        # =================================================================
+        ba_quick_frame = ttk.LabelFrame(ba_frame, text="🚀 Quick Actions", padding=Spacing.SM)
+        ba_quick_frame.pack(fill=tk.X, pady=(0, Spacing.SM))
         
-        ttk.Button(ba_button_frame, text="10-Q Study", command=self._run_10q_study).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(ba_button_frame, text="10K Study", command=self._run_10k_study).pack(side=tk.LEFT, padx=(0, 5))
-        # SEC filing extraction buttons
-        ttk.Button(ba_button_frame, text="Extract 10-K Tables", command=lambda: self._extract_sec_filing('10-K')).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(ba_button_frame, text="Extract 10-Q Tables", command=lambda: self._extract_sec_filing('10-Q')).pack(side=tk.LEFT, padx=(0, 5))
+        # Row 1: Primary analysis actions
+        ba_row1 = ttk.Frame(ba_quick_frame)
+        ba_row1.pack(fill=tk.X, pady=2)
+        
+        # Make Run BA button prominent with larger width
+        run_ba_btn = ttk.Button(ba_row1, text="▶ Run Business Analysis", command=self._run_business_analysis, width=22)
+        run_ba_btn.pack(side=tk.LEFT, padx=(0, Spacing.SM))
+        self._attach_tooltip(run_ba_btn, text="Run comprehensive AI business analysis (Ctrl+B)", tooltip_id="ba.run")
+        
+        ttk.Button(ba_row1, text="📰 News Search", command=self._run_news_search, width=14).pack(side=tk.LEFT, padx=(0, Spacing.XS))
+        
+        ttk.Separator(ba_row1, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=Spacing.SM)
+        
+        # SEC Filing buttons
+        ttk.Label(ba_row1, text="📑 SEC:", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
+        ttk.Button(ba_row1, text="10-K Study", command=self._run_10k_study, width=10).pack(side=tk.LEFT, padx=1)
+        ttk.Button(ba_row1, text="10-Q Study", command=self._run_10q_study, width=10).pack(side=tk.LEFT, padx=1)
+        ttk.Button(ba_row1, text="Extract 10-K", command=lambda: self._extract_sec_filing('10-K'), width=10).pack(side=tk.LEFT, padx=1)
+        ttk.Button(ba_row1, text="Extract 10-Q", command=lambda: self._extract_sec_filing('10-Q'), width=10).pack(side=tk.LEFT, padx=1)
 
-
+        # Row 2: AI Search
+        ba_row2 = ttk.Frame(ba_quick_frame)
+        ba_row2.pack(fill=tk.X, pady=(Spacing.XS, 0))
+        
+        ttk.Label(ba_row2, text="🤖 AI Search:", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
         self.general_search_var = tk.StringVar()
-        general_search_entry = ttk.Entry(ba_button_frame, textvariable=self.general_search_var, width=40)
-        general_search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-
-        ttk.Button(ba_button_frame, text="AI Search", command=self._run_general_search).pack(side=tk.LEFT)
+        general_search_entry = ttk.Entry(ba_row2, textvariable=self.general_search_var, width=50)
+        general_search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, Spacing.XS))
+        self._attach_tooltip(general_search_entry, text="Ask AI any question about the selected stock", tooltip_id="ba.ai_search")
         
-        # Add filter frame for business analysis
-        ba_filter_frame = ttk.Frame(ba_frame)
-        ba_filter_frame.pack(fill=tk.X, pady=5)
+        ttk.Button(ba_row2, text="Search", command=self._run_general_search, width=8).pack(side=tk.LEFT)
         
-        ttk.Label(ba_filter_frame, text="Filter Metric:").pack(side=tk.LEFT, padx=(0, 5))
-        filter_entry = ttk.Entry(ba_filter_frame, textvariable=self.business_analysis_filter_var, width=40)
-        filter_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        # =================================================================
+        # COLLAPSIBLE OPTIONS - Filter and tuning controls
+        # =================================================================
+        self.ba_options_visible = tk.BooleanVar(value=False)
+        
+        # Toggle button for options
+        ba_toggle_row = ttk.Frame(ba_frame)
+        ba_toggle_row.pack(fill=tk.X, pady=(Spacing.XS, 0))
+        
+        ba_options_toggle = ttk.Checkbutton(
+            ba_toggle_row, 
+            text="⚙️ Show Options", 
+            variable=self.ba_options_visible,
+            command=self._toggle_ba_options
+        )
+        ba_options_toggle.pack(side=tk.LEFT)
+        
+        # Collapsible options frame (hidden by default)
+        self.ba_options_frame = ttk.LabelFrame(ba_frame, text="Filter & Tuning Options", padding=Spacing.XS)
+        # Don't pack yet - will be shown/hidden by toggle
+        
+        # Filter row
+        ba_filter_row = ttk.Frame(self.ba_options_frame)
+        ba_filter_row.pack(fill=tk.X, pady=2)
+        
+        ttk.Label(ba_filter_row, text="Filter:", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
+        filter_entry = ttk.Entry(ba_filter_row, textvariable=self.business_analysis_filter_var, width=40)
+        filter_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, Spacing.XS))
         filter_entry.bind("<KeyRelease>", self._apply_business_analysis_filter)
+        ttk.Label(ba_filter_row, text="(AND logic, ! for exclusion)", font=Fonts.small(), foreground=Colors.TEXT_MUTED).pack(side=tk.LEFT)
         
-        # Add a small help label
-        ttk.Label(ba_filter_frame, text="(Multiple terms use AND logic, ! for exclusion)", 
-                 font=("Helvetica", 8)).pack(side=tk.LEFT, padx=5)
-        
-        # BA tuning controls: freshness (days), history depth, and show/hide change-over-time
-        ba_opts_frame = ttk.Frame(ba_frame)
-        ba_opts_frame.pack(fill=tk.X, pady=(0,5))
+        # Tuning row
+        ba_tuning_row = ttk.Frame(self.ba_options_frame)
+        ba_tuning_row.pack(fill=tk.X, pady=2)
         
         # Variables
         self.ba_freshness_days_var = tk.IntVar(value=30)
         self.ba_history_max_items_var = tk.IntVar(value=5)
         self.ba_show_change_var = tk.BooleanVar(value=True)
         
-        ttk.Label(ba_opts_frame, text="Freshness (days):").pack(side=tk.LEFT, padx=(0,5))
+        ttk.Label(ba_tuning_row, text="Freshness (days):", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
         try:
-            freshness_spin = ttk.Spinbox(ba_opts_frame, from_=1, to=365, width=5, textvariable=self.ba_freshness_days_var)
+            freshness_spin = ttk.Spinbox(ba_tuning_row, from_=1, to=365, width=5, textvariable=self.ba_freshness_days_var)
         except Exception:
-            freshness_spin = tk.Spinbox(ba_opts_frame, from_=1, to=365, width=5, textvariable=self.ba_freshness_days_var)
-        freshness_spin.pack(side=tk.LEFT)
+            freshness_spin = tk.Spinbox(ba_tuning_row, from_=1, to=365, width=5, textvariable=self.ba_freshness_days_var)
+        freshness_spin.pack(side=tk.LEFT, padx=(0, Spacing.MD))
         
-        ttk.Label(ba_opts_frame, text="History (max):").pack(side=tk.LEFT, padx=(10,5))
+        ttk.Label(ba_tuning_row, text="History (max):", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
         try:
-            history_spin = ttk.Spinbox(ba_opts_frame, from_=1, to=20, width=5, textvariable=self.ba_history_max_items_var)
+            history_spin = ttk.Spinbox(ba_tuning_row, from_=1, to=20, width=5, textvariable=self.ba_history_max_items_var)
         except Exception:
-            history_spin = tk.Spinbox(ba_opts_frame, from_=1, to=20, width=5, textvariable=self.ba_history_max_items_var)
-        history_spin.pack(side=tk.LEFT)
+            history_spin = tk.Spinbox(ba_tuning_row, from_=1, to=20, width=5, textvariable=self.ba_history_max_items_var)
+        history_spin.pack(side=tk.LEFT, padx=(0, Spacing.MD))
         
-        ttk.Checkbutton(ba_opts_frame, text="Show Change Over Time", variable=self.ba_show_change_var).pack(side=tk.LEFT, padx=(10,0))
+        ttk.Checkbutton(ba_tuning_row, text="Show Change Over Time", variable=self.ba_show_change_var).pack(side=tk.LEFT)
         
         ba_text_frame = ttk.Frame(ba_frame)
         ba_text_frame.pack(fill=tk.BOTH, expand=True, pady=5)
@@ -1286,14 +1442,37 @@ class StockDataGUI:
         ba_scrollbar = ttk.Scrollbar(ba_text_frame, command=self.business_analysis_text.yview)
         ba_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.business_analysis_text.config(yscrollcommand=ba_scrollbar.set)
+        
+        # Configure markdown-style text tags for Business Analysis
+        self._configure_markdown_tags(self.business_analysis_text, font_name)
 
         # --- Market News Tab Widgets ---
-        mn_outer = ttk.Frame(self.market_news_frame, padding="10")
+        mn_outer = ttk.Frame(self.market_news_frame, padding=Spacing.SM)
         mn_outer.pack(fill=tk.BOTH, expand=True)
 
-        ttk.Label(mn_outer, text="Latest Market News Blog", font=("Helvetica", 12, "bold"))\
-            .pack(anchor=tk.W, pady=(0, 5))
+        # =================================================================
+        # NEWS QUICK ACTIONS - One-click news summaries
+        # =================================================================
+        mn_actions = ttk.LabelFrame(mn_outer, text="📰 Quick News Actions", padding=Spacing.SM)
+        mn_actions.pack(fill=tk.X, pady=(0, Spacing.SM))
+        
+        mn_btn_row = ttk.Frame(mn_actions)
+        mn_btn_row.pack(fill=tk.X)
+        
+        ttk.Button(mn_btn_row, text="🌐 Market News", command=self._summarize_market_news, width=14).pack(side=tk.LEFT, padx=1)
+        ttk.Button(mn_btn_row, text="📈 Stock News", command=self._summarize_stock_news, width=14).pack(side=tk.LEFT, padx=1)
+        ttk.Button(mn_btn_row, text="📊 ETF News", command=self._summarize_etf_news, width=12).pack(side=tk.LEFT, padx=1)
+        ttk.Button(mn_btn_row, text="₿ Crypto News", command=self._summarize_crypto_news, width=13).pack(side=tk.LEFT, padx=1)
+        
+        ttk.Separator(mn_btn_row, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=Spacing.SM)
+        
+        ttk.Button(mn_btn_row, text="📋 Summarize Clipboard", command=self._summarize_clipboard_content, width=18).pack(side=tk.LEFT, padx=1)
+        
+        # Status label
+        self.news_status_var = tk.StringVar(value="Click a button to fetch news")
+        ttk.Label(mn_btn_row, textvariable=self.news_status_var, foreground=Colors.TEXT_SECONDARY).pack(side=tk.RIGHT, padx=Spacing.SM)
 
+        # News content area
         mn_text_frame = ttk.Frame(mn_outer)
         mn_text_frame.pack(fill=tk.BOTH, expand=True)
 
@@ -1388,102 +1567,240 @@ class StockDataGUI:
         self.ticker_listbox.bind("<ButtonRelease-1>", self._on_ticker_selected)
         self.watch_listbox.bind("<ButtonRelease-1>", self._on_watch_ticker_selected)
 
-        # Bottom frame for actions (already added to vertical paned layout)
+        # =================================================================
+        # KEYBOARD SHORTCUTS - For power users
+        # =================================================================
+        self.root.bind("<Control-d>", lambda e: self._download_data())
+        self.root.bind("<Control-r>", lambda e: self._view_html_report())
+        self.root.bind("<Control-w>", lambda e: self._copy_to_watch_list())
+        self.root.bind("<Control-b>", lambda e: self._run_business_analysis())
+        self.root.bind("<Control-n>", lambda e: self._summarize_market_news())
+        self.root.bind("<Control-l>", lambda e: self._load_ticker_list())
+        self.root.bind("<Control-Right>", lambda e: self._go_next_list())
+        self.root.bind("<Control-Left>", lambda e: self._go_prev_list())
+        self.root.bind("<F5>", lambda e: self._refresh_ticker_lists())
+        self.root.bind("<Control-1>", lambda e: self.chart_notebook.select(0))  # Chart tab
+        self.root.bind("<Control-2>", lambda e: self.chart_notebook.select(1))  # Compare tab
+        self.root.bind("<Control-3>", lambda e: self.chart_notebook.select(2))  # Seasonal tab
+        self.root.bind("<Control-4>", lambda e: self.chart_notebook.select(3))  # Fundamentals tab
+        self.root.bind("<Control-5>", lambda e: self.chart_notebook.select(4))  # Business tab
+        
+        # Log keyboard shortcuts
+        logging.info("Keyboard shortcuts enabled: Ctrl+D (download), Ctrl+R (report), Ctrl+W (watch), Ctrl+B (BA), Ctrl+N (news)")
+
+        # =====================================================================
+        # BOTTOM ACTION BAR - Organized by workflow phase with clear separation
+        # =====================================================================
         bottom_frame = self.bottom_frame
 
-        # Keep actions and status separated so the status text remains visible within the bottom pane
-        actions_frame = ttk.Frame(bottom_frame)
-        actions_frame.pack(side=tk.TOP, fill=tk.X)
+        # Actions row with grouped buttons
+        actions_row = ttk.Frame(bottom_frame)
+        actions_row.pack(side=tk.TOP, fill=tk.X, pady=Spacing.XS)
 
-        # Force download toggle
+        # =================================================================
+        # GROUP 1: Data Actions (Phase 1 - Discovery)
+        # =================================================================
+        ttk.Label(actions_row, text="📥 Data:", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
+        
+        download_btn = ttk.Button(actions_row, text="Download", command=self._download_data, width=9)
+        download_btn.pack(side=tk.LEFT, padx=1)
+        self._attach_tooltip(download_btn, text="Download data for selected tickers (Ctrl+D)", tooltip_id="action.download")
+
+        download_all_btn = ttk.Button(actions_row, text="All", command=self._download_all_data, width=4)
+        download_all_btn.pack(side=tk.LEFT, padx=1)
+        self._attach_tooltip(download_all_btn, text="Download data for ALL tickers", tooltip_id="action.download_all")
+
+        ttk.Separator(actions_row, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=Spacing.SM)
+
+        # =================================================================
+        # GROUP 2: Portfolio Actions (Phase 5 - Decision & Monitoring)
+        # =================================================================
+        ttk.Label(actions_row, text="📊 Portfolio:", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
+        
+        visualize_btn = ttk.Button(actions_row, text="Visualize", command=self._visualize_all_timeframes, width=8)
+        visualize_btn.pack(side=tk.LEFT, padx=1)
+        self._attach_tooltip(visualize_btn, text="Generate D/W/M charts for all tickers", tooltip_id="action.visualize")
+
+        report_btn = ttk.Button(actions_row, text="Report", command=self._view_html_report, width=7)
+        report_btn.pack(side=tk.LEFT, padx=1)
+        self._attach_tooltip(report_btn, text="Open HTML report (Ctrl+R)", tooltip_id="action.report")
+
+        compare_btn = ttk.Button(actions_row, text="Compare", command=self._compare_percentage_performance, width=8)
+        compare_btn.pack(side=tk.LEFT, padx=1)
+        self._attach_tooltip(compare_btn, text="Compare performance of selected tickers", tooltip_id="action.compare")
+
+        ttk.Separator(actions_row, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=Spacing.SM)
+
+        # =================================================================
+        # GROUP 3: News & AI (Phase 3 - Fundamental Analysis)
+        # =================================================================
+        ttk.Label(actions_row, text="📰 News:", font=Fonts.body()).pack(side=tk.LEFT, padx=(0, Spacing.XS))
+        
+        market_news_btn = ttk.Button(actions_row, text="Market", command=self._summarize_market_news, width=6)
+        market_news_btn.pack(side=tk.LEFT, padx=1)
+        self._attach_tooltip(market_news_btn, text="Summarize market news (Ctrl+N)", tooltip_id="news.market")
+
+        stock_news_btn = ttk.Button(actions_row, text="Stock", command=self._summarize_stock_news, width=5)
+        stock_news_btn.pack(side=tk.LEFT, padx=1)
+        self._attach_tooltip(stock_news_btn, text="Summarize stock news from Finviz", tooltip_id="news.stock")
+
+        etf_news_btn = ttk.Button(actions_row, text="ETF", command=self._summarize_etf_news, width=4)
+        etf_news_btn.pack(side=tk.LEFT, padx=1)
+        self._attach_tooltip(etf_news_btn, text="Summarize ETF news", tooltip_id="news.etf")
+
+        crypto_news_btn = ttk.Button(actions_row, text="Crypto", command=self._summarize_crypto_news, width=6)
+        crypto_news_btn.pack(side=tk.LEFT, padx=1)
+        self._attach_tooltip(crypto_news_btn, text="Summarize crypto news", tooltip_id="news.crypto")
+
+        clipboard_btn = ttk.Button(actions_row, text="📋 AI", command=self._summarize_clipboard_content, width=5)
+        clipboard_btn.pack(side=tk.LEFT, padx=1)
+        self._attach_tooltip(clipboard_btn, text="Summarize clipboard content with AI", tooltip_id="news.clipboard")
+
+        # =================================================================
+        # Right side: Options
+        # =================================================================
         self.force_download_var = tk.BooleanVar(value=False)
-        force_download_check = ttk.Checkbutton(actions_frame, text="Force Download", variable=self.force_download_var)
-        force_download_check.pack(side=tk.RIGHT, padx=5)
-        ttk.Label(actions_frame, text="Options:").pack(side=tk.RIGHT, padx=5)
+        force_dl_check = ttk.Checkbutton(actions_row, text="Force DL", variable=self.force_download_var)
+        force_dl_check.pack(side=tk.RIGHT, padx=Spacing.SM)
+        self._attach_tooltip(force_dl_check, text="Force re-download even if cached", tooltip_id="option.force_dl")
 
-        # Action buttons
-        ttk.Button(actions_frame, text="Download/Update Data", command=self._download_data).pack(side=tk.LEFT, padx=5)
-        ttk.Button(actions_frame, text="Visualize Daily/Weekly/Monthly", command=self._visualize_all_timeframes).pack(side=tk.LEFT, padx=5)
-        ttk.Button(actions_frame, text="View HTML Report", command=self._view_html_report).pack(side=tk.LEFT, padx=5)
-        ttk.Button(actions_frame, text="Compare % Performance", command=self._compare_percentage_performance).pack(side=tk.LEFT, padx=5)
-        ttk.Button(actions_frame, text="Summarize Market News", command=self._summarize_market_news).pack(side=tk.LEFT, padx=5)
-        ttk.Button(actions_frame, text="Summarize Stock News", command=self._summarize_stock_news).pack(side=tk.LEFT, padx=5)
-        ttk.Button(actions_frame, text="Summarize ETF News", command=self._summarize_etf_news).pack(side=tk.LEFT, padx=5)
-        ttk.Button(actions_frame, text="Summarize Crypto News", command=self._summarize_crypto_news).pack(side=tk.LEFT, padx=5)
-        ttk.Button(actions_frame, text="Summarize Clipboard", command=self._summarize_clipboard_content).pack(side=tk.LEFT, padx=5)
 
-        # Status bar hosted inside the bottom pane to prevent it from being obscured
-        self.status_var = tk.StringVar(value="Ready")
+    def _toggle_ba_options(self):
+        """Toggle visibility of Business Analysis options panel."""
+        if self.ba_options_visible.get():
+            self.ba_options_frame.pack(fill=tk.X, pady=(Spacing.XS, 0), before=self.business_analysis_text.master)
+        else:
+            self.ba_options_frame.pack_forget()
 
-        status_style = ttk.Style()
-        status_style.configure(
-            "StatusBar.TLabel",
-            padding=(10, 3),
-            relief=tk.SUNKEN,
-            background="#f2f2f2",
-        )
+    def _apply_filter_preset(self, filter_text):
+        """Apply a filter preset to the Fundamentals filter entry."""
+        self.fundamental_filter_var.set(filter_text)
+        self._populate_fundamental_treeview()
 
-        status_frame = ttk.Frame(bottom_frame)
-        status_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(6, 0))
-        ttk.Separator(bottom_frame, orient=tk.HORIZONTAL).pack(side=tk.BOTTOM, fill=tk.X, pady=(4, 0))
+    def _on_language_change(self):
+        """Handle language preference change."""
+        lang = self.language_var.get()
+        lang_name = "English" if lang == "en" else "中文"
+        self.status_var.set(f"Language set to {lang_name}. AI responses will use this language.")
+        logging.info(f"Language preference changed to: {lang}")
 
-        status_bar = ttk.Label(
-            status_frame,
-            textvariable=self.status_var,
-            style="StatusBar.TLabel",
-            anchor=tk.W,
-        )
-        status_bar.pack(fill=tk.X)
+    def _on_theme_change(self):
+        """Handle theme change between light and dark mode."""
+        theme = self.theme_var.get()
+        Colors.apply_theme(theme)
+        configure_styles(self.root)
+        
+        # Update status
+        theme_name = "Light" if theme == "light" else "Dark"
+        self.status_var.set(f"Theme changed to {theme_name} mode. Restart for full effect.")
+        logging.info(f"Theme changed to: {theme}")
 
-        # Sash initialization is handled via the <Configure> binding above so
-        # the action bar stays compact by default while remaining resizable.
+    def _show_keyboard_shortcuts(self):
+        """Show a dialog with all keyboard shortcuts."""
+        shortcuts = """
+KEYBOARD SHORTCUTS
+==================
+
+Navigation:
+  Ctrl+L         Load selected ticker list
+  Ctrl+←         Previous list
+  Ctrl+→         Next list
+  F5             Refresh lists from disk
+
+Actions:
+  Ctrl+D         Download data for selected tickers
+  Ctrl+R         Open HTML report
+  Ctrl+B         Run Business Analysis
+  Ctrl+N         Summarize market news
+  Ctrl+W         Copy to Watch List
+
+Tabs:
+  Ctrl+1         Chart tab
+  Ctrl+2         Compare tab
+  Ctrl+3         Seasonal tab
+  Ctrl+4         Fundamentals tab
+  Ctrl+5         Business tab
+"""
+        messagebox.showinfo("Keyboard Shortcuts", shortcuts.strip())
+
+    def _configure_markdown_tags(self, text_widget, font_name="Consolas"):
+        """Configure text tags for markdown-style formatting in a Text widget.
+        
+        Supports: H1, H2, H3 headings, bold, bullet points, code blocks.
+        """
+        # Heading styles
+        text_widget.tag_configure("h1", font=(font_name, 18, "bold"), foreground=Colors.PRIMARY, spacing1=12, spacing3=6)
+        text_widget.tag_configure("h2", font=(font_name, 15, "bold"), foreground=Colors.PRIMARY, spacing1=10, spacing3=4)
+        text_widget.tag_configure("h3", font=(font_name, 13, "bold"), foreground=Colors.TEXT_PRIMARY, spacing1=8, spacing3=2)
+        
+        # Text styles
+        text_widget.tag_configure("bold", font=(font_name, 12, "bold"))
+        text_widget.tag_configure("italic", font=(font_name, 12, "italic"))
+        text_widget.tag_configure("code", font=(font_name, 11), background="#f0f0f0", foreground="#c7254e")
+        
+        # List styles
+        text_widget.tag_configure("bullet", lmargin1=20, lmargin2=35)
+        text_widget.tag_configure("numbered", lmargin1=20, lmargin2=35)
+        
+        # Special styles
+        text_widget.tag_configure("positive", foreground=Colors.SUCCESS)
+        text_widget.tag_configure("negative", foreground=Colors.ERROR)
+        text_widget.tag_configure("separator", foreground=Colors.TEXT_MUTED)
+
+    def _insert_markdown_text(self, text_widget, text):
+        """Insert text with markdown-style formatting into a Text widget.
+        
+        Parses markdown syntax and applies appropriate tags.
+        """
+        text_widget.delete("1.0", tk.END)
+        
+        lines = text.split('\n')
+        for line in lines:
+            stripped = line.strip()
+            
+            # Heading detection
+            if stripped.startswith('# '):
+                text_widget.insert(tk.END, stripped[2:] + '\n', "h1")
+            elif stripped.startswith('## '):
+                text_widget.insert(tk.END, stripped[3:] + '\n', "h2")
+            elif stripped.startswith('### '):
+                text_widget.insert(tk.END, stripped[4:] + '\n', "h3")
+            # Bullet points
+            elif stripped.startswith('- ') or stripped.startswith('* '):
+                text_widget.insert(tk.END, '  • ' + stripped[2:] + '\n', "bullet")
+            # Numbered lists
+            elif len(stripped) > 2 and stripped[0].isdigit() and stripped[1] in '.):':
+                text_widget.insert(tk.END, '  ' + stripped + '\n', "numbered")
+            # Separator lines
+            elif stripped.startswith('---') or stripped.startswith('==='):
+                text_widget.insert(tk.END, '─' * 60 + '\n', "separator")
+            # Regular text
+            else:
+                text_widget.insert(tk.END, line + '\n')
+
+    def _show_progress(self, message="Processing..."):
+        """Show the progress bar with a message."""
+        try:
+            self.status_var.set(message)
+            self.progress_bar.pack(side=tk.LEFT, padx=(0, Spacing.SM))
+            self.progress_bar.start(10)
+            self.root.update_idletasks()
+        except Exception as e:
+            logging.debug(f"Error showing progress: {e}")
+
+    def _hide_progress(self, message="Ready"):
+        """Hide the progress bar and update status."""
+        try:
+            self.progress_bar.stop()
+            self.progress_bar.pack_forget()
+            self.status_var.set(message)
+            self.root.update_idletasks()
+        except Exception as e:
+            logging.debug(f"Error hiding progress: {e}")
 
     def _ensure_bottom_frame_layout(self):
-        """Keep the bottom action bar attached to the vertical paned window."""
-        paned = getattr(self, "layout_paned", None)
-        bottom = getattr(self, "bottom_frame", None)
-        if not paned or not bottom:
-            return
-        if not paned.winfo_exists() or not bottom.winfo_exists():
-            return
-
-        parent_widget = None
-        try:
-            parent_name = bottom.winfo_parent()
-            if parent_name:
-                parent_widget = self.root.nametowidget(parent_name)
-        except Exception:
-            parent_widget = None
-
-        if parent_widget is not paned:
-            # Detach from whatever geometry manager was applied and re-add to the paned window
-            try:
-                bottom.pack_forget()
-            except Exception:
-                pass
-            try:
-                paned.add(bottom, weight=0)
-            except Exception:
-                try:
-                    paned.forget(bottom)
-                except Exception:
-                    pass
-                paned.add(bottom, weight=0)
-
-        try:
-            paned.paneconfig(bottom, minsize=55)
-        except Exception:
-            pass
-
-        try:
-            paned.update_idletasks()
-            total_height = paned.winfo_height()
-            bottom_height = bottom.winfo_reqheight() or 0
-            if total_height > 0:
-                desired = max(total_height - bottom_height - 4, 0)
-                paned.sashpos(0, desired)
-        except Exception as exc:
-            logging.debug("Bottom sash adjustment skipped: %s", exc)
+        """Ensure bottom action bar is properly laid out (no-op with simple pack layout)."""
+        pass
 
     def _on_list_selected(self, event):
         """Handle ticker list selection and auto-load the selected list"""
@@ -1762,6 +2079,9 @@ class StockDataGUI:
                     self.ticker_listbox.insert(tk.END, ticker)
 
             self.status_var.set(f"Loaded {len(tickers)} tickers from {selected_list}")
+            
+            # Update tab counts
+            self._update_ticker_tab_counts()
 
     def _add_manual_ticker(self):
         """Add manually entered ticker(s)"""
@@ -1917,6 +2237,300 @@ class StockDataGUI:
             messagebox.showerror("Error", f"Error creating ticker list: {str(e)}")
             logging.error(f"Error creating ticker list: {e}")
 
+    def _toggle_workflow_panel(self):
+        """Toggle the visibility of the workflow quick-access panel."""
+        try:
+            if self.workflow_panel_visible.get():
+                # Show the workflow panel
+                self.workflow_frame.pack(fill=tk.X, pady=(0, Spacing.XS), before=self.paned_window)
+                self.status_var.set("Workflow panel shown - Follow the 5-phase research process")
+            else:
+                # Hide the workflow panel
+                self.workflow_frame.pack_forget()
+                self.status_var.set("Workflow panel hidden")
+        except Exception as e:
+            logging.error(f"Error toggling workflow panel: {e}")
+
+    def _load_custom_urls(self):
+        """Load custom URLs from JSON file."""
+        try:
+            if os.path.exists(self.custom_urls_file):
+                with open(self.custom_urls_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+        except Exception as e:
+            logging.error(f"Error loading custom URLs: {e}")
+        return []
+
+    def _save_custom_urls(self):
+        """Save custom URLs to JSON file."""
+        try:
+            with open(self.custom_urls_file, 'w', encoding='utf-8') as f:
+                json.dump(self.custom_urls, f, indent=2)
+        except Exception as e:
+            logging.error(f"Error saving custom URLs: {e}")
+            messagebox.showerror("Error", f"Could not save custom URLs: {e}")
+
+    def _load_settings(self):
+        """Load GUI settings from JSON file."""
+        try:
+            if os.path.exists(self.settings_file):
+                with open(self.settings_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+        except Exception as e:
+            logging.error(f"Error loading settings: {e}")
+        return {}
+
+    def _save_settings(self):
+        """Save GUI settings to JSON file."""
+        try:
+            with open(self.settings_file, 'w', encoding='utf-8') as f:
+                json.dump(self.settings, f, indent=2)
+        except Exception as e:
+            logging.error(f"Error saving settings: {e}")
+
+    def _save_stockcharts_style_id(self, *args):
+        """Save StockCharts style ID when it changes."""
+        try:
+            style_id = self.stockcharts_line_style_var.get().strip()
+            if style_id:
+                self.settings["stockcharts_style_id"] = style_id
+                self._save_settings()
+        except Exception as e:
+            logging.debug(f"Error saving StockCharts style ID: {e}")
+
+    def _open_local_user_guide(self):
+        """Open the local USER_GUIDE.md file in Chrome or Edge browser.
+        
+        For best viewing, install a Markdown Viewer extension:
+        - Chrome: 'Markdown Viewer' by nicksay
+        - Edge: 'Markdown Viewer' from Microsoft Store
+        """
+        try:
+            guide_path = os.path.join(os.path.dirname(__file__), "USER_GUIDE.md")
+            if os.path.exists(guide_path):
+                file_url = f"file:///{os.path.abspath(guide_path).replace(os.sep, '/')}"
+                
+                # Try Edge first, then Chrome, then default browser
+                browsers_to_try = [
+                    ('edge', r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'),
+                    ('chrome', r'C:\Program Files\Google\Chrome\Application\chrome.exe'),
+                    ('chrome_x86', r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe'),
+                ]
+                
+                opened = False
+                for name, path in browsers_to_try:
+                    if os.path.exists(path):
+                        try:
+                            import subprocess
+                            subprocess.Popen([path, file_url])
+                            self.status_var.set(f"Opened user guide in {name.replace('_x86', '')} (install Markdown Viewer extension for best viewing)")
+                            opened = True
+                            break
+                        except Exception as e:
+                            logging.debug(f"Could not open with {name}: {e}")
+                            continue
+                
+                if not opened:
+                    # Fallback to default browser
+                    webbrowser.open(file_url)
+                    self.status_var.set("Opened user guide in default browser")
+            else:
+                messagebox.showwarning("File Not Found", f"User guide not found at:\n{guide_path}")
+        except Exception as e:
+            logging.error(f"Error opening local user guide: {e}")
+            messagebox.showerror("Error", f"Could not open user guide: {e}")
+
+    def _rebuild_custom_urls_menu(self):
+        """Rebuild the custom URLs section of the URLs menu."""
+        if not self.urls_menu:
+            return
+        
+        # Find and remove existing custom URL items (after the last separator before custom section)
+        # We'll track the index where custom URLs start
+        menu_size = self.urls_menu.index(tk.END)
+        if menu_size is None:
+            return
+        
+        # Find the last separator (which is before custom URLs section)
+        # Remove items from the end until we hit the separator before "Stock Forecast"
+        # Actually, let's just add items at the end - the menu was built with custom section last
+        
+        # Remove all items after the ticker-specific separator
+        # Count separators to find where custom section starts
+        sep_count = 0
+        custom_start_idx = None
+        for i in range(menu_size + 1):
+            try:
+                item_type = self.urls_menu.type(i)
+                if item_type == 'separator':
+                    sep_count += 1
+                    if sep_count == 8:  # 8th separator is before custom URLs
+                        custom_start_idx = i + 1
+                        break
+            except:
+                break
+        
+        if custom_start_idx is not None:
+            # Delete from custom_start_idx to end
+            # Use a bounded loop to prevent infinite loops
+            for _ in range(100):  # Safety limit
+                try:
+                    current_size = self.urls_menu.index(tk.END)
+                    if current_size is None or custom_start_idx > current_size:
+                        break
+                    self.urls_menu.delete(custom_start_idx)
+                except:
+                    break
+        
+        # Add saved custom URLs
+        if self.custom_urls:
+            for item in self.custom_urls:
+                name = item.get('name', 'Custom')
+                url = item.get('url', '')
+                self.urls_menu.add_command(
+                    label=f"⭐ {name}",
+                    command=lambda u=url: webbrowser.open(u)
+                )
+            self.urls_menu.add_separator()
+        
+        # Add management commands
+        self.urls_menu.add_command(label="➕ Add Custom URL...", command=self._add_custom_url)
+        if self.custom_urls:
+            self.urls_menu.add_command(label="🗑️ Remove Custom URL...", command=self._remove_custom_url)
+
+    def _add_custom_url(self):
+        """Add a new custom URL with name and persist it."""
+        # Create a dialog for name and URL
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Add Custom URL")
+        dialog.geometry("400x150")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Center the dialog
+        dialog.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() - 400) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - 150) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        ttk.Label(dialog, text="Name:").grid(row=0, column=0, padx=10, pady=10, sticky='e')
+        name_entry = ttk.Entry(dialog, width=40)
+        name_entry.grid(row=0, column=1, padx=10, pady=10)
+        
+        ttk.Label(dialog, text="URL:").grid(row=1, column=0, padx=10, pady=10, sticky='e')
+        url_entry = ttk.Entry(dialog, width=40)
+        url_entry.grid(row=1, column=1, padx=10, pady=10)
+        url_entry.insert(0, "https://")
+        
+        def save_url():
+            name = name_entry.get().strip()
+            url = url_entry.get().strip()
+            
+            if not name:
+                messagebox.showwarning("Missing Name", "Please enter a name for the URL.")
+                return
+            if not url or url == "https://":
+                messagebox.showwarning("Missing URL", "Please enter a valid URL.")
+                return
+            
+            # Add protocol if missing
+            if not url.startswith(("http://", "https://")):
+                url = "https://" + url
+            
+            self.custom_urls.append({'name': name, 'url': url})
+            self._save_custom_urls()
+            self._rebuild_custom_urls_menu()
+            self.status_var.set(f"Added custom URL: {name}")
+            dialog.destroy()
+        
+        btn_frame = ttk.Frame(dialog)
+        btn_frame.grid(row=2, column=0, columnspan=2, pady=15)
+        ttk.Button(btn_frame, text="Save", command=save_url).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Cancel", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
+        
+        name_entry.focus_set()
+        dialog.bind('<Return>', lambda e: save_url())
+        dialog.bind('<Escape>', lambda e: dialog.destroy())
+
+    def _remove_custom_url(self):
+        """Remove a custom URL from the list."""
+        if not self.custom_urls:
+            messagebox.showinfo("No Custom URLs", "There are no custom URLs to remove.")
+            return
+        
+        # Create selection dialog
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Remove Custom URL")
+        dialog.geometry("350x200")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Center the dialog
+        dialog.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() - 350) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - 200) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        ttk.Label(dialog, text="Select URL to remove:").pack(pady=10)
+        
+        listbox = tk.Listbox(dialog, width=45, height=6)
+        listbox.pack(padx=10, pady=5, fill=tk.BOTH, expand=True)
+        
+        for item in self.custom_urls:
+            listbox.insert(tk.END, f"{item['name']} - {item['url'][:40]}...")
+        
+        def remove_selected():
+            selection = listbox.curselection()
+            if not selection:
+                messagebox.showwarning("No Selection", "Please select a URL to remove.")
+                return
+            
+            idx = selection[0]
+            removed = self.custom_urls.pop(idx)
+            self._save_custom_urls()
+            self._rebuild_custom_urls_menu()
+            self.status_var.set(f"Removed custom URL: {removed['name']}")
+            dialog.destroy()
+        
+        btn_frame = ttk.Frame(dialog)
+        btn_frame.pack(pady=10)
+        ttk.Button(btn_frame, text="Remove", command=remove_selected).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Cancel", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
+        
+        dialog.bind('<Return>', lambda e: remove_selected())
+        dialog.bind('<Escape>', lambda e: dialog.destroy())
+
+    def _open_stock_forecast(self):
+        """Open Stock Analysis forecast page for the currently selected ticker"""
+        ticker = self._get_selected_ticker()
+        if not ticker:
+            messagebox.showwarning("No Ticker Selected", "Please select a ticker first.")
+            return
+        url = f"https://stockanalysis.com/stocks/{ticker.lower()}/forecast/"
+        webbrowser.open(url)
+        self.status_var.set(f"Opened forecast for {ticker}")
+
+    def _open_stockcharts_ui(self):
+        """Open StockCharts UI for the currently selected ticker (or QQQ as default)"""
+        ticker = self._get_selected_ticker()
+        if not ticker:
+            ticker = "QQQ"  # Default to QQQ if no ticker selected
+        url = f"https://stockcharts.com/sc3/ui/?s={ticker.upper()}"
+        webbrowser.open(url)
+        self.status_var.set(f"Opened StockCharts UI for {ticker}")
+
+    def _get_selected_ticker(self):
+        """Get the currently selected ticker from either listbox"""
+        # Check main ticker listbox first
+        selection = self.ticker_listbox.curselection()
+        if selection:
+            return self.ticker_listbox.get(selection[0])
+        # Check watch listbox
+        selection = self.watch_listbox.curselection()
+        if selection:
+            return self.watch_listbox.get(selection[0])
+        return None
+
     def _setup_ticker_context_menu(self):
         """Set up the context menu for the ticker listbox"""
         # Bind right-click event
@@ -1967,6 +2581,9 @@ class StockDataGUI:
                 
         # Save updated watch list
         self._save_watch_list()
+        
+        # Update tab counts
+        self._update_ticker_tab_counts()
 
     def _get_selected_tickers(self, show_warning=True):
         """Get selected tickers preferring the main list; fall back to watch list if needed."""
@@ -2016,6 +2633,9 @@ class StockDataGUI:
         if added_count > 0:
             # Save the updated watch list to ticker_lists.py
             self._save_watch_list()
+            
+            # Update tab counts
+            self._update_ticker_tab_counts()
 
             if added_count == 1:
                 self.status_var.set(f"Added {selected_tickers[0]} to watch list and saved")
@@ -2377,6 +2997,18 @@ class StockDataGUI:
         
         # Use the background download functionality instead of blocking the UI thread
         self._download_data_with_force_option(selected_tickers, force_download)
+
+    def _download_all_data(self):
+        """Download or update data for ALL tickers in the current ticker list"""
+        if not self.current_tickers:
+            messagebox.showwarning("No Tickers", "There are no tickers in the current list to download.")
+            return
+        
+        # Get force download setting
+        force_download = self.force_download_var.get()
+        
+        # Use the background download functionality for all tickers
+        self._download_data_with_force_option(self.current_tickers, force_download)
         
     def _download_data_with_force_option(self, tickers, force_download=False):
         """Download data for multiple tickers in a background thread with force option
@@ -2488,6 +3120,15 @@ class StockDataGUI:
                 self.status_var.set(f"Visualizing all timeframes for {ticker}...")
                 self.root.update_idletasks()
 
+                # Force reload data from disk to ensure we have the latest
+                # This clears any potential caching and re-reads the TSV file
+                data = self.manager.load_data(ticker)
+                if data is None or data.empty:
+                    self.status_var.set(f"No data available for {ticker}, downloading...")
+                    self.root.update_idletasks()
+                    # Download fresh data if none exists
+                    self.manager.update_data(ticker, force_download=True)
+
                 # Generate the chart
                 self.manager.visualize_daily_vs_weekly(ticker)
 
@@ -2552,13 +3193,26 @@ class StockDataGUI:
 
             # --- Process Data for Selected Years ---
             year_data = {}
-            all_trading_days = set()
+            # Use a fixed range of trading days (1-252) to represent a full year
+            # This ensures the x-axis always spans the entire year
+            full_year_trading_days = set(range(1, 253))
+            
             for year in selected_years:
                 year_df = data[data['Year'] == year].copy()
                 if len(year_df) < 30: continue
                 
                 year_df = year_df.sort_values('Date').reset_index()
-                year_df['TradingDayNum'] = range(1, len(year_df) + 1)
+                
+                # Calculate the trading day number based on the calendar position within the year
+                # This normalizes all years to start from day 1 (Jan 1) regardless of actual data start
+                year_df['DayOfYear'] = year_df['Date'].dt.dayofyear
+                
+                # Map calendar day of year to approximate trading day number
+                # Assuming ~252 trading days per year and ~365 calendar days
+                # Trading day = (DayOfYear / 365) * 252, rounded to nearest integer
+                year_df['TradingDayNum'] = ((year_df['DayOfYear'] / 365.0) * 252).round().astype(int)
+                year_df['TradingDayNum'] = year_df['TradingDayNum'].clip(lower=1, upper=252)
+                
                 # Convert Close column to float to avoid type mismatch
                 year_df['Close'] = pd.to_numeric(year_df['Close'], errors='coerce')
                 # Drop any rows where conversion failed
@@ -2567,8 +3221,12 @@ class StockDataGUI:
                 first_close = float(year_df['Close'].iloc[0])
                 year_df['PctChange'] = ((year_df['Close'] - first_close) / first_close) * 100
                 
-                year_data[year] = year_df[['TradingDayNum', 'PctChange', 'Date']].set_index('TradingDayNum')
-                all_trading_days.update(year_df['TradingDayNum'])
+                # Group by TradingDayNum to handle duplicate mappings (take last value for each day)
+                year_df_grouped = year_df.groupby('TradingDayNum').agg({
+                    'PctChange': 'last',
+                    'Date': 'last'
+                })
+                year_data[year] = year_df_grouped
 
             if not year_data:
                 messagebox.showwarning("Insufficient Data", f"No valid years with enough data for {ticker}.")
@@ -2586,19 +3244,32 @@ class StockDataGUI:
 
             # --- Calculate and Plot Average ---
             if len(selected_years) > 1:
-                avg_df = pd.DataFrame(index=sorted(all_trading_days))
+                # Collect all trading days that have actual data from any year
+                all_data_days = set()
+                for year_df in year_data.values():
+                    all_data_days.update(year_df.index.tolist())
+                
+                avg_df = pd.DataFrame(index=sorted(all_data_days))
                 for year, year_df in year_data.items():
                     avg_df[year] = year_df['PctChange']
+                
+                # Calculate average only where we have data, then interpolate gaps
                 avg_df['Average'] = avg_df.mean(axis=1)
-                if len(avg_df) > 5:
-                    avg_df['Average'] = avg_df['Average'].rolling(window=3, min_periods=1, center=True).mean()
+                avg_df['Average'] = avg_df['Average'].interpolate(method='linear', limit_direction='both')
+                
+                # Apply stronger smoothing to reduce choppiness (window=10 for ~2 weeks of trading)
+                if len(avg_df) > 10:
+                    avg_df['Average'] = avg_df['Average'].rolling(window=10, min_periods=1, center=True).mean()
+                
                 fig.add_trace(go.Scatter(x=avg_df.index, y=avg_df['Average'], mode='lines', name='Average', line=dict(color='black', width=3), opacity=0.8))
 
             # --- Finalize and Display Figure ---
-            fig.add_shape(type="line", x0=min(all_trading_days), y0=0, x1=max(all_trading_days), y1=0, line=dict(color="black", width=1, dash="dash"))
+            # Use fixed x-axis range (1-252) to always show full year
+            fig.add_shape(type="line", x0=1, y0=0, x1=252, y1=0, line=dict(color="black", width=1, dash="dash"))
             fig.update_layout(title=f'{ticker} Seasonality - Selected Years', xaxis_title='Trading Day Number', yaxis_title='Percentage Change (%)',
                               height=600, hovermode='closest', legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                              margin=dict(l=50, r=50, t=80, b=50))
+                              margin=dict(l=50, r=50, t=80, b=50),
+                              xaxis=dict(range=[1, 252]))  # Force x-axis to show full year range
             
             self.current_chart_ticker = ticker
             self._display_seasonality_figure(fig)
@@ -3650,6 +4321,10 @@ class StockDataGUI:
                 
             # Populate the treeview from the cache (this will apply any filter)
             self._populate_fundamental_treeview()
+            
+            # Update business snapshot with key metrics
+            self._update_business_snapshot(all_data, tickers[0] if tickers else None)
+            
             self.status_var.set(f"Displayed fundamental data for {', '.join(tickers)}")
             
         except Exception as e:
@@ -3657,6 +4332,93 @@ class StockDataGUI:
             self.status_var.set(error_msg)
             logging.error(error_msg)
             messagebox.showerror("Error", error_msg)
+
+    def _update_business_snapshot(self, data, ticker):
+        """Update the business snapshot panel with key metrics from fundamental data.
+        
+        Args:
+            data: Dictionary of fundamental data
+            ticker: The ticker symbol being displayed
+        """
+        try:
+            if not data or not ticker:
+                self.snapshot_name_var.set("Select a ticker")
+                self.snapshot_sector_var.set("")
+                for var in self.snapshot_vars.values():
+                    var.set("--")
+                return
+            
+            # Get the first ticker's data
+            ticker_data = data.get(ticker, {})
+            
+            # Company name and sector
+            name = ticker_data.get('longName', ticker_data.get('shortName', ticker))
+            self.snapshot_name_var.set(f"{ticker} - {name}")
+            
+            sector = ticker_data.get('sector', '')
+            industry = ticker_data.get('industry', '')
+            if sector and industry:
+                self.snapshot_sector_var.set(f"{sector} | {industry}")
+            elif sector:
+                self.snapshot_sector_var.set(sector)
+            else:
+                self.snapshot_sector_var.set("")
+            
+            # Format market cap
+            mcap = ticker_data.get('marketCap', 0)
+            if mcap:
+                if mcap >= 1e12:
+                    mcap_str = f"${mcap/1e12:.2f}T"
+                elif mcap >= 1e9:
+                    mcap_str = f"${mcap/1e9:.2f}B"
+                elif mcap >= 1e6:
+                    mcap_str = f"${mcap/1e6:.2f}M"
+                else:
+                    mcap_str = f"${mcap:,.0f}"
+            else:
+                mcap_str = "--"
+            self.snapshot_vars['snapshot_mcap'].set(mcap_str)
+            
+            # P/E Ratio
+            pe = ticker_data.get('trailingPE', ticker_data.get('forwardPE', None))
+            self.snapshot_vars['snapshot_pe'].set(f"{pe:.2f}" if pe else "--")
+            
+            # Revenue (total revenue)
+            revenue = ticker_data.get('totalRevenue', 0)
+            if revenue:
+                if revenue >= 1e12:
+                    rev_str = f"${revenue/1e12:.2f}T"
+                elif revenue >= 1e9:
+                    rev_str = f"${revenue/1e9:.2f}B"
+                elif revenue >= 1e6:
+                    rev_str = f"${revenue/1e6:.2f}M"
+                else:
+                    rev_str = f"${revenue:,.0f}"
+            else:
+                rev_str = "--"
+            self.snapshot_vars['snapshot_revenue'].set(rev_str)
+            
+            # Dividend yield
+            div_yield = ticker_data.get('dividendYield', None)
+            if div_yield:
+                self.snapshot_vars['snapshot_div'].set(f"{div_yield*100:.2f}%")
+            else:
+                self.snapshot_vars['snapshot_div'].set("--")
+            
+            # 52-week range
+            low_52w = ticker_data.get('fiftyTwoWeekLow', None)
+            high_52w = ticker_data.get('fiftyTwoWeekHigh', None)
+            if low_52w and high_52w:
+                self.snapshot_vars['snapshot_52w'].set(f"${low_52w:.2f} - ${high_52w:.2f}")
+            else:
+                self.snapshot_vars['snapshot_52w'].set("--")
+            
+            # Beta
+            beta = ticker_data.get('beta', None)
+            self.snapshot_vars['snapshot_beta'].set(f"{beta:.2f}" if beta else "--")
+            
+        except Exception as e:
+            logging.debug(f"Error updating business snapshot: {e}")
 
     def _save_filter(self):
         """Save the current filter to a file (ticker-agnostic)"""
@@ -4341,33 +5103,33 @@ class StockDataGUI:
                 self.root.update_idletasks()
                 self._download_data_in_background(missing_tickers)
 
-            # Check for missing or outdated visualizations and generate them
-            for ticker in selected_tickers:
-                timeframe_plot_path = os.path.join(plots_dir, f"{ticker}_daily_weekly_monthly.png")
-                data_path = self.manager._get_data_path(ticker)
-
-                # Check if chart needs to be generated or updated
-                chart_outdated = False
-
-                # If chart doesn't exist, it needs to be generated
-                if not os.path.exists(timeframe_plot_path):
-                    chart_outdated = True
-                # If chart exists, check if data file is newer than chart file
-                elif os.path.exists(data_path):
-                    chart_mod_time = os.path.getmtime(timeframe_plot_path)
-                    data_mod_time = os.path.getmtime(data_path)
-
-                    # If data file is newer, chart is outdated
-                    if data_mod_time > chart_mod_time:
-                        chart_outdated = True
-                        self.status_var.set(f"Chart for {ticker} is outdated. Regenerating...")
-                        self.root.update_idletasks()
-
-                # Generate chart if needed
-                if chart_outdated:
-                    self.status_var.set(f"Generating visualizations for {ticker}...")
-                    self.root.update_idletasks()
+            # Always regenerate charts to ensure they use the latest data
+            # This is more reliable than checking file modification times
+            logging.info(f"Regenerating charts for {len(selected_tickers)} tickers to plots_dir: {plots_dir}")
+            for i, ticker in enumerate(selected_tickers):
+                self.status_var.set(f"Generating chart for {ticker} ({i+1}/{len(selected_tickers)})...")
+                self.root.update_idletasks()
+                try:
+                    # Ensure plot_save_path is set to the correct absolute path
+                    original_plot_path = self.manager.plot_save_path
+                    self.manager.plot_save_path = os.path.abspath(plots_dir)
+                    
                     self.manager.visualize_daily_vs_weekly(ticker)
+                    
+                    # Log the generated file path
+                    chart_path = os.path.join(self.manager.plot_save_path, f"{ticker}_daily_weekly_monthly.png")
+                    if os.path.exists(chart_path):
+                        mod_time = datetime.fromtimestamp(os.path.getmtime(chart_path))
+                        logging.info(f"Generated chart for {ticker} at {chart_path}, modified: {mod_time}")
+                    else:
+                        logging.warning(f"Chart file not found after generation: {chart_path}")
+                    
+                    # Restore original path
+                    self.manager.plot_save_path = original_plot_path
+                except Exception as e:
+                    logging.error(f"Could not generate chart for {ticker}: {e}")
+                    import traceback
+                    logging.error(traceback.format_exc())
 
             # Get the current ticker list name
             current_list_name = self.ticker_list_var.get() or "custom_list"
@@ -5329,7 +6091,6 @@ class StockDataGUI:
         self.root.update_idletasks()
 
         def clipboard_thread():
-            import re
             # Detect URLs in clipboard content
             url_pattern = r'https?://[^\s<>"\']+|www\.[^\s<>"\']+'
             detected_urls = re.findall(url_pattern, clipboard_content)
@@ -5580,19 +6341,27 @@ class StockDataGUI:
 
     def _extract_tickers_from_text(self, text: str) -> List[str]:
         """Extract potential stock tickers from raw text content."""
-        import re
-        # Common words that look like tickers but aren't
+        # Common words that look like tickers but aren't (deduplicated)
         common_words = {
+            # Single letters and pronouns
             'A', 'I', 'AM', 'PM', 'AN', 'AS', 'AT', 'BE', 'BY', 'DO', 'GO', 'HE', 'IF', 'IN', 'IS', 'IT',
-            'ME', 'MY', 'NO', 'OF', 'OK', 'ON', 'OR', 'SO', 'TO', 'UP', 'US', 'WE', 'CEO', 'CFO', 'COO',
-            'CTO', 'IPO', 'ETF', 'SEC', 'FDA', 'FED', 'GDP', 'USA', 'USD', 'EUR', 'GBP', 'JPY', 'CNY',
-            'AI', 'API', 'CEO', 'CIO', 'COO', 'CTO', 'CFO', 'CMO', 'HR', 'IT', 'PR', 'VP', 'SVP', 'EVP',
-            'LLC', 'INC', 'LTD', 'PLC', 'AG', 'SA', 'NV', 'BV', 'AB', 'ASA', 'OYJ', 'SE', 'SPA', 'SARL',
+            'ME', 'MY', 'NO', 'OF', 'OK', 'ON', 'OR', 'SO', 'TO', 'UP', 'US', 'WE',
+            # Common verbs and articles
             'THE', 'AND', 'FOR', 'ARE', 'BUT', 'NOT', 'YOU', 'ALL', 'CAN', 'HAD', 'HER', 'WAS', 'ONE',
             'OUR', 'OUT', 'DAY', 'GET', 'HAS', 'HIM', 'HIS', 'HOW', 'ITS', 'MAY', 'NEW', 'NOW', 'OLD',
-            'SEE', 'WAY', 'WHO', 'BOY', 'DID', 'OWN', 'SAY', 'SHE', 'TOO', 'USE', 'Q1', 'Q2', 'Q3', 'Q4',
-            'YOY', 'QOQ', 'MOM', 'YTD', 'MTD', 'WTD', 'EPS', 'P/E', 'PE', 'ROI', 'ROE', 'ROA', 'EBITDA',
-            'GAAP', 'NON', 'VS', 'EST', 'AVG', 'MAX', 'MIN', 'PCT', 'BPS', 'YEN', 'GBX', 'CHF',
+            'SEE', 'WAY', 'WHO', 'BOY', 'DID', 'OWN', 'SAY', 'SHE', 'TOO', 'USE',
+            # Business titles
+            'CEO', 'CFO', 'COO', 'CTO', 'CIO', 'CMO', 'HR', 'IT', 'PR', 'VP', 'SVP', 'EVP',
+            # Financial terms
+            'IPO', 'ETF', 'SEC', 'FDA', 'FED', 'GDP', 'AI', 'API',
+            'Q1', 'Q2', 'Q3', 'Q4', 'YOY', 'QOQ', 'MOM', 'YTD', 'MTD', 'WTD',
+            'EPS', 'PE', 'ROI', 'ROE', 'ROA', 'EBITDA', 'GAAP', 'NON', 'VS', 'EST', 'AVG', 'MAX', 'MIN', 'PCT', 'BPS',
+            # Currencies and countries
+            'USA', 'USD', 'EUR', 'GBP', 'JPY', 'CNY', 'YEN', 'GBX', 'CHF',
+            # Company suffixes
+            'LLC', 'INC', 'LTD', 'PLC', 'AG', 'SA', 'NV', 'BV', 'AB', 'ASA', 'OYJ', 'SE', 'SPA', 'SARL',
+            # HTML/Web terms often found in scraped content
+            'HTTP', 'HTTPS', 'HTML', 'CSS', 'JSON', 'XML', 'URL', 'WWW', 'COM', 'ORG', 'NET', 'EDU', 'GOV',
         }
         
         # Pattern: 1-5 uppercase letters, optionally followed by .A or .B (for share classes)
@@ -5787,20 +6556,15 @@ class StockDataGUI:
             self.sec_api_status_var.set("Using real SEC API with caching (recommended for production)")
     
     def _clear_sec_cache(self):
-        """Clear the SEC API cache"""
+        """Clear the SEC API cache (both file and in-memory)"""
         try:
-            import shutil
-            from pathlib import Path
+            import sec_api_cache
             
-            cache_dir = Path("sec_cache")
-            if cache_dir.exists():
-                shutil.rmtree(cache_dir)
-                os.makedirs(cache_dir, exist_ok=True)
-                self.sec_api_status_var.set("SEC cache cleared successfully")
-                messagebox.showinfo("Cache Cleared", "SEC API cache has been cleared successfully.")
-            else:
-                self.sec_api_status_var.set("No SEC cache to clear")
-                messagebox.showinfo("No Cache", "No SEC cache directory found.")
+            # Use the centralized cache clearing function
+            sec_api_cache.clear_all_cache(include_memory=True)
+            
+            self.sec_api_status_var.set("SEC cache cleared successfully (file + memory)")
+            messagebox.showinfo("Cache Cleared", "SEC API cache has been cleared successfully.\n\nBoth file cache and in-memory cache have been cleared.")
         except Exception as e:
             error_msg = f"Error clearing SEC cache: {str(e)}"
             self.sec_api_status_var.set(error_msg)
@@ -5846,24 +6610,28 @@ class StockDataGUI:
         # Run extraction in a separate thread to avoid freezing the GUI
         def extraction_thread():
             try:
-                # Get SEC API wrapper (will use mock or real based on checkbox)
-                api = sec_api_wrapper.sec_api
+                # Sync mock setting BEFORE getting API instance (fixes mock toggle sync issue)
                 using_mock = self.use_mock_data_var.get()
+                sec_api_wrapper.use_mock_sec_api(using_mock)
+                api = sec_api_wrapper.sec_api
                 
-                # Update business analysis text area with status
-                self.business_analysis_text.delete("1.0", tk.END)
-                self.business_analysis_text.insert(tk.END, f"Extracting {form_type} tables for {ticker}...\n\n")
+                # Helper function for thread-safe text updates
+                def update_text(message, clear=False):
+                    if clear:
+                        safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
+                    safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, message)
+                
+                # Update business analysis text area with status (thread-safe)
+                update_text(f"Extracting {form_type} tables for {ticker}...\n\n", clear=True)
                 if using_mock:
-                    self.business_analysis_text.insert(tk.END, "Using MOCK SEC data for testing\n\n")
+                    update_text("Using MOCK SEC data for testing\n\n")
                 else:
-                    self.business_analysis_text.insert(tk.END, "Using real SEC API with caching and rate limiting\n\n")
+                    update_text("Using real SEC API with caching and rate limiting\n\n")
                     
-                self.business_analysis_text.insert(tk.END, "Step 1: Getting company CIK...\n")
-                self.root.update_idletasks()
+                update_text("Step 1: Getting company CIK...\n")
                 
-                # Update SEC tab status
-                self.sec_status_var.set(f"Step 1: Getting company CIK for {ticker}...")
-                self.root.update_idletasks()
+                # Update SEC tab status (thread-safe)
+                safe_update_status(self.sec_status_var, f"Step 1: Getting company CIK for {ticker}...")
                 
                 # Get company CIK using the wrapper
                 start_time = time.time()
@@ -5871,15 +6639,14 @@ class StockDataGUI:
                 elapsed = time.time() - start_time
                 
                 if not cik:
-                    self.business_analysis_text.insert(tk.END, f"Error: Could not find CIK for {ticker}\n")
-                    self.sec_status_var.set(f"Error: Could not find CIK for {ticker}")
-                    self.status_var.set(f"Error: Could not find CIK for {ticker}")
+                    update_text(f"Error: Could not find CIK for {ticker}\n")
+                    safe_update_status(self.sec_status_var, f"Error: Could not find CIK for {ticker}")
+                    safe_update_status(self.status_var, f"Error: Could not find CIK for {ticker}")
                     return
                 
-                self.business_analysis_text.insert(tk.END, f"Found CIK: {cik} (took {elapsed:.2f}s)\n\n")
-                self.business_analysis_text.insert(tk.END, f"Step 2: Getting latest {form_type} filing info...\n")
-                self.sec_status_var.set(f"Step 2: Getting latest {form_type} filing info...")
-                self.root.update_idletasks()
+                update_text(f"Found CIK: {cik} (took {elapsed:.2f}s)\n\n")
+                update_text(f"Step 2: Getting latest {form_type} filing info...\n")
+                safe_update_status(self.sec_status_var, f"Step 2: Getting latest {form_type} filing info...")
                 
                 # Get latest filing info using the wrapper
                 start_time = time.time()
@@ -5887,16 +6654,15 @@ class StockDataGUI:
                 elapsed = time.time() - start_time
                 
                 if not filing_info:
-                    self.business_analysis_text.insert(tk.END, f"Error: Could not find {form_type} filing for {ticker}\n")
-                    self.sec_status_var.set(f"Error: Could not find {form_type} filing for {ticker}")
-                    self.status_var.set(f"Error: Could not find {form_type} filing for {ticker}")
+                    update_text(f"Error: Could not find {form_type} filing for {ticker}\n")
+                    safe_update_status(self.sec_status_var, f"Error: Could not find {form_type} filing for {ticker}")
+                    safe_update_status(self.status_var, f"Error: Could not find {form_type} filing for {ticker}")
                     return
                 
-                self.business_analysis_text.insert(tk.END, f"Found {form_type} filing from {filing_info['filingDate']} (took {elapsed:.2f}s)\n")
-                self.business_analysis_text.insert(tk.END, f"Filing URL: {filing_info['detailUrl']}\n\n")
-                self.business_analysis_text.insert(tk.END, "Step 3: Downloading filing...\n")
-                self.sec_status_var.set(f"Step 3: Downloading {form_type} filing from {filing_info['filingDate']}...")
-                self.root.update_idletasks()
+                update_text(f"Found {form_type} filing from {filing_info['filingDate']} (took {elapsed:.2f}s)\n")
+                update_text(f"Filing URL: {filing_info['detailUrl']}\n\n")
+                update_text("Step 3: Downloading filing...\n")
+                safe_update_status(self.sec_status_var, f"Step 3: Downloading {form_type} filing from {filing_info['filingDate']}...")
                 
                 # Download filing using the wrapper
                 start_time = time.time()
@@ -5904,73 +6670,70 @@ class StockDataGUI:
                 elapsed = time.time() - start_time
                 
                 if not html_content:
-                    self.business_analysis_text.insert(tk.END, "Error: Failed to download filing\n")
-                    self.sec_status_var.set("Error: Failed to download filing")
-                    self.status_var.set("Error: Failed to download filing")
+                    update_text("Error: Failed to download filing\n")
+                    safe_update_status(self.sec_status_var, "Error: Failed to download filing")
+                    safe_update_status(self.status_var, "Error: Failed to download filing")
                     return
                 
-                self.business_analysis_text.insert(tk.END, f"Successfully downloaded {len(html_content)} bytes (took {elapsed:.2f}s)\n\n")
-                self.business_analysis_text.insert(tk.END, "Step 4: Extracting tables...\n")
-                self.sec_status_var.set("Step 4: Extracting tables...")
-                self.root.update_idletasks()
+                update_text(f"Successfully downloaded {len(html_content)} bytes (took {elapsed:.2f}s)\n\n")
+                update_text("Step 4: Extracting tables...\n")
+                safe_update_status(self.sec_status_var, "Step 4: Extracting tables...")
                 
-                # Extract tables
+                # Extract tables using the wrapper (consolidated API)
                 start_time = time.time()
-                tables = sec_filing_extractor.extract_tables(html_content)
+                tables = api.extract_tables(html_content)
                 elapsed = time.time() - start_time
                 
                 if not tables:
-                    self.business_analysis_text.insert(tk.END, "Error: No tables found in filing\n")
-                    self.sec_status_var.set("Error: No tables found in filing")
-                    self.status_var.set("Error: No tables found in filing")
+                    update_text("Error: No tables found in filing\n")
+                    safe_update_status(self.sec_status_var, "Error: No tables found in filing")
+                    safe_update_status(self.status_var, "Error: No tables found in filing")
                     return
                 
-                self.business_analysis_text.insert(tk.END, f"Found {len(tables)} tables (took {elapsed:.2f}s)\n\n")
-                self.business_analysis_text.insert(tk.END, "Step 5: Identifying financial tables...\n")
-                self.sec_status_var.set("Step 5: Identifying financial tables...")
-                self.root.update_idletasks()
+                update_text(f"Found {len(tables)} tables (took {elapsed:.2f}s)\n\n")
+                update_text("Step 5: Identifying financial tables...\n")
+                safe_update_status(self.sec_status_var, "Step 5: Identifying financial tables...")
                 
-                # Identify financial tables
+                # Identify financial tables using the wrapper (consolidated API)
                 start_time = time.time()
-                financial_tables = sec_filing_extractor.identify_financial_tables(tables)
+                financial_tables = api.identify_financial_tables(tables)
                 elapsed = time.time() - start_time
                 
                 # Count identified tables
                 identified_count = sum(1 for table in financial_tables.values() if table is not None)
-                self.business_analysis_text.insert(tk.END, f"Identified {identified_count} financial tables (took {elapsed:.2f}s)\n\n")
-                self.business_analysis_text.insert(tk.END, "Step 6: Saving tables to Excel...\n")
-                self.sec_status_var.set("Step 6: Saving tables to Excel...")
-                self.root.update_idletasks()
+                update_text(f"Identified {identified_count} financial tables (took {elapsed:.2f}s)\n\n")
+                update_text("Step 6: Saving tables to Excel...\n")
+                safe_update_status(self.sec_status_var, "Step 6: Saving tables to Excel...")
                 
-                # Save tables to Excel
+                # Save tables to Excel using the wrapper (consolidated API)
                 start_time = time.time()
-                success = sec_filing_extractor.save_tables_to_excel(financial_tables, tables, ticker, output_dir)
+                success = api.save_tables_to_excel(financial_tables, tables, ticker, output_dir)
                 elapsed = time.time() - start_time
                 
                 if success:
-                    self.business_analysis_text.insert(tk.END, f"\nSuccessfully extracted and saved tables for {ticker} (took {elapsed:.2f}s)\n")
-                    self.business_analysis_text.insert(tk.END, f"\nFiles saved to: {os.path.abspath(output_dir)}\n")
+                    update_text(f"\nSuccessfully extracted and saved tables for {ticker} (took {elapsed:.2f}s)\n")
+                    update_text(f"\nFiles saved to: {os.path.abspath(output_dir)}\n")
                     
                     # Store tables for display in SEC tab
                     self.sec_tables = tables
                     self.sec_financial_tables = financial_tables
                     self.sec_output_dir = output_dir
                     
-                    # Update SEC tab with available tables
-                    self._update_sec_table_list()
+                    # Update SEC tab with available tables (schedule on main thread)
+                    self.root.after(0, self._update_sec_table_list)
                     
-                    self.sec_status_var.set(f"Successfully extracted {len(tables)} tables ({identified_count} financial tables)")
-                    self.status_var.set(f"Successfully extracted {form_type} tables for {ticker}")
+                    safe_update_status(self.sec_status_var, f"Successfully extracted {len(tables)} tables ({identified_count} financial tables)")
+                    safe_update_status(self.status_var, f"Successfully extracted {form_type} tables for {ticker}")
                 else:
-                    self.business_analysis_text.insert(tk.END, "\nError: Failed to save tables to Excel\n")
-                    self.sec_status_var.set("Error: Failed to save tables to Excel")
-                    self.status_var.set("Error: Failed to save tables to Excel")
+                    update_text("\nError: Failed to save tables to Excel\n")
+                    safe_update_status(self.sec_status_var, "Error: Failed to save tables to Excel")
+                    safe_update_status(self.status_var, "Error: Failed to save tables to Excel")
                     
             except Exception as e:
                 error_msg = f"Error extracting {form_type} tables: {str(e)}"
-                self.business_analysis_text.insert(tk.END, f"\n{error_msg}\n")
-                self.sec_status_var.set(error_msg)
-                self.status_var.set(error_msg)
+                safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, f"\n{error_msg}\n")
+                safe_update_status(self.sec_status_var, error_msg)
+                safe_update_status(self.status_var, error_msg)
                 logging.error(error_msg)
                 logging.error(traceback.format_exc())
         
@@ -6054,7 +6817,7 @@ class StockDataGUI:
                 self._display_sec_table(table, f"{self.sec_ticker_var.get()} - {selected_item}")
     
     def _display_sec_table(self, table, title):
-        """Display a SEC table in the treeview"""
+        """Display a SEC table in the treeview with auto-adjusted column widths"""
         # Clear existing columns and items
         for col in self.sec_table_tree['columns']:
             self.sec_table_tree.heading(col, text="")
@@ -6070,12 +6833,31 @@ class StockDataGUI:
         columns = list(table.columns)
         self.sec_table_tree['columns'] = columns
         
-        # Configure column headings
+        # Calculate optimal column widths based on content
+        # Use a font-based estimation (approx 7 pixels per character)
+        CHAR_WIDTH = 8
+        MIN_COL_WIDTH = 60
+        MAX_COL_WIDTH = 250
+        
+        # Configure column headings with auto-adjusted widths
         for col in columns:
             self.sec_table_tree.heading(col, text=str(col))
-            # Set a reasonable width based on content
-            max_width = max(len(str(col)), table[col].astype(str).str.len().max() * 10)
-            self.sec_table_tree.column(col, width=min(max_width, 300))
+            
+            # Calculate width based on header and content
+            header_width = len(str(col)) * CHAR_WIDTH + 20  # Extra padding for header
+            
+            # Get max content width (sample first 50 rows for performance)
+            try:
+                sample = table[col].head(50).astype(str)
+                max_content_len = sample.str.len().max() if len(sample) > 0 else 0
+                content_width = max_content_len * CHAR_WIDTH + 10
+            except:
+                content_width = MIN_COL_WIDTH
+            
+            # Use the larger of header or content width, bounded by min/max
+            col_width = max(MIN_COL_WIDTH, min(MAX_COL_WIDTH, max(header_width, content_width)))
+            
+            self.sec_table_tree.column(col, width=int(col_width), minwidth=MIN_COL_WIDTH)
             
         # Add data rows
         for i, row in table.iterrows():

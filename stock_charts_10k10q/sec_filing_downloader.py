@@ -1,8 +1,31 @@
+"""
+SEC Filing Downloader - DEPRECATED
+
+This module is deprecated. Please use sec_api_wrapper instead:
+
+    from sec_api_wrapper import sec_api
+    
+    cik = sec_api.get_company_cik(ticker)
+    filing_info = sec_api.get_latest_filing_info(cik, form_type)
+    html_content = sec_api.download_filing(filing_info)
+
+This module will be removed in a future version.
+"""
+
+import warnings
 import requests
 import sys
 import os
 import time
 import argparse
+
+# Emit deprecation warning when module is imported
+warnings.warn(
+    "sec_filing_downloader is deprecated. Use sec_api_wrapper instead. "
+    "See module docstring for migration guide.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 def get_headers():
     """

@@ -199,26 +199,20 @@ FUNDS_stocks = ['goog','aapl', 'meta', 'msft', 'amzn', 'nvda', 'tsla', 'brk-b']
 # China_FUNDS_stocks = ['baba', 'bidu', 'nio', 'jd', '0700.HK']
 
 
-AI_ticker_extractor_tickers = [
-    "ATOM",
-    "JOBY",
-    "KD",  
-    "BBAR",
-    "TSSI",
-    "RDW", 
-    "NEXT",
-    "JBL", 
-    "RGTI",
-    "HTGC",
-    "GRRR",
-    "CRNC",
-    "OUST",
-    "RIVN",
-    "NNOX",
-    "SERV",
-    "VSTM",
-    "NUS", 
-]
+AI_ticker_extractor_tickers = ["ATOM", "JOBY", "KD", "BBAR", "TSSI", "RDW", "NEXT", "JBL", "RGTI", "HTGC", "GRRR", "CRNC", "OUST", "RIVN", "NNOX", "SERV", "VSTM", "NUS", "LITE", "ALAB", "COHR", "CRDO", "VRT", "NVT", "MOD", "ATAT", "HTHT", "ANET", "APP", "PLTR", "CARR"]
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 new_high_sector_tickers = [
     "NVDA",  # Nvidia
@@ -283,7 +277,8 @@ index_etfs = [
 eps_growth_stocks_2025_8_3 = ["NVDA", "AVGO", "AMD", "APH", "UBS", "NET", "CCJ", "GFI", "CLS", "ESLT", "KGC", "CELH", "EVR", "SRAD", "FYBR", "BE", "W", "LIF", "EGO", "OLO", "CDTX", "CCEC", "ATAI", "TBPH", "ISSC", "XGN", "ELTX", "ASMB"]
 canslim_8_3_2025_stocks = ["APP", "AVGO", "CLS", "EVR", "GFI", "HIMS", "HWM", "NVDA", "ATLC", "DRD", "FUTU", "RCL"]
 
-watch_list = ["0700.HK", "ALAB", "AMZN", "APH", "APP", "ARM", "ARMG", "ASML", "AVGO", "AVL", "BEN", "BRK-B", "BRKU", "BYD", "CCI", "CME", "COST", "CQQQ", "CRCL", "CRDO", "CRWV", "DBC", "DIA", "ESLT", "FBL", "FNGO", "FNGU", "GIS", "GLD", "GS", "HOOD", "IONQ", "IPG", "IWM", "JNJ", "KEY", "KIM", "KMI", "LRCX", "MAGS", "MO", "MRVL", "MSFX", "MU", "NFLX", "NTNX", "NVDA", "OKE", "OKTA", "OPEN", "ORCL", "ORCX", "PATH", "PLTR", "QCOM", "QQQ", "QQQM", "SOFI", "SPMO", "SPY", "TECL", "TFC", "TQQQ", "TSLL", "TSM", "UBER", "UBRL", "VGT", "VOO", "VZ", "WDC", "XMAR", "YINN", "RDDT", "UAMY", "CVX", "ED", "DOV"]
+watch_list = ["0700.HK", "ALAB", "AMZN", "APH", "APP", "ARM", "ARMG", "ASML", "AVGO", "AVL", "BEN", "BRK-B", "BRKU", "BYD", "CCI", "CME", "COST", "CQQQ", "CRCL", "CRDO", "CRWV", "DBC", "DIA", "ESLT", "FBL", "FNGO", "FNGU", "GIS", "GLD", "GS", "HOOD", "IONQ", "IPG", "IWM", "JNJ", "KEY", "KIM", "KMI", "LRCX", "MAGS", "MO", "MRVL", "MSFX", "MU", "NFLX", "NTNX", "NVDA", "OKE", "OKTA", "OPEN", "ORCL", "ORCX", "PATH", "PLTR", "QCOM", "QQQ", "QQQM", "SOFI", "SPMO", "SPY", "TECL", "TFC", "TQQQ", "TSLL", "TSM", "UBER", "UBRL", "VGT", "VOO", "VZ", "WDC", "XMAR", "YINN", "RDDT", "UAMY", "CVX", "ED", "DOV", "ATOM"]
+
 
 
 
@@ -548,7 +543,32 @@ earnings_ww_11_17_25_stocks = ["NVDA", "PANW", "BIDU", "BULL", "KC", "INTU", "VE
 
 options_11_24_stocks = ["NXT", "SOXX", "SEI", "CARR", "DHI", "AR", "CAPR", "VLO", "XBI", "ANF", "INFY", "HPQ", "PCT", "CELH", "SVIX", "DKS", "BURL", "FMC", "SYM", "LQDA", "NVO", "BIIB", "CPRT", "ZM", "BBY", "OSCR", "RUM", "AS", "SGHC", "MRK", "CNC", "ADI", "WDAY", "CRMD", "FIGR", "SIRI", "CPRI", "HSAI", "ALT", "NEE", "EPD", "BFLY", "COMP", "FRMI", "GDS", "FIVN", "PRME", "UPWK", "EA", "EH", "QQQM", "QQQ"]
 
-demo_stocks = ["NVDA", "INTC", "GOOG", "AAPL", "OKTA", "COST", "CRDO", "ALAB"]
+demo_stocks = ["NVDA", "INTC", "GOOG", "AAPL", "OKTA", "COST", "CRDO", "ALAB", "LASE"]
+
+
+
+
+
+comet_stocks = ["QQQ", "CRDO", "ALAB", "AMD", "INTC"]
+
+
+
+
+
+
+AI_semi_stocks = ["AAPL", "AMD", "AMAT", "AMKR", "AMZN", "ARM", "ASMIY", "ASML", "ASX", "ATEYY", "AVGO", "BESIY", "CAMT", "CDNS", "DD", "ENTG", "GOOG", "INTC", "KLAC", "LRCX", "META", "MRVL", "MSFT", "NVDA", "ONTO", "QCOM", "SHECY", "SIEGY", "SNPS", "SSNLF", "SUOPY", "TER", "TOELY", "TSM"]
+
+
+AA_spy_stocks = ["VOO", "IVV", "SPY", "CSPX", "TWLO", "SPXC", "SPXD", "SPXE", "SPXL", "SPXS", "SPXT", "SPXU", "SPXV", "SPXX"]
+
+
+
+
+
+
+ticker_1_stocks = ["FBTC", "VOO", "QQQM", "OKTA", "TQQQ"]
+
+
 
 
 # Function to check if a ticker symbol is valid and suggest alternatives if not
@@ -724,13 +744,24 @@ if __name__ == '__main__':
 
 
 temp_stocks = [
-    "CHA",
-    "NAT",
-    "ZOOZ",
-    "GLBS",
-    "ENLV",
-    "BGI",
-    "LEDS",
-    "ATON",
-    "CHEK"
+    "SGU",
+    "RRX",
+    "JPM",
+    "RGA",
+    "CBRE",
+    "RBLX",
+    "RDDT",
+    "GS",
+    "NVDA",
+    "TSLA",
+    "DTCK",
+    "GOOG",
+    "GOOGL",
+    "NFLX",
+    "PSKY",
+    "WBD",
+    "RAL"
 ]
+
+
+

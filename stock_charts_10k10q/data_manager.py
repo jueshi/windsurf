@@ -362,9 +362,13 @@ class StockDataManager:
                     logging.info(f"{ticker} has {data_span.days / 365:.1f} years of data, which meets the 3-year minimum requirement")
 
                     # Check if data is already up to date (within 1 day)
-                    if (datetime.now(timezone.utc).date() - latest_date.date()).days <= 1:
-                        logging.info(f"Data for {ticker} is up to date")
+                    # But don't skip if force_download is explicitly requested
+                    days_since_update = (datetime.now(timezone.utc).date() - latest_date.date()).days
+                    if days_since_update <= 1 and not force_download:
+                        logging.info(f"Data for {ticker} is up to date (last update: {latest_date.date()})")
                         return existing_data
+                    elif days_since_update <= 1:
+                        logging.info(f"Data for {ticker} appears up to date but force_download requested, will fetch latest")
                 else:
                     logging.info(f"{ticker} only has {data_span.days / 365:.1f} years of data, which is less than the 3-year minimum. Forcing full download.")
                     force_download = True
@@ -678,38 +682,46 @@ class StockDataManager:
                     else:
                         logging.warning("No Date column in new_data_processed, cannot determine latest entry")
                 
-                # Check if any of the key values have changed
-                values_changed = False
+                # Check if we have new data to save
+                should_save = False
                 
                 # Only proceed with comparison if we have both latest points
                 if latest_existing is not None and latest_new is not None:
-                    logging.info(f"Comparing latest existing data: {latest_existing['Date']} with latest new data: {latest_new['Date']}")
+                    existing_date = pd.to_datetime(latest_existing['Date']).date() if isinstance(latest_existing['Date'], str) else latest_existing['Date'].date()
+                    new_date = pd.to_datetime(latest_new['Date']).date() if isinstance(latest_new['Date'], str) else latest_new['Date'].date()
                     
-                    for col in ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']:
-                        if col in latest_existing and col in latest_new:
-                            try:
-                                # Convert values to float before comparison to handle potential string values
-                                existing_val = float(latest_existing[col])
-                                new_val = float(latest_new[col])
-                                if not np.isclose(existing_val, new_val, atol=0.0001):  # Small threshold for float comparison
-                                    values_changed = True
-                                    logging.info(f"Latest {col} value updated: {existing_val} -> {new_val}")
-                            except (ValueError, TypeError) as e:
-                                # Handle case where conversion to float fails
-                                logging.warning(f"Could not compare {col} values due to type mismatch: {e}")
-                                # If values are strings, compare them directly
-                                if str(latest_existing[col]) != str(latest_new[col]):
-                                    values_changed = True
-                                    logging.info(f"Latest {col} value updated: {latest_existing[col]} -> {latest_new[col]}")
-                            except Exception as e:
-                                logging.warning(f"Error comparing {col} values: {e}")
-                                # Skip to the next column
-                                continue
+                    logging.info(f"Comparing latest existing data: {existing_date} with latest new data: {new_date}")
+                    
+                    # If new data has a newer date, always save
+                    if new_date > existing_date:
+                        should_save = True
+                        logging.info(f"New data has newer date ({new_date} > {existing_date}), will save")
+                    else:
+                        # Same date - check if values have changed
+                        for col in ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']:
+                            if col in latest_existing and col in latest_new:
+                                try:
+                                    existing_val = float(latest_existing[col])
+                                    new_val = float(latest_new[col])
+                                    if not np.isclose(existing_val, new_val, atol=0.0001):
+                                        should_save = True
+                                        logging.info(f"Latest {col} value updated: {existing_val} -> {new_val}")
+                                except (ValueError, TypeError) as e:
+                                    logging.warning(f"Could not compare {col} values: {e}")
+                                    if str(latest_existing[col]) != str(latest_new[col]):
+                                        should_save = True
+                                except Exception as e:
+                                    logging.warning(f"Error comparing {col} values: {e}")
+                                    continue
+                elif latest_new is not None:
+                    # No existing data but we have new data
+                    should_save = True
+                    logging.info("No existing data found, will save new data")
 
-                if values_changed:
+                if should_save:
                     # Save the updated data with consistent formatting
                     self._save_data_with_consistent_format(combined_data, data_path)
-                    logging.info(f"Data for {ticker} updated with latest price corrections")
+                    logging.info(f"Data for {ticker} updated and saved")
                     return combined_data
                 else:
                     logging.info(f"No new data to update for {ticker}")
@@ -1133,8 +1145,23 @@ class StockDataManager:
                 logging.warning(f"No valid data available for {ticker} after cleaning")
                 return None
 
-            # Resample data
-            resampled = data[column].resample(resample_freq).last()
+            # Resample data - handle pandas version compatibility
+            # Older pandas uses 'M' for month-end, newer uses 'ME'
+            try:
+                resampled = data[column].resample(resample_freq).last()
+            except ValueError as ve:
+                if 'ME' in resample_freq:
+                    # Try older pandas syntax
+                    old_freq = resample_freq.replace('ME', 'M')
+                    logging.info(f"Retrying resample with older pandas frequency: {old_freq}")
+                    resampled = data[column].resample(old_freq).last()
+                elif 'M' in resample_freq and 'ME' not in resample_freq:
+                    # Try newer pandas syntax
+                    new_freq = resample_freq.replace('M', 'ME')
+                    logging.info(f"Retrying resample with newer pandas frequency: {new_freq}")
+                    resampled = data[column].resample(new_freq).last()
+                else:
+                    raise ve
 
             # Drop NaN values from resampled data
             resampled = resampled.dropna()
@@ -1160,7 +1187,13 @@ class StockDataManager:
             original_backend = matplotlib.get_backend()
             matplotlib.use('Agg')  # Use non-interactive backend for thread safety
             # Load daily data with normalization and cleaning
-            data = self.load_data(ticker)
+            # Read directly from file to ensure we get ALL data (ignore any date filters)
+            data_path = os.path.join(self.data_dir, f"{ticker}_stock_data.tsv")
+            if os.path.exists(data_path):
+                data = pd.read_csv(data_path, sep='\t')
+                logging.info(f"Loaded {len(data)} rows directly from {data_path} for visualization")
+            else:
+                data = self.load_data(ticker)
 
             if data is None or data.empty:
                 logging.warning(f"No data available for {ticker}")
@@ -1185,26 +1218,8 @@ class StockDataManager:
                 logging.error(f"Date column not found in {ticker} data")
                 return
 
-            # Apply date range filtering if specified
-            if self.start_date:
-                # Convert start_date to a timezone-aware timestamp (UTC)
-                start_date = pd.to_datetime(self.start_date, utc=True)
-                # Log the date range before filtering
-                logging.info(f"Applying start date filter: {start_date}, data range: {daily_data.index.min()} to {daily_data.index.max()}")
-                # Filter data (index is already UTC-aware)
-                daily_data = daily_data[daily_data.index >= start_date]
-                # Log the data range after filtering
-                logging.info(f"After start date filter: data range: {daily_data.index.min()} to {daily_data.index.max()}, rows: {len(daily_data)}")
-
-            if self.end_date:
-                # Convert end_date to a timezone-aware timestamp (UTC)
-                end_date = pd.to_datetime(self.end_date, utc=True)
-                # Log the date range before filtering
-                logging.info(f"Applying end date filter: {end_date}, data range: {daily_data.index.min()} to {daily_data.index.max()}")
-                # Filter data (index is already UTC-aware)
-                daily_data = daily_data[daily_data.index <= end_date]
-                # Log the data range after filtering
-                logging.info(f"After end date filter: data range: {daily_data.index.min()} to {daily_data.index.max()}, rows: {len(daily_data)}")
+            # Log the full data range available (DO NOT apply date filters for visualization)
+            logging.info(f"Visualization data range for {ticker}: {daily_data.index.min()} to {daily_data.index.max()}, total rows: {len(daily_data)}")
 
             # Check if we still have data after filtering
             if daily_data.empty:
@@ -1238,8 +1253,9 @@ class StockDataManager:
             daily_data = daily_data.dropna(subset=[column])
 
             # Get weekly and monthly data through resampling
+            # Use 'M' for pandas < 2.2, 'ME' for pandas >= 2.2
             weekly_data = self.resample_data(ticker, resample_freq='W', column=column)
-            monthly_data = self.resample_data(ticker, resample_freq='ME', column=column)
+            monthly_data = self.resample_data(ticker, resample_freq='M', column=column)
 
             if weekly_data is None or monthly_data is None:
                 logging.error(f"Could not generate weekly or monthly data for {ticker}")
@@ -1249,8 +1265,18 @@ class StockDataManager:
             weekly_data.index = pd.to_datetime(weekly_data.index)
             monthly_data.index = pd.to_datetime(monthly_data.index)
 
+            # Get the latest data date for display
+            latest_data_date = daily_data.index.max()
+            if hasattr(latest_data_date, 'strftime'):
+                latest_date_str = latest_data_date.strftime('%Y-%m-%d')
+            else:
+                latest_date_str = str(latest_data_date)[:10]
+
             # Create figure with three subplots
             fig, (ax3, ax2, ax1) = plt.subplots(1, 3, figsize=(30, 7))
+            
+            # Add main title with latest data date
+            fig.suptitle(f'{ticker} Stock Price Charts (Data as of {latest_date_str})', fontsize=14, fontweight='bold', y=1.02)
 
             # Plot daily data for recent year
             if not daily_data.empty:
@@ -1293,14 +1319,26 @@ class StockDataManager:
             plt.tight_layout()
 
             # Save with a single consistent filename pattern
-            plt.savefig(os.path.join(self.plot_save_path, f'{ticker}_daily_weekly_monthly.png'), dpi=300)
+            chart_path = os.path.join(self.plot_save_path, f'{ticker}_daily_weekly_monthly.png')
+            
+            # Delete existing file first to ensure it gets replaced
+            if os.path.exists(chart_path):
+                try:
+                    os.remove(chart_path)
+                    logging.info(f"Deleted old chart file: {chart_path}")
+                except Exception as e:
+                    logging.warning(f"Could not delete old chart file {chart_path}: {e}")
+            
+            # Save the new chart
+            plt.savefig(chart_path, dpi=300)
+            logging.info(f"Saved new chart to: {chart_path}")
 
             plt.close(fig)
 
             # Restore original backend
             matplotlib.use(original_backend)
 
-            logging.info(f"Generated visualization for {ticker}")
+            logging.info(f"Generated visualization for {ticker} with data up to {daily_data.index.max()}")
 
         except Exception as e:
             logging.error(f"Error visualizing data for {ticker}: {e}")
@@ -1583,9 +1621,29 @@ class StockDataManager:
 
                 # Add ticker to processed set
                 processed_tickers.add(ticker)
+                
+                # Get the latest data date for this ticker
+                latest_date_str = ""
+                try:
+                    data = self.load_data(ticker)
+                    if data is not None and not data.empty:
+                        if 'Date' in data.columns:
+                            latest_date = pd.to_datetime(data['Date']).max()
+                        elif data.index.name == 'Date' or isinstance(data.index, pd.DatetimeIndex):
+                            latest_date = data.index.max()
+                        else:
+                            latest_date = None
+                        if latest_date is not None:
+                            if hasattr(latest_date, 'strftime'):
+                                latest_date_str = f" (Data as of {latest_date.strftime('%Y-%m-%d')})"
+                            else:
+                                latest_date_str = f" (Data as of {str(latest_date)[:10]})"
+                except Exception as e:
+                    logging.warning(f"Could not get latest date for {ticker}: {e}")
+                
                 html_content += f"""
                     <div class="plot-item">
-                        <h2>{ticker} Stock Prices</h2>
+                        <h2>{ticker} Stock Prices{latest_date_str}</h2>
                         <img src="{os.path.basename(plot_file)}" alt="{ticker} Stock Price Plot">
                     </div>
                 """

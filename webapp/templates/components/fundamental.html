@@ -1,0 +1,256 @@
+<div>
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h5 class="mb-0">Fundamental Data for {{ ticker }}</h5>
+        <div class="d-flex align-items-center gap-2">
+            <div class="input-group input-group-sm" style="width: 250px;">
+                <span class="input-group-text">🔍</span>
+                <input type="text" class="form-control" id="fundamental-filter" 
+                       placeholder="Filter metrics... (use * for wildcard)"
+                       oninput="filterFundamentalData()">
+                <button class="btn btn-outline-secondary" type="button" onclick="clearFundamentalFilter()">×</button>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="show-all-metrics" onchange="toggleAllMetrics()">
+                <label class="form-check-label small" for="show-all-metrics">Show All</label>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Filter Presets -->
+    <div class="mb-2">
+        <span class="text-muted small me-2">Quick Filters:</span>
+        <div class="btn-group btn-group-sm" role="group">
+            <button type="button" class="btn btn-outline-primary" onclick="applyFilterPreset('p/e p/b price peg ev/ebitda ev/revenue forward trailing')">Value</button>
+            <button type="button" class="btn btn-outline-primary" onclick="applyFilterPreset('growth margin revenue earnings profit gross operating net income eps quarterly annual yoy')">Growth</button>
+            <button type="button" class="btn btn-outline-primary" onclick="applyFilterPreset('dividend yield payout rate ex-date forward annual 5-year')">Dividend</button>
+            <button type="button" class="btn btn-outline-primary" onclick="applyFilterPreset('beta debt ratio current quick cash equity leverage coverage interest short float')">Risk</button>
+            <button type="button" class="btn btn-outline-primary" onclick="applyFilterPreset('52-week avg volume high low moving sma ema rsi target price change return')">Technical</button>
+            <button type="button" class="btn btn-outline-primary" onclick="applyFilterPreset('roe roa roic roi return asset equity capital invested efficiency')">Returns</button>
+            <button type="button" class="btn btn-outline-primary" onclick="applyFilterPreset('cash flow free operating fcf capex working capital')">Cash Flow</button>
+            <button type="button" class="btn btn-outline-secondary" onclick="clearFundamentalFilter()">Clear</button>
+        </div>
+    </div>
+    {% if data %}
+    <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+        <table class="table table-striped table-sm table-hover" id="fundamental-table">
+            <thead class="sticky-top bg-white">
+                <tr>
+                    <th>Metric</th>
+                    <th>Value</th>
+                </tr>
+            </thead>
+            <tbody id="fundamental-tbody">
+                {% for key, value in data.items() %}
+                <tr data-metric="{{ key|lower }}">
+                    <td>{{ key }}</td>
+                    <td>{{ value }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="mt-2 text-muted small">
+        <span id="metric-count">{{ data|length }}</span> metrics shown
+        <span class="ms-2 text-info" id="filter-hint" style="display: none;">
+            Tip: Use * as wildcard (e.g., "P/*" matches P/E, P/B, etc.)
+        </span>
+    </div>
+    
+    <!-- AI Fundamental Analysis Section -->
+    <div class="mt-4 border-top pt-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="mb-0">🤖 AI Fundamental Analysis</h6>
+            <button class="btn btn-sm btn-primary" id="analyze-fundamentals-btn" onclick="analyzeFundamentals('{{ ticker }}')">
+                <span class="spinner-border spinner-border-sm d-none" id="fundamental-ai-spinner"></span>
+                Analyze Fundamentals
+            </button>
+        </div>
+        <div id="fundamental-ai-results" class="p-2 bg-light rounded" style="min-height: 100px;">
+            <p class="text-muted mb-0">Click "Analyze Fundamentals" to get AI insights on the key metrics.</p>
+        </div>
+    </div>
+    {% else %}
+    <p>No data available.</p>
+    {% endif %}
+</div>
+
+<!-- Store raw data for "Show All" toggle -->
+<script>
+    // Store the filtered vs all data
+    window.fundamentalFilteredData = {{ data|tojson|safe if data else '{}' }};
+    window.fundamentalRawData = {{ raw_data|tojson|safe if raw_data else '{}' }};
+    
+    function filterFundamentalData() {
+        const filter = document.getElementById('fundamental-filter').value.toLowerCase().trim();
+        const rows = document.querySelectorAll('#fundamental-tbody tr');
+        const hintEl = document.getElementById('filter-hint');
+        let visibleCount = 0;
+        
+        // Show hint when user starts typing
+        hintEl.style.display = filter.length > 0 ? 'inline' : 'none';
+        
+        // Convert wildcard pattern to regex
+        let pattern = null;
+        if (filter.includes('*')) {
+            const regexPattern = filter.replace(/\*/g, '.*').replace(/\//g, '\\/');
+            try {
+                pattern = new RegExp(regexPattern, 'i');
+            } catch (e) {
+                pattern = null;
+            }
+        }
+        
+        rows.forEach(row => {
+            const metric = row.getAttribute('data-metric') || '';
+            let matches = false;
+            
+            if (!filter) {
+                matches = true;
+            } else if (pattern) {
+                matches = pattern.test(metric);
+            } else {
+                matches = metric.includes(filter);
+            }
+            
+            row.style.display = matches ? '' : 'none';
+            if (matches) visibleCount++;
+        });
+        
+        document.getElementById('metric-count').textContent = visibleCount;
+    }
+    
+    function clearFundamentalFilter() {
+        document.getElementById('fundamental-filter').value = '';
+        filterFundamentalData();
+    }
+    
+    function applyFilterPreset(preset) {
+        // First, show all rows (reset any previous filter)
+        const rows = document.querySelectorAll('#fundamental-tbody tr');
+        rows.forEach(row => row.style.display = '');
+        
+        // Set the filter and apply with OR logic (don't rebuild table)
+        document.getElementById('fundamental-filter').value = preset;
+        filterFundamentalDataWithOR();
+    }
+    
+    // Filter with OR logic for presets (matches any word)
+    function filterFundamentalDataWithOR() {
+        const filter = document.getElementById('fundamental-filter').value.toLowerCase().trim();
+        const rows = document.querySelectorAll('#fundamental-tbody tr');
+        let visibleCount = 0;
+        
+        // Split filter into words for OR matching
+        const words = filter.split(/\s+/).filter(w => w.length > 0);
+        
+        rows.forEach(row => {
+            const metric = row.getAttribute('data-metric') || '';
+            let matches = false;
+            
+            if (!filter || words.length === 0) {
+                matches = true;
+            } else {
+                // OR logic: match if any word is found
+                matches = words.some(word => metric.includes(word));
+            }
+            
+            row.style.display = matches ? '' : 'none';
+            if (matches) visibleCount++;
+        });
+        
+        document.getElementById('metric-count').textContent = visibleCount;
+    }
+    
+    function toggleAllMetrics() {
+        const showAll = document.getElementById('show-all-metrics').checked;
+        const tbody = document.getElementById('fundamental-tbody');
+        const data = showAll ? window.fundamentalRawData : window.fundamentalFilteredData;
+        
+        // Sort keys alphabetically
+        const sortedKeys = Object.keys(data || {}).sort();
+        
+        // Rebuild table with appropriate data
+        tbody.innerHTML = '';
+        let count = 0;
+        for (const key of sortedKeys) {
+            let value = data[key];
+            if (value !== null && value !== undefined && value !== 'N/A') {
+                // Format the value for display when showing raw data
+                if (showAll && typeof value === 'number') {
+                    if (Math.abs(value) >= 1e12) {
+                        value = '$' + (value / 1e12).toFixed(2) + 'T';
+                    } else if (Math.abs(value) >= 1e9) {
+                        value = '$' + (value / 1e9).toFixed(2) + 'B';
+                    } else if (Math.abs(value) >= 1e6) {
+                        value = '$' + (value / 1e6).toFixed(2) + 'M';
+                    } else if (value < 1 && value > -1 && value !== 0) {
+                        value = (value * 100).toFixed(2) + '%';
+                    } else {
+                        value = value.toFixed(2);
+                    }
+                }
+                
+                const row = document.createElement('tr');
+                row.setAttribute('data-metric', key.toLowerCase());
+                row.innerHTML = `<td>${key}</td><td>${value}</td>`;
+                tbody.appendChild(row);
+                count++;
+            }
+        }
+        
+        document.getElementById('metric-count').textContent = count;
+        
+        // Re-apply filter if any
+        const filter = document.getElementById('fundamental-filter').value;
+        if (filter) {
+            filterFundamentalData();
+        }
+    }
+    
+    // AI Fundamental Analysis - only analyzes visible/filtered metrics
+    async function analyzeFundamentals(ticker) {
+        const btn = document.getElementById('analyze-fundamentals-btn');
+        const spinner = document.getElementById('fundamental-ai-spinner');
+        const resultsContainer = document.getElementById('fundamental-ai-results');
+        
+        // Collect only visible metrics from the table
+        const visibleMetrics = {};
+        const rows = document.querySelectorAll('#fundamental-tbody tr');
+        rows.forEach(row => {
+            if (row.style.display !== 'none') {
+                const cells = row.querySelectorAll('td');
+                if (cells.length >= 2) {
+                    const metricName = cells[0].textContent.trim();
+                    const metricValue = cells[1].textContent.trim();
+                    visibleMetrics[metricName] = metricValue;
+                }
+            }
+        });
+        
+        if (Object.keys(visibleMetrics).length === 0) {
+            resultsContainer.innerHTML = '<div class="alert alert-warning mb-0">No metrics visible to analyze. Clear the filter or select different metrics.</div>';
+            return;
+        }
+        
+        // Show loading state
+        btn.disabled = true;
+        spinner.classList.remove('d-none');
+        resultsContainer.innerHTML = '<div class="d-flex justify-content-center p-3"><div class="spinner-border text-primary" role="status"></div></div>';
+        
+        try {
+            const response = await fetch(`/analysis/fundamental/ai/${ticker}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ metrics: visibleMetrics })
+            });
+            const html = await response.text();
+            resultsContainer.innerHTML = html;
+        } catch (error) {
+            console.error('Fundamental AI analysis error:', error);
+            resultsContainer.innerHTML = `<div class="alert alert-danger mb-0">Error running analysis: ${error.message}</div>`;
+        } finally {
+            btn.disabled = false;
+            spinner.classList.add('d-none');
+        }
+    }
+</script>

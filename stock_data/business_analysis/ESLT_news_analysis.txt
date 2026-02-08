@@ -1,0 +1,9 @@
+## 新闻分析
+
+### 利好消息
+- MarketBeat 提供 Elbit Systems (ESLT) 的新闻和分析。近期新闻包括：Wall Street Zen 将 ESLT 评级上调至“强烈买入”；S&P Maalot 将 Elbit Systems 的评级上调；Elbit Systems 公布季度盈利超出预期；以及法国在巴黎航展上关闭以色列公司展位，引发外交纠纷。 (来源: https://www.marketbeat.com/stocks/NASDAQ/ESLT/)
+- Elbit Systems (ESLT) 的股票评级被一位分析师评为“强烈买入”，目标股价为 500 美元（较当前价格上涨 14.37%）。该公司公布了 2025 年第二季度业绩，订单积压达 238 亿美元，营收 20 亿美元，净利润超过 1.5 亿美元。此外，该公司还进行了 136.5 万股的公开募股，并且信用评级被上调。 (来源: https://stockanalysis.com/stocks/eslt/)
+- 该新闻主要包含Elbit Systems (ESLT) 的股票信息，包括其财务数据（市盈率、市净率、市销率等）和财务强度指标（速动比率、流动比率、利息保障倍数等）。此外，新闻还报道了Gabelli基金将在哈佛俱乐部举办年度航空航天与国防研讨会，以及Elbit Systems获得两个重要合同：一个价值16.35亿美元的欧洲国防解决方案合同，另一个价值约2.6亿美元的先进空基弹药供应合同。 (来源: https://www.morningstar.com/stocks/xnas/eslt/quote)
+
+### 利空消息
+近期无明显利空消息。

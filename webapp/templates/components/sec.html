@@ -1,0 +1,224 @@
+<div class="row" id="sec-filings-root">
+    <div class="col-md-3">
+        <h5 class="mb-3">SEC Filings for {{ ticker }}</h5>
+        {% if filings %}
+            <div class="list-group mb-3">
+                {% for filing in filings %}
+                <button class="list-group-item list-group-item-action"
+                        onclick="loadSections('{{ ticker }}', '{{ filing.accessionNumber }}', '{{ filing.cik }}', '{{ filing.form }}', '{{ filing.filingDate }}')">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1">{{ filing.form }}</h6>
+                        <small>{{ filing.filingDate }}</small>
+                    </div>
+                    <small class="text-muted">{{ filing.accessionNumber }}</small>
+                </button>
+                {% endfor %}
+            </div>
+            
+            <!-- Section Navigation -->
+            <div class="card mb-3">
+                <div class="card-header py-2">
+                    <strong>Sections</strong>
+                    <small id="sec-current-filing" class="text-muted d-block"></small>
+                </div>
+                <div class="card-body p-0" id="sec-sections-list">
+                    <p class="text-muted small p-3">Select a filing to view sections.</p>
+                </div>
+            </div>
+            
+            <!-- Tables Button -->
+            <div class="list-group">
+                {% for filing in filings %}
+                <button class="list-group-item list-group-item-action list-group-item-secondary"
+                        onclick="loadTables('{{ ticker }}', '{{ filing.accessionNumber }}', '{{ filing.cik }}', '{{ filing.form }}')">
+                    <small><i class="bi bi-table"></i> {{ filing.form }} Tables</small>
+                </button>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-muted">No filings found or CIK lookup failed.</p>
+        {% endif %}
+    </div>
+    <div class="col-md-9">
+        <h5>Filing Content 
+            <span id="sec-spinner" class="htmx-indicator spinner-border spinner-border-sm text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </span>
+            <span id="section-spinner" class="htmx-indicator spinner-border spinner-border-sm text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </span>
+        </h5>
+
+        <div id="sec-section-content" class="border p-3 bg-white rounded sec-content-scroll">
+            <p class="text-muted small">Select a filing, then click a section to view its content.</p>
+            
+            <div class="mt-3" id="sec-quick-sections">
+                <h6>Key Sections Guide: <small class="text-muted">(click to analyze after selecting a filing)</small></h6>
+                <div class="row">
+                    <div class="col-md-6">
+                        <p class="mb-1"><strong>10-K (Annual Report):</strong></p>
+                        <ul class="small list-unstyled">
+                            <li><a href="#" class="sec-quick-link" data-section="item1" data-form="10-K"><i class="bi bi-robot"></i> <strong>Item 1</strong> - Business overview</a></li>
+                            <li><a href="#" class="sec-quick-link" data-section="item1a" data-form="10-K"><i class="bi bi-robot"></i> <strong>Item 1A</strong> - Risk Factors</a></li>
+                            <li><a href="#" class="sec-quick-link" data-section="item7" data-form="10-K"><i class="bi bi-robot"></i> <strong>Item 7</strong> - MD&A (Management Discussion)</a></li>
+                            <li><a href="#" class="sec-quick-link" data-section="item8" data-form="10-K"><i class="bi bi-robot"></i> <strong>Item 8</strong> - Financial Statements</a></li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <p class="mb-1"><strong>10-Q (Quarterly Report):</strong></p>
+                        <ul class="small list-unstyled">
+                            <li><a href="#" class="sec-quick-link" data-section="part1item1" data-form="10-Q"><i class="bi bi-robot"></i> <strong>Part I, Item 1</strong> - Financial Statements</a></li>
+                            <li><a href="#" class="sec-quick-link" data-section="part1item2" data-form="10-Q"><i class="bi bi-robot"></i> <strong>Part I, Item 2</strong> - MD&A</a></li>
+                            <li><a href="#" class="sec-quick-link" data-section="part2item1a" data-form="10-Q"><i class="bi bi-robot"></i> <strong>Part II, Item 1A</strong> - Risk Factors</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.sec-content-scroll {
+    max-height: 600px;
+    overflow-y: auto;
+}
+.sec-content-scroll .section-content p {
+    margin-bottom: 0.5rem;
+    line-height: 1.5;
+}
+.sec-sections-scroll {
+    max-height: 400px;
+    overflow-y: auto;
+}
+.section-analysis {
+    padding: 1rem;
+}
+.section-analysis .analysis-content h1,
+.section-analysis .analysis-content h2,
+.section-analysis .analysis-content h3 {
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+}
+.section-analysis .analysis-content h1 { font-size: 1.5rem; }
+.section-analysis .analysis-content h2 { font-size: 1.25rem; }
+.section-analysis .analysis-content h3 { font-size: 1.1rem; }
+.section-analysis .analysis-content ul {
+    margin-bottom: 0.5rem;
+}
+.section-analysis .analysis-content table {
+    width: 100%;
+    margin: 1rem 0;
+}
+.section-analysis .analysis-content table th,
+.section-analysis .analysis-content table td {
+    padding: 0.5rem;
+    border: 1px solid #dee2e6;
+}
+.section-analysis .analysis-content table th {
+    background-color: #f8f9fa;
+}
+</style>
+
+<script>
+// Track selected filing info
+var selectedFiling = {
+    ticker: '{{ ticker }}',
+    accession10K: null,
+    accession10Q: null,
+    cik10K: null,
+    cik10Q: null
+};
+
+// Store filing info from the page
+{% for filing in filings %}
+console.log('Filing found:', '{{ filing.form }}', '{{ filing.accessionNumber }}', '{{ filing.cik }}');
+{% if '10-K' in filing.form %}
+selectedFiling.accession10K = '{{ filing.accessionNumber }}';
+selectedFiling.cik10K = '{{ filing.cik }}';
+{% endif %}
+{% if '10-Q' in filing.form %}
+selectedFiling.accession10Q = '{{ filing.accessionNumber }}';
+selectedFiling.cik10Q = '{{ filing.cik }}';
+{% endif %}
+{% endfor %}
+
+console.log('selectedFiling:', selectedFiling);
+
+// Load sections for a filing
+function loadSections(ticker, accession, cik, form, date) {
+    document.getElementById('sec-current-filing').textContent = `${form} (${date})`;
+    document.getElementById('sec-spinner').style.display = 'inline-block';
+    
+    fetch(`/sec/sections/${ticker}/${accession}?cik=${cik}&form_type=${form}`, { method: 'POST' })
+        .then(r => r.text())
+        .then(html => {
+            document.getElementById('sec-sections-list').innerHTML = html;
+            document.getElementById('sec-spinner').style.display = 'none';
+        })
+        .catch(e => {
+            console.error('Sections load error:', e);
+            document.getElementById('sec-sections-list').innerHTML = '<p class="text-danger p-3">Error loading sections</p>';
+            document.getElementById('sec-spinner').style.display = 'none';
+        });
+}
+
+// Load tables for a filing
+function loadTables(ticker, accession, cik, form) {
+    document.getElementById('section-spinner').style.display = 'inline-block';
+    
+    fetch(`/sec/extract/${ticker}/${accession}?cik=${cik}`, { method: 'POST' })
+        .then(r => r.text())
+        .then(html => {
+            document.getElementById('sec-section-content').innerHTML = html;
+            document.getElementById('section-spinner').style.display = 'none';
+        })
+        .catch(e => {
+            console.error('Tables load error:', e);
+            document.getElementById('section-spinner').style.display = 'none';
+        });
+}
+
+// Analyze a section with AI
+function analyzeSection(ticker, accession, sectionId, cik, formType) {
+    document.getElementById('section-spinner').style.display = 'inline-block';
+    
+    fetch(`/sec/analyze-section/${ticker}/${accession}/${sectionId}?cik=${cik}&form_type=${formType}`, { method: 'POST' })
+        .then(r => r.text())
+        .then(html => {
+            document.getElementById('sec-section-content').innerHTML = html;
+            document.getElementById('section-spinner').style.display = 'none';
+        })
+        .catch(e => {
+            console.error('Section analysis error:', e);
+            document.getElementById('sec-section-content').innerHTML = '<div class="alert alert-danger">Error analyzing section</div>';
+            document.getElementById('section-spinner').style.display = 'none';
+        });
+}
+
+// Handle quick link clicks
+document.querySelectorAll('.sec-quick-link').forEach(link => {
+    link.addEventListener('click', function(e) {
+        e.preventDefault();
+        const sectionId = this.dataset.section;
+        const formType = this.dataset.form;
+        
+        // Get the right filing based on form type
+        let accession, cik;
+        if (formType === '10-K') {
+            accession = selectedFiling.accession10K;
+            cik = selectedFiling.cik10K;
+        } else {
+            accession = selectedFiling.accession10Q;
+            cik = selectedFiling.cik10Q;
+        }
+        
+        if (!accession || !cik) {
+            alert(`No ${formType} filing available for this ticker.`);
+            return;
+        }
+        
+        analyzeSection(selectedFiling.ticker, accession, sectionId, cik, formType);
+    });
+});
+</script>

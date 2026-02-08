@@ -82,10 +82,9 @@ def apply_fixed_height_chart_fix(gui_instance):
                     for widget in chart_frame.winfo_children():
                         widget.destroy()
                     
-                    # Create a fixed height container frame
-                    container_frame = ttk.Frame(chart_frame, height=450)
+                    # Create container frame that expands to fill available space
+                    container_frame = ttk.Frame(chart_frame)
                     container_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-                    container_frame.pack_propagate(False)  # CRITICAL: Prevent container from expanding with contents
                     
                     # Create a button to open the chart in browser for better interaction
                     btn_frame = ttk.Frame(container_frame)
@@ -126,18 +125,8 @@ def apply_fixed_height_chart_fix(gui_instance):
     # Replace the original method with our fixed version
     gui_instance._display_plotly_chart = types.MethodType(fixed_display_plotly_chart, gui_instance)
     
-    # Also modify the chart notebook to have a fixed height
-    if hasattr(gui_instance, 'chart_notebook') and gui_instance.chart_notebook.winfo_exists():
-        chart_frame = ttk.Frame(gui_instance.root, height=500)
-        chart_frame.pack_propagate(False)  # Prevent automatic resizing
-        
-        # Move the chart notebook to the new fixed height frame
-        gui_instance.chart_notebook.pack_forget()
-        gui_instance.chart_notebook.master = chart_frame
-        gui_instance.chart_notebook.pack(fill=tk.BOTH, expand=True)
-        
-        # Place the fixed height frame in the correct position
-        chart_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+    # Note: Removed fixed height chart_frame wrapper that was causing layout issues
+    # The chart_notebook should expand naturally to fill available space
     
     logging.info("Fixed height chart solution applied successfully")
 

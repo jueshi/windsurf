@@ -1,0 +1,7 @@
+## 新闻分析
+
+### 利好消息
+- SanDisk宣布从4月1日起将其NAND产品价格上调超过10%。该公司已从西部数据独立出来，并在纳斯达克上市。SanDisk管理层还将参加J.P. Morgan全球科技、媒体和通信会议。 (来源: https://finance.yahoo.com/quote/SNDK/news/)
+
+### 利空消息
+- Morningstar 评估 SanDisk (SNDK) 的股价（37.84美元）比其公平价值（89.54美元）低出41%，并且不确定性高。文章还提到 SanDisk 已从 Western Digital 分拆并上市。 (来源: https://www.morningstar.com/stocks/xnas/sndk/quote)
