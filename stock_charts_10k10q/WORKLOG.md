@@ -107,3 +107,55 @@
   - Issue: Persistent 429s meant even the cache couldn’t help on first run.
   - Change: When yfinance is empty or missing transaction columns, fetch the Finviz quote page directly, parse the insider table via `read_html(StringIO(...))`, downcast multi-index headers, filter for Sale rows, and normalize the numeric fields before feeding the rest of the pipeline.
   - Validation: Re-ran `py -3 insider_sale_data.py` while Yahoo was throttling; script now logs “Trying Finviz fallback...” and proceeds once Finviz responds. FutureWarning about literal HTML is benign and now suppressed by StringIO.
+
+## 2025-12-21
+
+- **Fixed Powerball CSV path resolution**
+  - Issue: Running `powerball_number_rank.py` from outside its folder raised `FileNotFoundError` because it relied on the working directory to locate `Lottery_Powerball_Winning_Numbers__Beginning_2010.csv`.
+  - Change: Build the CSV path relative to the script (`Path(__file__).with_name(...)`) so the data file is found regardless of where the script is launched.
+  - Files: `stock_charts_10k10q/powerball_number_rank.py`.
+  - Validation: Script now reads the CSV successfully when executed from the repo root (`py stock_charts_10k10q/powerball_number_rank.py`).
+
+## 2025-12-24
+
+- **Overlaid price trend on PE chart**
+  - Added a twin-y axis so closing price renders alongside the trailing PE series, updated legend/title, and switched to `Series.ffill()` to avoid the pandas deprecation warning.
+  - File: `stock_charts_10k10q/PE_chart.py`.
+  - Validation: Requires local `yfinance` install; user confirmed chart renders via IDE run.
+
+- **Extended EPS history using annual + quarterly financials**
+  - New helpers `_extract_eps_row` and `_build_eps_series` combine quarterly and annual EPS data (diluted/basic) with timezone normalization, deduplicate overlapping periods, and back/forward-fill earlier dates so the entire `period` window gets PE coverage.
+  - File: `stock_charts_10k10q/PE_chart.py`.
+  - Validation: Running `python PE_chart.py` still depends on `yfinance`; environment currently missing the package in this shell, so user should rerun after installing.
+
+- **Annualized quarterly EPS for consistent PE**
+  - Applied a 4-quarter rolling sum to quarterly EPS before merging with annual data so the PE calculation always uses a trailing-twelve-month denominator; kept annual entries as-is.
+  - File: `stock_charts_10k10q/PE_chart.py`.
+  - Validation: Script requires `yfinance`; rerun locally once available to visualize the updated PE series.
+
+- **Plotted annualized EPS in dedicated pane**
+  - Reworked `plot_pe` to use a two-row layout: top panel retains PE + price overlay, bottom panel shows the TTM EPS line with annotation for the latest value.
+  - File: `stock_charts_10k10q/PE_chart.py`.
+  - Validation: User ran the script via IDE (AMD, 10y) and confirmed summary stats printed.
+
+## 2025-12-25
+
+- **Rebuilt institutional ownership visualization**
+  - Replaced the PE/EPS logic with an institutional ownership dot chart: aggregate Yahoo Finance institutional holdings by report date, compute share deltas, attach the nearest closing price, and scatter green/red dots at those prices with share-change annotations (above price for increases, below for reductions).
+  - Files: `stock_charts_10k10q/insitutional_ownership.py`.
+  - Validation: Run `python insitutional_ownership.py` after installing `yfinance` to generate the updated plot.
+
+- **Hardened smart-money summary script**
+  - Rewrote `institutional_ownership_data.py` to normalize yfinance schemas: resilient percentage parsing, slugified column headers, formatted share counts, and short-interest messaging so the CLI summary no longer crashes when `% Out` is missing.
+  - Integrated FinancialModelingPrep institutional-change feed (auto-loads `FMP_API_KEY` from environment/.env) so we print top change percentages alongside YF data.
+  - File: `stock_charts_10k10q/institutional_ownership_data.py`.
+  - Validation: Requires `yfinance` + `requests`; run `python institutional_ownership_data.py` to print the MRVL/AVGO/NVDA summaries.
+
+## 2025-12-29
+
+- **Bundled FFmpeg fallback + clearer guidance for audio tool**
+  - Added `typing.Optional` import plus helper routines inside `ensure_ffmpeg_in_path`.
+  - New behavior tries existing PATH, common Windows install folders, and finally a portable binary from `imageio-ffmpeg`, wiring its bin directory into PATH automatically.
+  - When all attempts fail, the script now prints the checked locations, mentions the portable attempt, and exits with instructions instead of throwing `FileNotFoundError`.
+  - File: `stock_charts_10k10q/audio2text_v5.2.1_rename_MD.py`.
+  - Validation: Static inspection; please rerun the script to confirm the bundled fallback message appears when FFmpeg is absent.

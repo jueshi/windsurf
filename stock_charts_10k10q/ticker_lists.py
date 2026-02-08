@@ -199,7 +199,16 @@ FUNDS_stocks = ['goog','aapl', 'meta', 'msft', 'amzn', 'nvda', 'tsla', 'brk-b']
 # China_FUNDS_stocks = ['baba', 'bidu', 'nio', 'jd', '0700.HK']
 
 
-AI_ticker_extractor_tickers = ["ATOM", "JOBY", "KD", "BBAR", "TSSI", "RDW", "NEXT", "JBL", "RGTI", "HTGC", "GRRR", "CRNC", "OUST", "RIVN", "NNOX", "SERV", "VSTM", "NUS", "LITE", "ALAB", "COHR", "CRDO"]
+AI_ticker_extractor_tickers = ["ATOM", "JOBY", "KD", "BBAR", "TSSI", "RDW", "NEXT", "JBL", "RGTI", "HTGC", "GRRR", "CRNC", "OUST", "RIVN", "NNOX", "SERV", "VSTM", "NUS", "LITE", "ALAB", "COHR", "CRDO", "VRT", "NVT", "MOD", "ATAT", "HTHT", "ANET", "APP", "PLTR", "CARR"]
+
+
+
+
+
+
+
+
+
 
 
 
@@ -547,6 +556,21 @@ comet_stocks = ["QQQ", "CRDO", "ALAB", "AMD", "INTC"]
 
 
 
+AI_semi_stocks = ["AAPL", "AMD", "AMAT", "AMKR", "AMZN", "ARM", "ASMIY", "ASML", "ASX", "ATEYY", "AVGO", "BESIY", "CAMT", "CDNS", "DD", "ENTG", "GOOG", "INTC", "KLAC", "LRCX", "META", "MRVL", "MSFT", "NVDA", "ONTO", "QCOM", "SHECY", "SIEGY", "SNPS", "SSNLF", "SUOPY", "TER", "TOELY", "TSM"]
+
+
+AA_spy_stocks = ["VOO", "IVV", "SPY", "CSPX", "TWLO", "SPXC", "SPXD", "SPXE", "SPXL", "SPXS", "SPXT", "SPXU", "SPXV", "SPXX"]
+
+
+
+
+
+
+ticker_1_stocks = ["FBTC", "VOO", "QQQM", "OKTA", "TQQQ"]
+
+
+
+
 # Function to check if a ticker symbol is valid and suggest alternatives if not
 def validate_ticker(ticker):
     import yfinance as yf
@@ -719,7 +743,25 @@ if __name__ == '__main__':
 
 
 
-temp_stocks = ["NVDA", "KYMR", "TERN", "TSLA", "GPCR", "AMZN", "GOOG", "GOOGL", "META", "MU", "GEV", "JPM", "PLTR", "HD", "CVS", "CHWY", "AFJK", "AEG", "LLY", "BHP", "BLK", "CPNG", "TSM", "INTC", "CRM", "CASY", "ORCL", "ADBE", "SNPS", "NDSN", "MTN", "PL", "AVGO", "COST", "CIEN", "LULU", "LEN", "JMG", "CDNL", "LMRI", "SFDX", "WLTH", "BUDA"]
+temp_stocks = [
+    "SGU",
+    "RRX",
+    "JPM",
+    "RGA",
+    "CBRE",
+    "RBLX",
+    "RDDT",
+    "GS",
+    "NVDA",
+    "TSLA",
+    "DTCK",
+    "GOOG",
+    "GOOGL",
+    "NFLX",
+    "PSKY",
+    "WBD",
+    "RAL"
+]
 
 
 

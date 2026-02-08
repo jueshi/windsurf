@@ -1,0 +1,29 @@
+An error occurred while communicating with the Gemini API: 403 Generative Language API has not been used in project 1012565020531 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview?project=1012565020531 then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry. [reason: "SERVICE_DISABLED"
+domain: "googleapis.com"
+metadata {
+  key: "service"
+  value: "generativelanguage.googleapis.com"
+}
+metadata {
+  key: "serviceTitle"
+  value: "Generative Language API"
+}
+metadata {
+  key: "containerInfo"
+  value: "1012565020531"
+}
+metadata {
+  key: "consumer"
+  value: "projects/1012565020531"
+}
+metadata {
+  key: "activationUrl"
+  value: "https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview?project=1012565020531"
+}
+, locale: "en-US"
+message: "Generative Language API has not been used in project 1012565020531 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview?project=1012565020531 then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry."
+, links {
+  description: "Google developers console API activation"
+  url: "https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview?project=1012565020531"
+}
+]
