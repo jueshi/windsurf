@@ -10,6 +10,7 @@ import tempfile
 import shutil
 import math
 import urllib.parse
+from typing import Optional
 
 import tkinter as tk
 from tkinter import filedialog, messagebox
@@ -28,48 +29,83 @@ def install_ffmpeg():
         import ffmpeg
 
 def ensure_ffmpeg_in_path():
-    """Ensure the ffmpeg executable is available by checking common Windows locations
-    and prepending them to PATH at runtime. Also validates by invoking `ffmpeg -version`.
+    """Ensure the ffmpeg executable is available by checking common Windows locations,
+    falling back to a portable binary from imageio-ffmpeg, and validating availability.
     """
-    # If already available, return quickly
-    try:
-        subprocess.run(["ffmpeg", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-        subprocess.run(["ffprobe", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-        return
-    except Exception:
-        pass
 
-    candidates = []
-    # Common Windows install locations
-    candidates.append(r"C:\\ffmpeg\\bin")
-    candidates.append(r"C:\\Program Files\\ffmpeg\\bin")
-    candidates.append(r"C:\\Program Files (x86)\\ffmpeg\\bin")
-    # Workspace-local `ffmpeg` folder if present
-    workspace_ffmpeg_bin = os.path.join(os.getcwd(), "ffmpeg", "bin")
-    candidates.append(workspace_ffmpeg_bin)
+    def _validate_binary(binary_name: str) -> bool:
+        try:
+            subprocess.run([binary_name, "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            return True
+        except Exception:
+            return False
+
+    def _ensure_portable_ffmpeg() -> Optional[str]:
+        """Use imageio-ffmpeg's bundled binary as a last resort."""
+        try:
+            import imageio_ffmpeg  # type: ignore
+        except Exception:
+            try:
+                subprocess.check_call([sys.executable, "-m", "pip", "install", "imageio-ffmpeg"])
+                import imageio_ffmpeg  # type: ignore
+            except Exception:
+                return None
+        try:
+            ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+        except Exception:
+            return None
+        if not ffmpeg_path or not os.path.isfile(ffmpeg_path):
+            return None
+
+        ffmpeg_dir = os.path.dirname(ffmpeg_path)
+        shim_path = os.path.join(ffmpeg_dir, "ffmpeg.exe")
+        if os.path.isfile(shim_path):
+            return shim_path
+
+        try:
+            shutil.copy2(ffmpeg_path, shim_path)
+            return shim_path
+        except Exception:
+            # Fall back to the original filename even if it isn't named ffmpeg.exe
+            return ffmpeg_path
+
+    if _validate_binary("ffmpeg"):
+        if not _validate_binary("ffprobe"):
+            print("\nWarning: ffprobe not found. Audio stream list will show only 'Auto'.")
+            print("Install an FFmpeg build that includes ffprobe and ensure its bin is on PATH.")
+        return
+
+    candidates = [
+        r"C:\ffmpeg\bin",
+        r"C:\Program Files\ffmpeg\bin",
+        r"C:\Program Files (x86)\ffmpeg\bin",
+        os.path.join(os.getcwd(), "ffmpeg", "bin"),
+    ]
 
     for path in candidates:
         if path and os.path.isdir(path) and os.path.isfile(os.path.join(path, "ffmpeg.exe")):
             os.environ["PATH"] = path + os.pathsep + os.environ.get("PATH", "")
-            break
+            if _validate_binary("ffmpeg"):
+                break
 
-    # Validate again; if still missing, raise a clear message
-    try:
-        subprocess.run(["ffmpeg", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-    except Exception:
+    if not _validate_binary("ffmpeg"):
+        portable_ffmpeg = _ensure_portable_ffmpeg()
+        if portable_ffmpeg and os.path.isfile(portable_ffmpeg):
+            portable_bin = os.path.dirname(portable_ffmpeg)
+            os.environ["PATH"] = portable_bin + os.pathsep + os.environ.get("PATH", "")
+            print(f"Using bundled FFmpeg from: {portable_ffmpeg}")
+
+    if not _validate_binary("ffmpeg"):
         print("\nError: FFmpeg executable not found.")
         print("I looked for ffmpeg in the following locations:")
         for p in candidates:
             print(f" - {p}")
-        print("\nPlease ensure FFmpeg is installed and that C\\ffmpeg\\bin (or your install's bin folder) is added to your PATH.")
+        print("\nTried installing imageio-ffmpeg but could not access a working binary.")
+        print("Please ensure FFmpeg is installed and that its bin folder is added to your PATH.")
         print("Download: https://ffmpeg.org/download.html or a Windows build from https://www.gyan.dev/ffmpeg/builds/")
         sys.exit(1)
 
-    # Validate ffprobe too (needed for stream selection)
-    try:
-        # Some installs name it ffprobe.exe; on Windows both should resolve with just 'ffprobe'
-        subprocess.run(["ffprobe", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-    except Exception:
+    if not _validate_binary("ffprobe"):
         print("\nWarning: ffprobe not found. Audio stream list will show only 'Auto'.")
         print("Install an FFmpeg build that includes ffprobe and ensure its bin is on PATH.")
 
@@ -232,19 +268,34 @@ def main():
         try:
             cf = current_file_var.get() or ""
             st = status_var.get() or ""
-            sep = "  —  " if cf and st else ""
-            # Model
+            sep = "  |  " if (cf and st) else ""
             try:
-                mdl = f"  |  Model: {current_model_name.get()}"
+                mdl = ("  |  " + (model_display_var.get() or "")) if model_display_var.get() else ""
             except Exception:
                 mdl = ""
             legend = "  |  Legend: 🎥 video"
             status_bar_var.set(f"{cf}{sep}{st}{mdl}{legend}")
         except Exception:
             pass
+
+    def set_status(message: str):
+        try:
+            status_var.set(str(message))
+        except Exception:
+            pass
+        try:
+            _refresh_status_bar()
+        except Exception:
+            pass
+        try:
+            root.update_idletasks()
+        except Exception:
+            pass
     try:
+        # Keep status bar up-to-date automatically
         status_var.trace_add("write", _refresh_status_bar)
         current_file_var.trace_add("write", _refresh_status_bar)
+        model_display_var.trace_add("write", _refresh_status_bar)
     except Exception:
         pass
 
@@ -576,15 +627,156 @@ def main():
             return os.path.join(folder, f"{base}.transcribe.state.json")
         except Exception:
             return os.path.join(tempfile.gettempdir(), "transcribe.state.json")
-    def _probe_duration_seconds(path: str) -> float:
+
+    def _resolve_ffmpeg_cmd() -> str:
+        """Return the path to ffmpeg binary, checking PATH and common locations."""
         try:
-            cmd = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=nk=1:nw=1", path]
+            ffmpeg = shutil.which("ffmpeg") or shutil.which("ffmpeg.exe")
+            if ffmpeg:
+                return ffmpeg
+            # Fallback: try to find next to ffprobe
+            probe = shutil.which("ffprobe") or shutil.which("ffprobe.exe")
+            if probe:
+                probe_dir = os.path.dirname(probe)
+                if probe_dir:
+                    for name in ("ffmpeg.exe", "ffmpeg"):
+                        candidate = os.path.join(probe_dir, name)
+                        if os.path.isfile(candidate):
+                            return candidate
+            return "ffmpeg"
+        except Exception:
+            return "ffmpeg"
+
+    def _resolve_ffprobe_cmd() -> str:
+        try:
+            probe = shutil.which("ffprobe") or shutil.which("ffprobe.exe")
+            if probe:
+                return probe
+            ffmpeg_bin = shutil.which("ffmpeg") or shutil.which("ffmpeg.exe")
+            if ffmpeg_bin:
+                ffmpeg_dir = os.path.dirname(ffmpeg_bin)
+                if ffmpeg_dir:
+                    candidate = os.path.join(ffmpeg_dir, "ffprobe.exe")
+                    if os.path.isfile(candidate):
+                        return candidate
+                    candidate = os.path.join(ffmpeg_dir, "ffprobe")
+                    if os.path.isfile(candidate):
+                        return candidate
+            return "ffprobe"
+        except Exception:
+            return "ffprobe"
+
+    def _probe_duration_seconds(path: str) -> float:
+        """Probe media duration using ffprobe with multiple fallback strategies."""
+        import json as _json
+        probe_cmd = _resolve_ffprobe_cmd()
+        
+        # Strategy 1: Standard format duration probe
+        try:
+            cmd = [probe_cmd, "-v", "error", "-show_entries", "format=duration", "-of", "default=nk=1:nw=1", path]
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if res.returncode == 0 and res.stdout.strip():
+                dur = float(res.stdout.strip())
+                if dur > 0:
+                    return dur
+        except Exception:
+            pass
+        
+        # Strategy 2: JSON format probe (more robust for some files)
+        try:
+            cmd = [probe_cmd, "-v", "error", "-show_format", "-show_streams", "-of", "json", path]
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if res.returncode == 0:
+                data = _json.loads(res.stdout or "{}")
+                # Try format duration first
+                fmt = data.get("format", {})
+                if "duration" in fmt and fmt["duration"]:
+                    dur = float(fmt["duration"])
+                    if dur > 0:
+                        return dur
+                # Fall back to first video/audio stream duration
+                for stream in data.get("streams", []):
+                    if "duration" in stream and stream["duration"]:
+                        dur = float(stream["duration"])
+                        if dur > 0:
+                            return dur
+        except Exception:
+            pass
+        
+        # Strategy 3: Use ffmpeg to get duration (works for some files ffprobe can't handle)
+        try:
+            ffmpeg_cmd = _resolve_ffmpeg_cmd()
+            cmd = [ffmpeg_cmd, "-i", path, "-f", "null", "-"]
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            # Parse duration from stderr output
+            import re
+            dur_match = re.search(r"Duration:\s+(\d+):(\d+):(\d+\.?\d*)", res.stderr)
+            if dur_match:
+                h, m, s = map(float, dur_match.groups())
+                dur = h * 3600 + m * 60 + s
+                if dur > 0:
+                    return dur
+        except Exception:
+            pass
+        
+        return 0.0
+
+    def _probe_audio_streams(input_path: str) -> list:
+        """Return a list of audio stream metadata using ffprobe. Each item includes
+        position (0-based among audio streams), index, channels, bitrate, language, codec_name.
+        """
+        try:
+            import json as _json
+            # Prefer ffprobe; if missing, try ffprobe.exe explicitly (Windows)
+            probe_cmd = _resolve_ffprobe_cmd()
+            cmd = [
+                probe_cmd, "-v", "error",
+                "-select_streams", "a",
+                "-show_entries", "stream=index,channels,codec_name,channel_layout,bit_rate:stream_tags=language",
+                "-of", "json",
+                input_path,
+            ]
             res = subprocess.run(cmd, capture_output=True, text=True)
             if res.returncode != 0:
-                return 0.0
-            return float(res.stdout.strip()) if res.stdout else 0.0
-        except Exception:
-            return 0.0
+                try:
+                    append_log(f"ffprobe failed (code {res.returncode}). Streams unavailable.\n{res.stderr[:400] if res.stderr else ''}")
+                except Exception:
+                    pass
+                return []
+            data = _json.loads(res.stdout or "{}")
+            streams = data.get("streams", [])
+            items = []
+            for pos, s in enumerate(streams):
+                try:
+                    items.append({
+                        "pos": pos,
+                        "index": int(s.get("index", pos)),
+                        "channels": int(s.get("channels", 0) or 0),
+                        "bit_rate": int(s.get("bit_rate", 0) or 0),
+                        "language": str((s.get("tags", {}) or {}).get("language", "")).lower(),
+                        "codec_name": s.get("codec_name", ""),
+                    })
+                except Exception:
+                    pass
+            # Prefer more channels, then higher bitrate, prefer english/und
+            def _lang_rank(lang: str) -> int:
+                if lang in ("eng", "en", ""): return 2
+                if lang in ("und", "undetermined"): return 1
+                return 0
+            items.sort(key=lambda x: (x.get("channels", 0), x.get("bit_rate", 0), _lang_rank(x.get("language", ""))), reverse=True)
+            return items
+        except FileNotFoundError:
+            try:
+                append_log("ffprobe not found on PATH. Stream dropdown will show only 'Auto'.")
+            except Exception:
+                pass
+            return []
+        except Exception as e:
+            try:
+                append_log(f"Stream probe error: {e}")
+            except Exception:
+                pass
+            return []
 
     def _extract_time_clip(input_path: str, start_sec: float, dur_sec: float, out_wav: str) -> bool:
         """Use ffmpeg to extract a PCM WAV clip [start, start+dur)."""
@@ -592,15 +784,18 @@ def main():
             os.makedirs(os.path.dirname(out_wav) or tempfile.gettempdir(), exist_ok=True)
         except Exception:
             pass
+        ffmpeg_cmd = _resolve_ffmpeg_cmd()
         cmd = [
-            "ffmpeg", "-y", "-ss", str(max(0, start_sec)), "-i", input_path,
+            ffmpeg_cmd, "-y", "-ss", str(max(0, start_sec)), "-i", input_path,
             "-t", str(max(0.1, dur_sec)),
             "-vn", "-ac", "2", "-ar", "16000", "-acodec", "pcm_s16le",
             out_wav,
         ]
         try:
-            p = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # Capture stderr for diagnostics instead of hiding it
+            p = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
             _current_ffmpeg_proc["proc"] = p
+            stderr_output = ""
             while True:
                 if stop_event.is_set():
                     try:
@@ -612,10 +807,33 @@ def main():
                 if rc is None:
                     root.update_idletasks(); root.update()
                     continue
+                # Process finished, collect any remaining stderr
+                try:
+                    _, err = p.communicate(timeout=1)
+                    if err:
+                        stderr_output += err
+                except Exception:
+                    pass
                 break
             _current_ffmpeg_proc["proc"] = None
+            if rc != 0 and stderr_output:
+                try:
+                    append_log(f"ffmpeg extraction error: {stderr_output[:500]}")
+                except Exception:
+                    pass
             return rc == 0 and os.path.isfile(out_wav)
-        except Exception:
+        except FileNotFoundError as e:
+            try:
+                append_log(f"ffmpeg not found: {e}. Ensure FFmpeg is installed and on PATH.")
+            except Exception:
+                pass
+            _current_ffmpeg_proc["proc"] = None
+            return False
+        except Exception as e:
+            try:
+                append_log(f"ffmpeg extraction failed: {e}")
+            except Exception:
+                pass
             _current_ffmpeg_proc["proc"] = None
             return False
 
@@ -634,7 +852,7 @@ def main():
             cur = ""
             while i < len(sents):
                 chunk = sents[i]
-                if i + 1 < len(sents) and re.match(r"[.!?]\\s+", sents[i+1] or ""):
+                if i + 1 < len(sents) and re.match(r"[.!?]\s+", sents[i+1] or ""):
                     cur = (chunk or "") + (sents[i+1] or "")
                     i += 2
                 else:
@@ -659,6 +877,28 @@ def main():
         except Exception:
             return text
 
+    def _split_sentences(text: str) -> list:
+        """Heuristic sentence splitter used for cross-chunk de-duplication."""
+        try:
+            import re
+            parts = re.split(r"([.!?]\s+)", text.strip())
+            if not parts:
+                return []
+            sents = []
+            i = 0
+            while i < len(parts):
+                chunk = parts[i]
+                if i + 1 < len(parts) and re.match(r"[.!?]\s+", parts[i+1] or ""):
+                    sents.append((chunk or "") + (parts[i+1] or ""))
+                    i += 2
+                else:
+                    if chunk:
+                        sents.append(chunk)
+                    i += 1
+            return sents
+        except Exception:
+            return [text]
+
     def _post_process_dedupe_file(file_path: str):
         """Read a file, globally de-duplicate consecutive sentences, and overwrite."""
         try:
@@ -671,28 +911,6 @@ def main():
                 f.write(deduped)
         except Exception as e:
             append_log(f"Post-process dedupe failed: {e}")
-
-    def _split_sentences(text: str) -> list[str]:
-        """Heuristic sentence splitter used for cross-chunk de-duplication."""
-        try:
-            import re
-            parts = re.split(r"([.!?]\s+)", text.strip())
-            if not parts:
-                return []
-            sents = []
-            i = 0
-            while i < len(parts):
-                chunk = parts[i]
-                if i + 1 < len(parts) and re.match(r"[.!?]\\s+", parts[i+1] or ""):
-                    sents.append((chunk or "") + (parts[i+1] or ""))
-                    i += 2
-                else:
-                    if chunk:
-                        sents.append(chunk)
-                    i += 1
-            return sents
-        except Exception:
-            return [text]
 
     def _strip_initial_prompt_leak(text: str, prompt: str | None) -> str:
         """Remove occurrences of the initial prompt text if Whisper echoes it.
@@ -741,6 +959,26 @@ def main():
                 except Exception:
                     forced_pos = None
                 ok = extract_audio_to_wav(input_path, tmp_wav, force_pos=forced_pos)
+                if (not ok) or (not os.path.isfile(tmp_wav)):
+                    try:
+                        ext = os.path.splitext(input_path)[1] or ".mp4"
+                        remux_tmp = os.path.join(
+                            tempfile.gettempdir(),
+                            f"whisper_remux_{os.getpid()}_{int(datetime.now().timestamp())}{ext}",
+                        )
+                        append_log("Media unreadable. Attempting remux repair and retry…")
+                        remux_ok = remux_media(input_path, remux_tmp)
+                        if remux_ok and os.path.isfile(remux_tmp):
+                            append_log(f"Remux successful → {os.path.basename(remux_tmp)}. Retrying extraction…")
+                            ok = extract_audio_to_wav(remux_tmp, tmp_wav, force_pos=forced_pos)
+                    except Exception:
+                        pass
+                    finally:
+                        try:
+                            if 'remux_tmp' in locals() and os.path.isfile(remux_tmp):
+                                os.remove(remux_tmp)
+                        except Exception:
+                            pass
                 if ok and os.path.isfile(tmp_wav):
                     args = compute_transcribe_args()
                     result = model.transcribe(tmp_wav, **args)
@@ -1616,13 +1854,28 @@ def main():
 
     # Hide original inline controls to avoid duplicates on the main toolbar row
     try:
-        extract_only_btn.pack_forget()
-        remux_btn.pack_forget()
-        stream_label.pack_forget()
-        audio_stream_combo.pack_forget()
-        refresh_streams_btn.pack_forget()
-        preview_stream_btn.pack_forget()
-        transcribe_extracted_btn.pack_forget()
+        # Model controls
+        model_label.pack_forget()
+        model_combo.pack_forget()
+        load_model_btn.pack_forget()
+    except Exception:
+        pass
+    try:
+        # Language and output controls
+        language_label.pack_forget()
+        indian_bias_chk.pack_forget()
+        stability_chk.pack_forget()
+        fast_decode_chk.pack_forget()
+        language_combo.pack_forget()
+        output_label.pack_forget()
+        output_mode_combo.pack_forget()
+    except Exception:
+        pass
+    try:
+        # Recent controls and width buttons
+        recent_label.pack_forget()
+        recent_combo.pack_forget()
+        dec_btn.pack_forget(); inc_btn.pack_forget(); recent_open_btn.pack_forget()
     except Exception:
         pass
 
@@ -2633,76 +2886,6 @@ def main():
     def set_preview_text(text: str):
         # Sanitize citation markers for display in the preview tab only
         t = sanitize_notes_markdown(text if isinstance(text, str) else "")
-        preview.configure(state=tk.NORMAL)
-        preview.delete("1.0", tk.END)
-        preview.insert(tk.END, t)
-        preview.see("1.0")
-        preview.configure(state=tk.DISABLED)
-
-    def set_status(text: str):
-        status_var.set(text)
-        root.update_idletasks()
-
-    # Safer delete via Recycle Bin
-    _trash_ready = False
-    def ensure_send2trash_ready() -> bool:
-        nonlocal _trash_ready
-        if _trash_ready:
-            return True
-        try:
-            import send2trash  # noqa: F401
-            _trash_ready = True
-            return True
-        except Exception:
-            try:
-                subprocess.check_call([sys.executable, "-m", "pip", "install", "Send2Trash"])  # package name capitalization
-                import send2trash  # noqa: F401
-                _trash_ready = True
-                return True
-            except Exception:
-                return False
-
-    def safe_delete_to_trash(path: str):
-        if not path:
-            return
-        try:
-            if ensure_send2trash_ready():
-                from send2trash import send2trash
-                send2trash(path)
-            else:
-                # Fallback to permanent removal if Send2Trash unavailable
-                os.remove(path)
-        except Exception as e:
-            raise e
-
-    def sanitize_notes_markdown(text: str) -> str:
-        # Remove citation markers from preview (robust to case/whitespace/entity-escaping)
-        try:
-            import re, html as _py_html
-            t = text or ""
-            # Unescape entities so '&#91;cite_start]' also matches
-            try:
-                t = _py_html.unescape(t)
-            except Exception:
-                pass
-            # Normalize common escaped patterns first (e.g., [cite\_start] -> [cite_start])
-            t = re.sub(r"(?i)cite\\_start", "cite_start", t)
-            t = re.sub(r"(?i)cite\\_end", "cite_end", t)
-            # Remove [cite_start], [cite-end], [ cite start ], [cite_start:meta], \[cite_start]
-            # Support separators _, -, or space; allow optional :suffix; and optional escape before '['
-            t = re.sub(r"\\?\[\s*cite(?:[\s_\-])*start\s*(?::[^\]]*)?\]", "", t, flags=re.IGNORECASE)
-            t = re.sub(r"\\?\[\s*cite(?:[\s_\-])*end\s*\]", "", t, flags=re.IGNORECASE)
-            # Remove inline [cite: ...] references as well
-            t = re.sub(r"\\?\[\s*cite\s*:[^\]]*\]", "", t, flags=re.IGNORECASE)
-            # Also remove any leftover empty lines that were only markers
-            t = re.sub(r"^(\s*)$", r"\1", t, flags=re.MULTILINE)
-            return t
-        except Exception:
-            return text
-
-    def render_markdown_to_preview(text: str):
-        # Convert markdown to HTML if possible, else just show plain text
-        sanitized_input = sanitize_notes_markdown(text if isinstance(text, str) else "")
 
         # --- Pre-process image links in Markdown to valid file:/// URLs (Windows safe) ---
         def _to_file_url(path: str, base_dir: str | None) -> str:
@@ -3495,7 +3678,7 @@ def main():
                     file_name = os.path.basename(media_path)
                     base, _ = os.path.splitext(file_name)
 
-                    append_log(f"Processing URL -> file: {file_name}")
+                    append_log(f"Processing URL → file: {file_name}")
                     set_status("Transcribing...")
 
                     # Run Whisper directly so we can control the destination folder
@@ -4002,7 +4185,7 @@ def main():
         try:
             import json as _json
             # Prefer ffprobe; if missing, try ffprobe.exe explicitly (Windows)
-            probe_cmd = shutil.which("ffprobe") or shutil.which("ffprobe.exe") or "ffprobe"
+            probe_cmd = _resolve_ffprobe_cmd()
             cmd = [
                 probe_cmd, "-v", "error",
                 "-select_streams", "a",
@@ -4052,16 +4235,6 @@ def main():
                 pass
             return []
 
-    def _probe_duration_seconds(path: str) -> float:
-        try:
-            cmd = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=nk=1:nw=1", path]
-            res = subprocess.run(cmd, capture_output=True, text=True)
-            if res.returncode != 0:
-                return 0.0
-            return float(res.stdout.strip()) if res.stdout else 0.0
-        except Exception:
-            return 0.0
-
     def extract_audio_to_wav(input_path: str, out_path: str, force_pos: int | None = None) -> bool:
         """Extract mono 16 kHz WAV from a specific/best audio stream.
         - Uses ffprobe to pick the best audio stream (by channels/bitrate/language).
@@ -4072,7 +4245,6 @@ def main():
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
         except Exception:
             pass
-
         # Build candidate list of audio streams
         candidates = _probe_audio_streams(input_path)
         if not candidates:
@@ -4083,6 +4255,7 @@ def main():
             # Only try the forced position first
             candidates = [{"pos": int(force_pos)}] + [c for c in candidates if int(c.get("pos", -1)) != int(force_pos)]
 
+        ffmpeg_cmd = _resolve_ffmpeg_cmd()
         for c in candidates:
             pos = int(c.get("pos", 0))
             # Try multiple filter strategies to preserve audible content from multichannel sources
@@ -4106,7 +4279,7 @@ def main():
 
             for label, filt_args in filter_strategies:
                 cmd = [
-                    "ffmpeg", "-y", "-i", input_path,
+                    ffmpeg_cmd, "-y", "-i", input_path,
                     "-map", f"0:a:{pos}",  # pick a specific audio stream by position
                     "-vn",
                 ] + filt_args + [
@@ -4119,8 +4292,10 @@ def main():
                         append_log(f"Trying {label} mapping for stream a:{pos}…")
                     except Exception:
                         pass
-                    p = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    # Capture stderr for diagnostics
+                    p = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
                     _current_ffmpeg_proc["proc"] = p
+                    stderr_output = ""
                     while True:
                         if stop_event.is_set():
                             try:
@@ -4132,6 +4307,13 @@ def main():
                         if rc is None:
                             root.update_idletasks(); root.update()
                             continue
+                        # Process finished, collect stderr
+                        try:
+                            _, err = p.communicate(timeout=1)
+                            if err:
+                                stderr_output += err
+                        except Exception:
+                            pass
                         break
                     _current_ffmpeg_proc["proc"] = None
                     if rc == 0 and os.path.isfile(out_path):
@@ -4142,7 +4324,24 @@ def main():
                             except Exception:
                                 pass
                             return True
-                except Exception:
+                    # Log the error if extraction failed
+                    if stderr_output:
+                        try:
+                            append_log(f"ffmpeg {label} error: {stderr_output[:1000]}")
+                        except Exception:
+                            pass
+                except FileNotFoundError as e:
+                    try:
+                        append_log(f"ffmpeg not found: {e}. Ensure FFmpeg is installed and on PATH.")
+                    except Exception:
+                        pass
+                    _current_ffmpeg_proc["proc"] = None
+                    continue
+                except Exception as e:
+                    try:
+                        append_log(f"ffmpeg extraction failed for {label}: {e}")
+                    except Exception:
+                        pass
                     _current_ffmpeg_proc["proc"] = None
                     continue
 
@@ -4214,16 +4413,19 @@ def main():
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
         except Exception:
             pass
+        ffmpeg_cmd = _resolve_ffmpeg_cmd()
         cmd = [
-            "ffmpeg", "-y", "-i", input_path,
+            ffmpeg_cmd, "-y", "-i", input_path,
             "-map", "0",
             "-c", "copy",
             "-movflags", "+faststart",
             out_path,
         ]
         try:
-            p = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # Capture stderr for diagnostics
+            p = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
             _current_ffmpeg_proc["proc"] = p
+            stderr_output = ""
             while True:
                 if stop_event.is_set():
                     try:
@@ -4235,13 +4437,36 @@ def main():
                 if rc is None:
                     root.update_idletasks(); root.update()
                     continue
+                # Process finished, collect stderr
+                try:
+                    _, err = p.communicate(timeout=1)
+                    if err:
+                        stderr_output += err
+                except Exception:
+                    pass
                 break
             _current_ffmpeg_proc["proc"] = None
+            if rc != 0 and stderr_output:
+                try:
+                    append_log(f"ffmpeg remux error: {stderr_output[:500]}")
+                except Exception:
+                    pass
             if rc == 0 and os.path.isfile(out_path):
                 dur = _probe_duration_seconds(out_path)
                 return dur > 0.5
             return False
-        except Exception:
+        except FileNotFoundError as e:
+            try:
+                append_log(f"ffmpeg not found for remux: {e}. Ensure FFmpeg is installed and on PATH.")
+            except Exception:
+                pass
+            _current_ffmpeg_proc["proc"] = None
+            return False
+        except Exception as e:
+            try:
+                append_log(f"ffmpeg remux failed: {e}")
+            except Exception:
+                pass
             _current_ffmpeg_proc["proc"] = None
             return False
 
