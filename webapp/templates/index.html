@@ -229,13 +229,20 @@
                             <div class="row mb-2">
                                 <div class="col-md-6">
                                     <div class="input-group input-group-sm">
-                                        <input type="text" id="compare-tickers" class="form-control" 
-                                               placeholder="Enter tickers to compare (e.g., AAPL, MSFT, GOOGL)" 
+                                        <input type="text" id="compare-tickers" class="form-control"
+                                               placeholder="Enter tickers to compare (e.g., AAPL, MSFT, GOOGL)"
                                                value="">
                                         <button class="btn btn-primary" onclick="compareStocks()">Compare</button>
                                     </div>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-3">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text" title="Base symbol for relative comparison">Base</span>
+                                        <input type="text" id="compare-base-ticker" class="form-control"
+                                               placeholder="SPY" value="SPY" style="max-width: 80px;">
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
                                     <div class="btn-group btn-group-sm" role="group">
                                         <button type="button" class="btn btn-outline-secondary active" onclick="updateCompareTimeframe('D', this)">Daily</button>
                                         <button type="button" class="btn btn-outline-secondary" onclick="updateCompareTimeframe('W', this)">Weekly</button>
@@ -3665,7 +3672,8 @@
     async function compareStocks() {
         const input = document.getElementById('compare-tickers').value;
         const tickers = input.split(',').map(t => t.trim().toUpperCase()).filter(t => t.length > 0);
-        
+        const baseTicker = (document.getElementById('compare-base-ticker').value || 'SPY').trim().toUpperCase();
+
         if (tickers.length === 0) {
             document.getElementById('compare-chart').innerHTML = '<p class="text-danger text-center pt-5">Please enter at least one ticker</p>';
             return;
@@ -3689,8 +3697,14 @@
                 return url;
             };
 
-            // Fetch data for all tickers
-            const promises = tickers.map(ticker => 
+            // Collect all tickers to fetch (include base if not already in list)
+            const allTickers = [...tickers];
+            if (!allTickers.includes(baseTicker)) {
+                allTickers.push(baseTicker);
+            }
+
+            // Fetch data for all tickers including base
+            const promises = allTickers.map(ticker =>
                 fetch(buildUrl(ticker))
                     .then(r => r.json())
                     .catch(() => null)
@@ -3699,45 +3713,78 @@
 
             // Filter out failed requests
             const validData = results.filter(d => d && !d.error);
-            
+
             if (validData.length === 0) {
                 container.innerHTML = '<p class="text-danger text-center pt-5">Could not fetch data for any of the tickers</p>';
                 return;
             }
 
-            renderCompareChart(validData);
+            // Find base ticker data
+            const baseData = validData.find(d => d.ticker && d.ticker.toUpperCase() === baseTicker);
+            if (!baseData) {
+                container.innerHTML = `<p class="text-danger text-center pt-5">Could not fetch data for base ticker: ${baseTicker}</p>`;
+                return;
+            }
+
+            renderCompareChart(validData, baseData, baseTicker);
         } catch (error) {
             console.error('Compare error:', error);
             container.innerHTML = '<p class="text-danger text-center pt-5">Error comparing stocks</p>';
         }
     }
 
-    function renderCompareChart(datasets) {
+    function renderCompareChart(datasets, baseData, baseTicker) {
         const container = document.getElementById('compare-chart');
         container.innerHTML = '';
 
-        // Normalize prices to percentage change from first day
+        // Build a date->index map for the base ticker to align dates
+        const baseDateMap = {};
+        const baseFirstPrice = baseData.close[0];
+        baseData.dates.forEach((d, i) => {
+            baseDateMap[d] = ((baseData.close[i] - baseFirstPrice) / baseFirstPrice) * 100;
+        });
+
+        const colors = ['#2196F3', '#4CAF50', '#FF9800', '#E91E63', '#9C27B0', '#00BCD4',
+                         '#FF5722', '#795548', '#607D8B', '#3F51B5', '#009688', '#CDDC39'];
+
+        // Normalize each ticker: % gain minus base % gain (relative performance)
         const traces = datasets.map((data, idx) => {
-            const colors = ['#2196F3', '#4CAF50', '#FF9800', '#E91E63', '#9C27B0', '#00BCD4'];
-            const basePrice = data.close[0];
-            const normalizedClose = data.close.map(p => ((p - basePrice) / basePrice) * 100);
-            
+            const firstPrice = data.close[0];
+            const relativeClose = data.dates.map((date, i) => {
+                const tickerPct = ((data.close[i] - firstPrice) / firstPrice) * 100;
+                const basePct = baseDateMap[date] !== undefined ? baseDateMap[date] : 0;
+                return tickerPct - basePct;
+            });
+
+            const isBase = data.ticker && data.ticker.toUpperCase() === baseTicker;
             return {
                 x: data.dates,
-                y: normalizedClose,
+                y: relativeClose,
                 type: 'scatter',
                 mode: 'lines',
                 name: data.ticker,
-                line: { color: colors[idx % colors.length], width: 2 }
+                line: {
+                    color: isBase ? '#888888' : colors[idx % colors.length],
+                    width: isBase ? 1.5 : 2,
+                    dash: isBase ? 'dash' : 'solid'
+                }
             };
         });
 
+        // Find date range for title
+        const allDates = datasets.flatMap(d => d.dates);
+        const minDate = allDates.length ? allDates.reduce((a, b) => a < b ? a : b) : '';
+        const maxDate = allDates.length ? allDates.reduce((a, b) => a > b ? a : b) : '';
+
         const layout = {
-            title: { text: 'Stock Comparison (% Change)' },
+            title: { text: `Relative Performance vs ${baseTicker} (${minDate} to ${maxDate})` },
             xaxis: { type: 'date' },
-            yaxis: { 
-                title: { text: '% Change' },
-                ticksuffix: '%'
+            yaxis: {
+                title: { text: `% vs ${baseTicker}` },
+                ticksuffix: '%',
+                zeroline: true,
+                zerolinecolor: '#888',
+                zerolinewidth: 2
             },
             legend: { orientation: 'h', y: -0.1 },
             autosize: true,
@@ -3745,7 +3792,7 @@
             margin: { t: 40, b: 60, l: 60, r: 40 }
         };
 
-        Plotly.newPlot('compare-chart', traces, layout, { responsive: true });
+        Plotly.newPlot('compare-chart', traces, layout, { responsive: true, edits: { legendPosition: true } });
     }
 </script>
 {% endblock %}

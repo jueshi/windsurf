@@ -1513,6 +1513,15 @@ class StockDataGUI:
         self.chart_label = ttk.Label(self.individual_chart_frame)
         self.chart_label.pack(fill=tk.BOTH, expand=True)
 
+        # Base ticker control bar for comparison
+        compare_ctrl_frame = ttk.Frame(self.comparison_chart_frame)
+        compare_ctrl_frame.pack(fill=tk.X, padx=5, pady=(2, 0))
+        ttk.Label(compare_ctrl_frame, text="Base:").pack(side=tk.LEFT, padx=(0, 2))
+        self.compare_base_var = tk.StringVar(value="SPY")
+        compare_base_entry = ttk.Entry(compare_ctrl_frame, textvariable=self.compare_base_var, width=8)
+        compare_base_entry.pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(compare_ctrl_frame, text="(relative performance vs base)", font=("Helvetica", 8)).pack(side=tk.LEFT)
+
         # Use a fixed container to prevent label/image from resizing the parent frame
         self.comparison_chart_container = ttk.Frame(self.comparison_chart_frame)
         self.comparison_chart_container.pack(fill=tk.BOTH, expand=True)
@@ -4837,14 +4846,24 @@ Tabs:
             logging.error(f"Error getting selected tickers: {str(e)}")
             return
 
+        # Get base ticker for relative comparison
+        base_ticker = self.compare_base_var.get().strip().upper() if hasattr(self, 'compare_base_var') else 'SPY'
+        if not base_ticker:
+            base_ticker = 'SPY'
+
+        # Ensure base ticker is in the list
+        all_tickers_to_load = list(selected_tickers)
+        if base_ticker not in all_tickers_to_load:
+            all_tickers_to_load.append(base_ticker)
+
         # Update status
-        self.status_var.set(f"Generating percentage comparison chart for {len(selected_tickers)} tickers...")
+        self.status_var.set(f"Generating relative comparison chart vs {base_ticker} for {len(selected_tickers)} tickers...")
         self.root.update_idletasks()
 
-        # Check for missing data
+        # Check for missing data (include base ticker)
         try:
             missing_tickers = []
-            for ticker in selected_tickers:
+            for ticker in all_tickers_to_load:
                 data_path = self.manager._get_data_path(ticker)
                 if not os.path.exists(data_path):
                     missing_tickers.append(ticker)
@@ -4865,7 +4884,7 @@ Tabs:
         # Load data for all tickers
         try:
             ticker_data = {}
-            for ticker_symbol in selected_tickers:
+            for ticker_symbol in all_tickers_to_load:
                 try:
                     data = self.manager.load_data(ticker_symbol)
                     if data is not None and not data.empty:
@@ -4880,6 +4899,10 @@ Tabs:
 
             if len(ticker_data) < 1:
                 messagebox.showwarning("Insufficient Data", "Need at least one ticker with valid data to generate comparison.")
+                return
+
+            if base_ticker not in ticker_data:
+                messagebox.showwarning("Base Ticker Missing", f"Could not load data for base ticker '{base_ticker}'. Please check the symbol.")
                 return
         except Exception as e:
             messagebox.showerror("Error", f"Error loading ticker data: {str(e)}")
@@ -4957,7 +4980,20 @@ Tabs:
 
             plt.figure(figsize=(12, 8))
 
-            # Plot each ticker's percentage change
+            # Compute base ticker percentage change first
+            base_data = ticker_data[base_ticker]
+            base_index_naive = base_data.index.tz_localize(None) if hasattr(base_data.index, 'tz_localize') else base_data.index
+            base_mask = (base_index_naive >= common_start) & (base_index_naive <= common_end)
+            base_filtered = base_data.loc[base_mask].copy()
+            base_first_close = base_filtered['Close'].iloc[0]
+            base_filtered['pct_change'] = ((base_filtered['Close'] - base_first_close) / base_first_close) * 100
+            # Build a date->pct map for the base ticker
+            base_pct_map = {}
+            for dt, row in base_filtered.iterrows():
+                dt_naive = dt.tz_localize(None) if hasattr(dt, 'tz_localize') else dt
+                base_pct_map[dt_naive.date()] = row['pct_change']
+
+            # Plot each ticker's relative percentage change vs base
             plotted_tickers = []
 
             for ticker_symbol, data in ticker_data.items():
@@ -4979,8 +5015,20 @@ Tabs:
                         first_close = filtered_data['Close'].iloc[0]
                         filtered_data['pct_change'] = ((filtered_data['Close'] - first_close) / first_close) * 100
 
-                        # Plot the percentage change
-                        plt.plot(filtered_data.index, filtered_data['pct_change'], label=ticker_symbol)
+                        # Subtract base ticker's percentage to get relative performance
+                        filtered_data['relative_pct'] = filtered_data.apply(
+                            lambda row: row['pct_change'] - base_pct_map.get(
+                                (row.name.tz_localize(None) if hasattr(row.name, 'tz_localize') else row.name).date(), 0),
+                            axis=1
+                        )
+
+                        # Plot with dashed style for base ticker
+                        is_base = ticker_symbol == base_ticker
+                        plt.plot(filtered_data.index, filtered_data['relative_pct'],
+                                 label=ticker_symbol,
+                                 linestyle='--' if is_base else '-',
+                                 alpha=0.5 if is_base else 1.0,
+                                 linewidth=1.5 if is_base else 2)
                         plotted_tickers.append(ticker_symbol)
                         logging.info(f"Successfully plotted {ticker_symbol}")
                     else:
@@ -4996,13 +5044,13 @@ Tabs:
             # Add chart details
             start_date_str = pd.Timestamp(common_start).strftime('%Y-%m-%d')
             end_date_str = pd.Timestamp(common_end).strftime('%Y-%m-%d')
-            plt.title(f'Percentage Performance Comparison ({start_date_str} to {end_date_str})')
+            plt.title(f'Relative Performance vs {base_ticker} ({start_date_str} to {end_date_str})')
             plt.xlabel('Date')
-            plt.ylabel('Percentage Change (%)')
+            plt.ylabel(f'% vs {base_ticker}')
             plt.grid(True, alpha=0.3)
             plt.legend(loc='best')
             plt.gcf().autofmt_xdate()
-            plt.axhline(y=0, color='k', linestyle='-', alpha=0.3)  # Add horizontal line at 0%
+            plt.axhline(y=0, color='k', linestyle='-', linewidth=1.5, alpha=0.5)  # Zero line = base performance
         except Exception as e:
             messagebox.showerror("Error", f"Error creating plot: {str(e)}")
             logging.error(f"Error creating plot: {str(e)}")
