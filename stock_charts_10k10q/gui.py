@@ -33,7 +33,10 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.io as pio
 from plotly.offline import plot
-from tkcalendar import DateEntry
+try:
+    from tkcalendar import DateEntry
+except ModuleNotFoundError:
+    from custom_widgets import CustomDateEntry as DateEntry
 from data_manager import StockDataManager
 import google.generativeai as genai
 import gemini_analyzer

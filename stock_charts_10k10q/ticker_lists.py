@@ -744,23 +744,19 @@ if __name__ == '__main__':
 
 
 temp_stocks = [
-    "SGU",
-    "RRX",
-    "JPM",
-    "RGA",
-    "CBRE",
-    "RBLX",
-    "RDDT",
-    "GS",
-    "NVDA",
-    "TSLA",
-    "DTCK",
+    "FRHC",
+    "FLNG",
+    "META",
+    "MU",
+    "BABA",
     "GOOG",
     "GOOGL",
-    "NFLX",
-    "PSKY",
-    "WBD",
-    "RAL"
+    "AMZN",
+    "MSFT",
+    "ORA",
+    "HIVE",
+    "SPY",
+    "BHP"
 ]
 
 

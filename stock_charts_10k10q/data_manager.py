@@ -20,7 +20,10 @@ import yfinance as yf
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from PIL import Image, ImageTk
-from tkcalendar import DateEntry
+try:
+    from tkcalendar import DateEntry
+except ModuleNotFoundError:
+    from custom_widgets import CustomDateEntry as DateEntry
 import time
 import pytz
 import yfinance as yf

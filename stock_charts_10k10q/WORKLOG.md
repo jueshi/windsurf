@@ -118,6 +118,33 @@
 
 ## 2025-12-24
 
+## 2026-03-15
+
+- **Fixed startup crash when `tkcalendar` is not installed**
+  - Issue: App crashed at import time with `ModuleNotFoundError: No module named 'tkcalendar'`.
+  - Change: Made `tkcalendar.DateEntry` optional by falling back to `custom_widgets.CustomDateEntry` when `tkcalendar` is missing.
+  - Files: `stock_charts_10k10q/gui.py`, `stock_charts_10k10q/data_manager.py`.
+
+- **Fixed startup crash when `sec_edgar_downloader` is not installed**
+  - Issue: App crashed at import time with `ModuleNotFoundError: No module named 'sec_edgar_downloader'`.
+  - Change: Made `sec_edgar_downloader.Downloader` optional with try/except import and graceful fallback to URL-based SEC filing retrieval.
+  - File: `stock_charts_10k10q/gemini_analyzer.py`.
+
+- **Fixed startup crash when `serpapi` is not installed**
+  - Issue: App crashed at import time with `ModuleNotFoundError: No module named 'serpapi'`.
+  - Change: Made `serpapi.GoogleSearch` optional with try/except import; `_get_filing_url_via_serpapi()` now returns SEC company search page URL when serpapi unavailable.
+  - File: `stock_charts_10k10q/gemini_analyzer.py`.
+
+- **Fixed startup crash when `google.generativeai` is not installed**
+  - Issue: App crashed at import time with `ModuleNotFoundError: No module named 'google.generativeai'`.
+  - Change: Made `google.generativeai` optional with try/except import; added `GEMINI_AVAILABLE` flag and guards to all Gemini-dependent functions.
+  - File: `stock_charts_10k10q/gemini_analyzer.py`.
+
+## Validation steps (2026-03-15)
+
+1. Run the app without installing `tkcalendar`, `sec_edgar_downloader`, `serpapi`, or `google.generativeai`; confirm it launches.
+2. (Optional) Install missing packages and re-run; confirm native implementations are used.
+
 - **Overlaid price trend on PE chart**
   - Added a twin-y axis so closing price renders alongside the trailing PE series, updated legend/title, and switched to `Series.ffill()` to avoid the pandas deprecation warning.
   - File: `stock_charts_10k10q/PE_chart.py`.

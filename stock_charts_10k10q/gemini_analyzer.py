@@ -4,13 +4,37 @@ import json
 import time
 import requests
 import logging
-import google.generativeai as genai
+try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ModuleNotFoundError:
+    GEMINI_AVAILABLE = False
+    genai = None
+    logging.info("google.generativeai package not installed. Gemini API features will be unavailable.")
 from bs4 import BeautifulSoup
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ModuleNotFoundError:
+    # Fallback: define a no-op load_dotenv if python-dotenv is not installed
+    def load_dotenv(*args, **kwargs):
+        pass
 from pathlib import Path
-from sec_edgar_downloader import Downloader
-from lxml import html
-from serpapi import GoogleSearch
+try:
+    from sec_edgar_downloader import Downloader
+    SEC_EDGAR_DOWNLOADER_AVAILABLE = True
+except ModuleNotFoundError:
+    SEC_EDGAR_DOWNLOADER_AVAILABLE = False
+    logging.info("sec_edgar_downloader package not installed. SEC filing downloads will use fallback method.")
+try:
+    from lxml import html
+except ModuleNotFoundError:
+    pass  # lxml not required - BeautifulSoup handles all HTML parsing
+try:
+    from serpapi import GoogleSearch
+    SERPAPI_AVAILABLE = True
+except ModuleNotFoundError:
+    SERPAPI_AVAILABLE = False
+    logging.info("serpapi package not installed. SEC filing URL search via SerpAPI will be unavailable.")
 from functools import wraps
 from datetime import datetime, timedelta
 from threading import Lock
@@ -26,6 +50,8 @@ except ImportError:
 # Helper to list accessible Gemini models that support generateContent
 def _list_supported_gemini_models() -> list:
     """Return the Gemini model names accessible to the current API key."""
+    if not GEMINI_AVAILABLE:
+        return []
     try:
         models = genai.list_models()
     except Exception as err:
@@ -246,6 +272,9 @@ def _call_llm(prompt: str, use_openai_first: bool = True) -> str:
             logging.info("OpenAI call failed, falling back to Gemini...")
     
     # Fall back to Gemini
+    if not GEMINI_AVAILABLE:
+        raise Exception("Gemini API is not available. Please install google.generativeai package or set OPENAI_API_KEY.")
+    
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise Exception("No LLM API key available. Set OPENAI_API_KEY or GEMINI_API_KEY in environment variables.")
@@ -409,8 +438,11 @@ def _get_gemini_model_candidates() -> list:
             ordered.append(n)
     return ordered
 
-def _init_gemini_model_with_fallback() -> genai.GenerativeModel:
+def _init_gemini_model_with_fallback():
     """Try to initialize a GenerativeModel across known candidates; fall back on 404/unsupported."""
+    if not GEMINI_AVAILABLE:
+        raise Exception("google.generativeai package not installed. Cannot initialize Gemini model.")
+    
     last_err = None
     for name in _get_gemini_model_candidates():
         try:
@@ -591,6 +623,12 @@ def _get_filing_url_via_serpapi(ticker, filing_type):
     """
     Searches for the latest SEC filing URL for a given ticker using SerpApi as a fallback.
     """
+    # Check if serpapi is available
+    if not SERPAPI_AVAILABLE:
+        print("serpapi not installed. Returning SEC company search page as fallback.")
+        ticker = ticker.upper()
+        return f"https://www.sec.gov/edgar/browse/?CIK={ticker}&owner=exclude"
+    
     # Load API key from environment variables
     load_dotenv()
     api_key = os.getenv("SERPAPI_API_KEY")
@@ -822,6 +860,19 @@ def _download_sec_filing(ticker, filing_type):
     Download SEC filing using sec_edgar_downloader package.
     Returns: (success, file_path, content, url)
     """
+    # Check if sec_edgar_downloader is available
+    if not SEC_EDGAR_DOWNLOADER_AVAILABLE:
+        print(f"sec_edgar_downloader not installed. Using fallback method for {ticker} {filing_type}...")
+        try:
+            filing_url = _get_filing_url(ticker, filing_type)
+            if filing_url:
+                report_text = _get_text_from_url(filing_url)
+                if report_text:
+                    return True, None, report_text, filing_url
+            return False, None, f"Could not retrieve {filing_type} for {ticker} via fallback method", None
+        except Exception as e:
+            return False, None, f"Fallback method failed for {ticker} {filing_type}: {e}", None
+    
     print(f"Downloading {filing_type} filing for {ticker} using sec_edgar_downloader...")
     
     # Special case for ADI ticker - use the known path directly
@@ -1177,8 +1228,11 @@ def analyze_news(news_articles):
     for article in news_articles:
         prompt = f"""
         请用中文总结以下新闻文章，并将其分类为"利好"、"利空"或"中性"。
-        并提供具体数据和百分比变化。Followed by an English version of the response in a separate paragraph as well.
-        请以JSON格式返回，包含"summary"和"sentiment"两个字段。
+        并提供具体数据和百分比变化。
+        对重大新闻，请分析其对相关板块和具体个股的潜在影响（列出股票代码和影响逻辑）。
+        Followed by an English version of the response in a separate paragraph as well.
+        请以JSON格式返回，包含"summary"、"sentiment"和"sector_impact"三个字段。
+        其中"sector_impact"为字符串，描述受影响的板块与个股（如无明显影响可留空）。
 
         新闻标题: {article.get('title', 'N/A')}
         新闻内容: {article.get('content', 'N/A')}
@@ -1192,11 +1246,13 @@ def analyze_news(news_articles):
 
             summary = result.get('summary', '无法生成摘要。')
             sentiment = result.get('sentiment', '中性').lower()
+            sector_impact = result.get('sector_impact', '')
 
+            impact_suffix = f"\n  > 板块影响: {sector_impact}" if sector_impact else ""
             if "利好" in sentiment:
-                good_news.append(f"- {summary} (来源: {article.get('url', 'N/A')})")
+                good_news.append(f"- {summary} (来源: {article.get('url', 'N/A')}){impact_suffix}")
             elif "利空" in sentiment:
-                bad_news.append(f"- {summary} (来源: {article.get('url', 'N/A')})")
+                bad_news.append(f"- {summary} (来源: {article.get('url', 'N/A')}){impact_suffix}")
         except Exception as e:
             print(f"Error processing article: {e}")
             continue
@@ -1279,8 +1335,9 @@ def summarize_market_news(articles, tickers=None):
 
 写作要求：
 1. 先用中文撰写完整的市场回顾，包括总览、重要板块/行业动向、宏观数据或公司事件亮点，并给出要点列表。
-2. 紧接着提供一段英文版本，内容与中文段落保持一致。
-3. 采用资讯型博客语气，提炼主线逻辑并点出潜在影响。
+2. **板块与个股影响分析**：对每条重大新闻，分析其对相关板块（如科技、能源、金融等）的潜在传导路径，并列出可能受益或受损的具体个股（附股票代码），说明逻辑。
+3. 紧接着提供一段英文版本，内容与中文段落保持一致。
+4. 采用资讯型博客语气，提炼主线逻辑并点出潜在影响。
 """
 
     try:
@@ -1319,8 +1376,9 @@ def summarize_crypto_news(articles, tickers=None):
 
 写作要求：
 1. 先用中文分析整体市场情绪、链上/资金面动态、关键代币影响与潜在催化。
-2. 紧接着提供一段英文版本，信息需与中文一致，可给出交易/风险提示。
-3. 语气需兼顾专业与博客风格，可加入要点列表帮助投资者快速吸收。
+2. **板块与代币影响分析**：对每条重大新闻，分析其对相关赛道（如DeFi、L1/L2、Meme、RWA等）的传导路径，并列出可能受益或受损的具体代币（附代币符号），说明逻辑。
+3. 紧接着提供一段英文版本，信息需与中文一致，可给出交易/风险提示。
+4. 语气需兼顾专业与博客风格，可加入要点列表帮助投资者快速吸收。
 """
 
     try:
@@ -1359,8 +1417,9 @@ def summarize_etf_news(articles, tickers=None):
 
 写作要求：
 1. 先以中文概述ETF/板块动态、资金流向、潜在驱动与交易启示，可结合要点列表。
-2. 紧接着提供一段英文版本，确保信息与中文一致。
-3. 语气保持专业且具有博客风格，在结尾附上对ETF投资者的观察建议。
+2. **板块与个股影响分析**：对每条重大新闻，分析其对相关板块（如科技、能源、金融、医疗等）的传导路径，列出可能受影响的ETF及其重仓个股（附代码），说明逻辑。
+3. 紧接着提供一段英文版本，确保信息与中文一致。
+4. 语气保持专业且具有博客风格，在结尾附上对ETF投资者的观察建议。
 """
 
     try:
@@ -1411,8 +1470,9 @@ def summarize_stock_news(articles, tickers=None):
 
 写作要求：
 1. 先用中文写出结构化的市场/个股新闻综述，突出受影响的行业与公司、潜在驱动因素和投资含义，可使用要点列表。
-2. 紧接着提供一段英文版本，内容与中文段落保持一致。
-3. 语气需兼具专业与博客风格，让投资者快速抓住重点，可在结尾给出观察建议。
+2. **板块与个股影响分析**：对每条重大新闻，分析其对相关板块（如上下游产业链、竞争对手等）的传导路径，并列出可能受益或受损的具体个股（附股票代码），说明逻辑。
+3. 紧接着提供一段英文版本，内容与中文段落保持一致。
+4. 语气需兼具专业与博客风格，让投资者快速抓住重点，可在结尾给出观察建议。
 """
 
     try:
