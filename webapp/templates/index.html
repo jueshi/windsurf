@@ -3786,10 +3786,16 @@
                 zerolinecolor: '#888',
                 zerolinewidth: 2
             },
-            legend: { orientation: 'h', y: -0.1 },
+            legend: {
+                x: 1, y: 1,
+                xanchor: 'right', yanchor: 'top',
+                bgcolor: 'rgba(255,255,255,0.8)',
+                bordercolor: '#ccc',
+                borderwidth: 1
+            },
             autosize: true,
             height: 500,
-            margin: { t: 40, b: 60, l: 60, r: 40 }
+            margin: { t: 40, b: 40, l: 60, r: 40 }
         };
 
         Plotly.newPlot('compare-chart', traces, layout, { responsive: true, edits: { legendPosition: true } });
