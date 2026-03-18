@@ -3350,29 +3350,21 @@ Tabs:
 
         # Try to generate static image preview
         try:
-            # Check if kaleido is available by trying to import it
-            import kaleido
             img_bytes = pio.to_image(fig, format='png', width=1200, height=600)
             self.seasonality_pil_img = Image.open(io.BytesIO(img_bytes))
-            
+
             # Trigger resize to fit current window
             class FakeEvent:
                 def __init__(self, w, h): self.width = w; self.height = h
             self.root.update_idletasks()
             self._on_seasonality_resize(FakeEvent(container.winfo_width(), container.winfo_height()))
-            
+
             self.status_var.set(f"Generated seasonality chart for {self.current_chart_ticker}")
-        except (ImportError, ModuleNotFoundError) as ke:
-            logging.warning(f"Kaleido package not installed, cannot generate static image: {ke}")
-            self.seasonality_pil_img = None
-            self.seasonality_img_label.config(image="", text="Chart preview not available.\n(Requires 'kaleido' package).")
-            # Don't show warning if it's just a missing package
-            self.status_var.set(f"Generated seasonality chart for {self.current_chart_ticker} (browser only)")
         except Exception as img_e:
             logging.warning(f"Could not generate static image for seasonality chart: {img_e}")
             self.seasonality_pil_img = None
-            self.seasonality_img_label.config(image="", text="Chart preview not available.\n(Error generating image)")
-            messagebox.showwarning("Preview Generation Failed", f"Error generating chart preview: {img_e}")
+            self.seasonality_img_label.config(image="", text="Chart preview not available.\nOpen in browser instead.")
+            self.status_var.set(f"Generated seasonality chart for {self.current_chart_ticker} (browser only)")
 
     def _on_seasonality_resize(self, event):
         """Debounce and handle the resize event for the seasonality chart."""

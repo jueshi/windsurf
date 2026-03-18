@@ -3,7 +3,13 @@
     "allow": [
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(find c:UsersjueshOneDriveDocumentswindsurf -name *compare* -type f)"
+      "Bash(find c:UsersjueshOneDriveDocumentswindsurf -name *compare* -type f)",
+      "Bash(python -c \"import kaleido; print\\(kaleido.__version__\\)\")",
+      "Bash(python -c \"import kaleido; print\\(dir\\(kaleido\\)\\)\")",
+      "Bash(python -c \"import plotly.io as pio; import plotly.graph_objects as go; fig = go.Figure\\(\\); fig.add_scatter\\(x=[1,2], y=[1,2]\\); pio.to_image\\(fig, format=''''png''''\\)\")",
+      "Bash(python -c \"from kaleido.scopes.plotly import PlotlyScope\")",
+      "Bash(python -c \"import plotly; print\\(plotly.__version__\\)\")",
+      "Bash(python -c \":*)"
     ]
   }
 }

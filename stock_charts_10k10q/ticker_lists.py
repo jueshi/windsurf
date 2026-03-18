@@ -287,55 +287,9 @@ Jues401k_stocks_stocks = ["ALAB", "QQQ", "IWM", "GLD", "AAPL", "GOOGL", "MSFT", 
 
 
 nucleus_stock_stocks = ["BX", "CEG", "SMR", "NLR", "URA", "CCJ", "URNM", "URAN", "BWXT"]
-sector_etfs = [
-    # Information Technology
-    "XLK",
-    "VGT",
-    "QQQ",
+sector_etfs = ["IBB", "KRE", "QQQ", "VAW", "VCR", "VDC", "VDE", "VFH", "VGT", "VHT", "VIS", "VNQ", "VOX", "VPU", "XLB", "XLC", "XLE", "XLF", "XLI", "XLK", "XLP", "XLRE", "XLU", "XLV", "XLY", "XOP"]
 
-    # Health Care
-    "XLV",
-    "VHT",
-    "IBB",
 
-    # Financials
-    "XLF",
-    "VFH",
-    "KRE",
-
-    # Consumer Discretionary
-    "XLY",
-    "VCR",
-
-    # Consumer Staples
-    "XLP",
-    "VDC",
-
-    # Industrials
-    "XLI",
-    "VIS",
-
-    # Energy
-    "XLE",
-    "VDE",
-    "XOP",
-
-    # Utilities
-    "XLU",
-    "VPU",
-
-    # Real Estate
-    "XLRE",
-    "VNQ",
-
-    # Materials
-    "XLB",
-    "VAW",
-
-    # Communication Services
-    "XLC",
-    "VOX"
-]
 
 # --- 3x Leveraged BULL ETFs (Long Position) ---
 # These aim for 3x the DAILY return of their underlying index.
