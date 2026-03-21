@@ -814,7 +814,7 @@ class StockDataGUI:
         # Phase 3: Fundamental
         ttk.Label(workflow_row, text="3⃣", font=Fonts.small()).pack(side=tk.LEFT)
         ttk.Button(workflow_row, text="Run BA", command=self._run_business_analysis, width=6).pack(side=tk.LEFT, padx=1)
-        ttk.Button(workflow_row, text="Fund", command=lambda: self.chart_notebook.select(3), width=4).pack(side=tk.LEFT, padx=1)
+        ttk.Button(workflow_row, text="Fund", command=lambda: self.chart_notebook.select(4), width=4).pack(side=tk.LEFT, padx=1)
         
         ttk.Separator(workflow_row, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=3)
         
@@ -1017,6 +1017,10 @@ class StockDataGUI:
         self.comparison_chart_frame = ttk.Frame(self.chart_notebook)
         self.chart_notebook.add(self.comparison_chart_frame, text="📊 Compare")
         
+        # Create sector rotation tab
+        self.sector_rotation_frame = ttk.Frame(self.chart_notebook)
+        self.chart_notebook.add(self.sector_rotation_frame, text="🔄 Sectors")
+
         # Create seasonality chart tab
         self.seasonality_chart_frame = ttk.Frame(self.chart_notebook)
         self.chart_notebook.add(self.seasonality_chart_frame, text="📆 Seasonal")
@@ -1532,7 +1536,97 @@ class StockDataGUI:
             pass
         self.comparison_chart_label = ttk.Label(self.comparison_chart_container)
         self.comparison_chart_label.pack(fill=tk.BOTH, expand=True)
-        
+
+        # --- Sector Rotation tab layout ---
+        sr_outer = ttk.Frame(self.sector_rotation_frame, padding="5")
+        sr_outer.pack(fill=tk.BOTH, expand=True)
+
+        # Controls row
+        sr_controls = ttk.Frame(sr_outer)
+        sr_controls.pack(fill=tk.X, pady=(0, 5))
+        ttk.Button(sr_controls, text="Refresh Data", command=self._sector_rotation_refresh).pack(side=tk.LEFT, padx=(0, 5))
+
+        self.sr_view_var = tk.StringVar(value="heatmap")
+        for val, label in [("heatmap", "Heatmap"), ("ranks", "Rank History"), ("rrg", "RRG Scatter")]:
+            ttk.Radiobutton(sr_controls, text=label, variable=self.sr_view_var, value=val,
+                            command=self._sector_rotation_refresh_view).pack(side=tk.LEFT, padx=3)
+
+        self.sr_status_var = tk.StringVar(value="Click Refresh Data to load sector ETFs.")
+        ttk.Label(sr_controls, textvariable=self.sr_status_var, font=("Helvetica", 8)).pack(side=tk.LEFT, padx=10)
+
+        # ETF toggle row (visible only in ranks view)
+        self.sr_toggle_frame = ttk.Frame(sr_outer)
+        # Not packed yet — shown/hidden dynamically
+
+        ttk.Button(self.sr_toggle_frame, text="All On", width=5,
+                   command=lambda: self._sr_set_all_etfs(True)).pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Button(self.sr_toggle_frame, text="All Off", width=5,
+                   command=lambda: self._sr_set_all_etfs(False)).pack(side=tk.LEFT, padx=(0, 6))
+
+        from sector_rotation import CORE_SECTOR_ETFS, SECTOR_ETF_MAP
+        self._sr_etf_vars = {}
+        for etf in CORE_SECTOR_ETFS:
+            var = tk.BooleanVar(value=True)
+            cb = ttk.Checkbutton(self.sr_toggle_frame, text=etf, variable=var,
+                                 command=self._sector_rotation_refresh_view)
+            cb.pack(side=tk.LEFT, padx=2)
+            self._sr_etf_vars[etf] = var
+
+        # Main content: chart (left) + explanation (right)
+        self.sr_content = ttk.PanedWindow(sr_outer, orient=tk.HORIZONTAL)
+        self.sr_content.pack(fill=tk.BOTH, expand=True)
+
+        # Left: chart display area
+        self.sr_chart_container = ttk.LabelFrame(self.sr_content, text="Chart")
+        self.sr_content.add(self.sr_chart_container, weight=3)
+        self.sr_chart_label = ttk.Label(self.sr_chart_container)
+        self.sr_chart_label.pack(fill=tk.BOTH, expand=True)
+
+        # Right: explanation pane
+        sr_explain_frame = ttk.LabelFrame(self.sr_content, text="How to Read")
+        self.sr_content.add(sr_explain_frame, weight=1)
+        try:
+            self.sr_content.paneconfig(sr_explain_frame, minsize=200)
+            self.sr_content.paneconfig(self.sr_chart_container, minsize=400)
+        except Exception:
+            pass
+
+        self.sr_explain_text = tk.Text(sr_explain_frame, wrap=tk.WORD, font=("Helvetica", 9),
+                                       padx=8, pady=8, relief=tk.FLAT, borderwidth=0)
+        self.sr_explain_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        sr_explain_scroll = ttk.Scrollbar(sr_explain_frame, command=self.sr_explain_text.yview)
+        sr_explain_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.sr_explain_text.config(yscrollcommand=sr_explain_scroll.set)
+
+        # Configure text tags for formatting
+        self.sr_explain_text.tag_configure("h1", font=("Helvetica", 12, "bold"), spacing3=4)
+        self.sr_explain_text.tag_configure("h2", font=("Helvetica", 10, "bold"), spacing1=8, spacing3=2)
+        self.sr_explain_text.tag_configure("bullet", lmargin1=15, lmargin2=25, spacing1=2)
+        self.sr_explain_text.tag_configure("tip", font=("Helvetica", 9, "italic"), foreground="#2e7d32")
+        self.sr_explain_text.tag_configure("warn", font=("Helvetica", 9, "italic"), foreground="#d32f2f")
+
+        # Populate initial explanation
+        self._sr_update_explanation()
+
+        # Set sash position when sector rotation tab first becomes visible
+        self._sr_sash_initialized = False
+        def _sr_init_sash(event=None):
+            if self._sr_sash_initialized:
+                return
+            try:
+                w = self.sr_content.winfo_width()
+                if w > 100:
+                    self.sr_content.sashpos(0, int(w * 0.65))
+                    self._sr_sash_initialized = True
+            except Exception:
+                pass
+        self.sr_content.bind('<Configure>', _sr_init_sash)
+
+        # Internal state for sector rotation
+        self._sr_data = None
+        self._sr_table = None
+        self._sr_chart_photo = None
+
         # Create a container for the seasonality chart display
         self.seasonality_chart_container = ttk.Frame(self.seasonality_chart_frame)
         self.seasonality_chart_container.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
@@ -1593,9 +1687,9 @@ class StockDataGUI:
         self.root.bind("<F5>", lambda e: self._refresh_ticker_lists())
         self.root.bind("<Control-1>", lambda e: self.chart_notebook.select(0))  # Chart tab
         self.root.bind("<Control-2>", lambda e: self.chart_notebook.select(1))  # Compare tab
-        self.root.bind("<Control-3>", lambda e: self.chart_notebook.select(2))  # Seasonal tab
-        self.root.bind("<Control-4>", lambda e: self.chart_notebook.select(3))  # Fundamentals tab
-        self.root.bind("<Control-5>", lambda e: self.chart_notebook.select(4))  # Business tab
+        self.root.bind("<Control-3>", lambda e: self.chart_notebook.select(2))  # Sectors tab
+        self.root.bind("<Control-4>", lambda e: self.chart_notebook.select(3))  # Seasonal tab
+        self.root.bind("<Control-5>", lambda e: self.chart_notebook.select(4))  # Fundamentals tab
         
         # Log keyboard shortcuts
         logging.info("Keyboard shortcuts enabled: Ctrl+D (download), Ctrl+R (report), Ctrl+W (watch), Ctrl+B (BA), Ctrl+N (news)")
@@ -3606,6 +3700,10 @@ Tabs:
                         selected_tab == str(self.buffett_canslim_frame):
                     self.active_tab = "buffett_canslim"
                     logging.info("Switched to Buffett & CANSLIM tab")
+                elif hasattr(self, 'sector_rotation_frame') and self.sector_rotation_frame.winfo_exists() and \
+                        selected_tab == str(self.sector_rotation_frame):
+                    self.active_tab = "sector_rotation"
+                    logging.info("Switched to sector rotation tab")
                 elif hasattr(self, 'sec_filings_frame') and self.sec_filings_frame.winfo_exists() and \
                         selected_tab == str(self.sec_filings_frame):
                     self.active_tab = "sec_filings"
@@ -4185,7 +4283,7 @@ Tabs:
                 elif self.active_tab == "comparison":
                     self.chart_notebook.select(1)  # Comparison chart tab
                 elif self.active_tab == "seasonality":
-                    self.chart_notebook.select(2)  # Seasonality chart tab
+                    self.chart_notebook.select(3)  # Seasonality chart tab
                     self._generate_seasonality_chart(ticker)
                     return
             except tk.TclError as e:
@@ -5120,6 +5218,207 @@ Tabs:
             logging.error(f"Error saving or displaying chart: {str(e)}")
             plt.close()  # Ensure figure is closed
             self.status_var.set("Error generating comparison chart")
+
+    # =====================================================================
+    # Sector Rotation Analysis
+    # =====================================================================
+
+    def _sector_rotation_refresh(self):
+        """Download missing sector ETF data and generate sector rotation charts."""
+        from sector_rotation import (
+            get_missing_sector_tickers, load_sector_data, build_rotation_table,
+        )
+
+        self.sr_status_var.set("Checking for missing sector data...")
+        self.root.update_idletasks()
+
+        missing = get_missing_sector_tickers(self.manager)
+        if missing:
+            self.sr_status_var.set(f"Downloading {len(missing)} missing sector ETFs: {', '.join(missing)}...")
+            self.root.update_idletasks()
+            self._download_data_in_background(missing)
+            messagebox.showinfo(
+                "Download Started",
+                f"Downloading data for: {', '.join(missing)}\n"
+                "Please click Refresh Data again once downloads complete."
+            )
+            return
+
+        self.sr_status_var.set("Loading sector data...")
+        self.root.update_idletasks()
+
+        self._sr_data = load_sector_data(self.manager)
+        if len(self._sr_data) < 3:
+            self.sr_status_var.set("Error: not enough sector data loaded.")
+            return
+
+        self._sr_table = build_rotation_table(self._sr_data)
+        self._sector_rotation_refresh_view()
+
+    def _sector_rotation_refresh_view(self):
+        """Render the currently selected sector rotation view."""
+        if self._sr_data is None:
+            self.sr_status_var.set("No data loaded. Click Refresh Data first.")
+            return
+
+        from sector_rotation import (
+            plot_sector_heatmap, plot_rotation_ranks, plot_rrg_scatter,
+            build_rolling_ranks,
+        )
+
+        view = self.sr_view_var.get()
+        self._sr_update_explanation()
+
+        # Show/hide ETF toggle row based on view
+        if view == "ranks":
+            self.sr_toggle_frame.pack(fill=tk.X, pady=(0, 3), before=self.sr_content)
+        else:
+            self.sr_toggle_frame.pack_forget()
+
+        self.sr_status_var.set(f"Generating {view} chart...")
+        self.root.update_idletasks()
+
+        plots_dir = self.manager.plot_save_path
+        os.makedirs(plots_dir, exist_ok=True)
+
+        try:
+            import matplotlib
+            original_backend = matplotlib.get_backend()
+            matplotlib.use("Agg")
+
+            if view == "heatmap":
+                save_path = os.path.join(plots_dir, "sector_rotation_heatmap.png")
+                fig = plot_sector_heatmap(self._sr_table, save_path=save_path)
+            elif view == "ranks":
+                visible = [etf for etf, var in self._sr_etf_vars.items() if var.get()]
+                ranks = build_rolling_ranks(self._sr_data)
+                save_path = os.path.join(plots_dir, "sector_rotation_ranks.png")
+                fig = plot_rotation_ranks(ranks, save_path=save_path, visible_etfs=visible)
+            elif view == "rrg":
+                save_path = os.path.join(plots_dir, "sector_rotation_rrg.png")
+                fig = plot_rrg_scatter(self._sr_data, save_path=save_path)
+            else:
+                self.sr_status_var.set(f"Unknown view: {view}")
+                return
+
+            plt.close(fig)
+            matplotlib.use(original_backend)
+
+            # Display the chart image
+            if os.path.exists(save_path):
+                img = Image.open(save_path)
+                target = self.sr_chart_container
+                w = target.winfo_width()
+                h = target.winfo_height()
+                if w <= 1:
+                    w = 900
+                if h <= 1:
+                    h = 600
+
+                iw, ih = img.size
+                ar = iw / ih
+                if w / h > ar:
+                    nw = int(h * ar)
+                    nh = h
+                else:
+                    nw = w
+                    nh = int(w / ar)
+                img = img.resize((nw, nh), Image.LANCZOS)
+
+                photo = ImageTk.PhotoImage(img)
+                self.sr_chart_label.config(image=photo)
+                self.sr_chart_label.image = photo
+                self._sr_chart_photo = photo
+
+                loaded_count = sum(1 for k in self._sr_data if k != "SPY")
+                self.sr_status_var.set(f"{view.title()} | {loaded_count} sectors loaded")
+            else:
+                self.sr_status_var.set("Error: chart image not created.")
+
+        except Exception as e:
+            logging.error(f"Sector rotation view error: {e}")
+            self.sr_status_var.set(f"Error: {str(e)[:80]}")
+
+    def _sr_set_all_etfs(self, state):
+        """Set all ETF toggle checkboxes to the given state and refresh."""
+        for var in self._sr_etf_vars.values():
+            var.set(state)
+        self._sector_rotation_refresh_view()
+
+    def _sr_update_explanation(self):
+        """Update the explanation pane based on the selected view."""
+        view = self.sr_view_var.get()
+        t = self.sr_explain_text
+        t.config(state=tk.NORMAL)
+        t.delete("1.0", tk.END)
+
+        if view == "heatmap":
+            t.insert(tk.END, "Sector Performance Heatmap\n", "h1")
+            t.insert(tk.END, "\nWhat it shows\n", "h2")
+            t.insert(tk.END, "Each row is a sector ETF. Columns show relative return "
+                     "vs SPY over 1-week, 2-week, 1-month, and 3-month windows.\n\n")
+            t.insert(tk.END, "How to read the colors\n", "h2")
+            t.insert(tk.END, "\u2022 Green cells = outperforming SPY\n", "bullet")
+            t.insert(tk.END, "\u2022 Red cells = underperforming SPY\n", "bullet")
+            t.insert(tk.END, "\u2022 Darker color = larger divergence\n", "bullet")
+            t.insert(tk.END, "\u2022 Values show % difference vs SPY\n\n", "bullet")
+            t.insert(tk.END, "Detecting rotation\n", "h2")
+            t.insert(tk.END, "\u2022 Sector green on 1W/2W but red on 3M: "
+                     "new money flowing IN (early rotation)\n", "bullet")
+            t.insert(tk.END, "\u2022 Sector red on 1W/2W but green on 3M: "
+                     "money flowing OUT (late rotation)\n", "bullet")
+            t.insert(tk.END, "\u2022 All green across timeframes: sustained leadership\n", "bullet")
+            t.insert(tk.END, "\u2022 All red across timeframes: sustained weakness\n\n", "bullet")
+            t.insert(tk.END, "Rows are sorted by composite score (weighted avg), "
+                     "so the top row is the current strongest sector.\n", "tip")
+
+        elif view == "ranks":
+            t.insert(tk.END, "Sector Momentum Ranks\n", "h1")
+            t.insert(tk.END, "\nWhat it shows\n", "h2")
+            t.insert(tk.END, "Each line tracks a sector's momentum rank over the past year. "
+                     "Rank 1 (top) = strongest 21-day relative return vs SPY.\n\n")
+            t.insert(tk.END, "How to read it\n", "h2")
+            t.insert(tk.END, "\u2022 Lines moving UP (toward rank 1): sector gaining momentum\n", "bullet")
+            t.insert(tk.END, "\u2022 Lines moving DOWN: sector losing momentum\n", "bullet")
+            t.insert(tk.END, "\u2022 Crossovers: one sector overtaking another = rotation happening\n", "bullet")
+            t.insert(tk.END, "\u2022 Clusters at top: crowded leadership\n\n", "bullet")
+            t.insert(tk.END, "Key patterns\n", "h2")
+            t.insert(tk.END, "\u2022 Rapid climb from bottom to top: strong rotation signal "
+                     "(institutional buying)\n", "bullet")
+            t.insert(tk.END, "\u2022 Gradual descent: slow loss of interest, not panic\n", "bullet")
+            t.insert(tk.END, "\u2022 Stable ranks for weeks: no rotation, trend continuation\n\n", "bullet")
+            t.insert(tk.END, "Look for sectors making a sustained move from bottom-half "
+                     "to top-3 \u2014 this often precedes a multi-week outperformance run.\n", "tip")
+
+        elif view == "rrg":
+            t.insert(tk.END, "Relative Rotation Graph (RRG)\n", "h1")
+            t.insert(tk.END, "\nWhat it shows\n", "h2")
+            t.insert(tk.END, "A scatter plot where each sector is positioned by its "
+                     "relative strength (X) and momentum of that strength (Y) vs SPY. "
+                     "Trails show the recent direction.\n\n")
+            t.insert(tk.END, "The four quadrants\n", "h2")
+            t.insert(tk.END, "\u2022 LEADING (top-right): strong and gaining \u2014 overweight candidates\n", "bullet")
+            t.insert(tk.END, "\u2022 WEAKENING (bottom-right): still strong but losing steam \u2014 "
+                     "consider reducing\n", "bullet")
+            t.insert(tk.END, "\u2022 LAGGING (bottom-left): weak and still weakening \u2014 avoid or underweight\n", "bullet")
+            t.insert(tk.END, "\u2022 IMPROVING (top-left): weak but gaining momentum \u2014 "
+                     "early entry opportunities\n\n", "bullet")
+            t.insert(tk.END, "Rotation cycle\n", "h2")
+            t.insert(tk.END, "Sectors typically rotate clockwise:\n")
+            t.insert(tk.END, "Improving \u2192 Leading \u2192 Weakening \u2192 Lagging \u2192 Improving\n\n")
+            t.insert(tk.END, "How to use it\n", "h2")
+            t.insert(tk.END, "\u2022 Trail pointing toward Leading: consider adding exposure\n", "bullet")
+            t.insert(tk.END, "\u2022 Trail pointing toward Lagging: consider trimming\n", "bullet")
+            t.insert(tk.END, "\u2022 Sectors near the center (100,100): moving with the market, no edge\n\n", "bullet")
+            t.insert(tk.END, "The best rotation trades come from sectors in the Improving quadrant "
+                     "with trails clearly pointing toward Leading.\n", "tip")
+            t.insert(tk.END, "\nRRG is a relative tool \u2014 a sector in 'Leading' can still lose money "
+                     "in a bear market; it just loses less than SPY.\n", "warn")
+
+        else:
+            t.insert(tk.END, "Select a view to see guidance.\n")
+
+        t.config(state=tk.DISABLED)
 
     def _view_html_report(self):
         """Generate and view HTML report for the current ticker list"""
