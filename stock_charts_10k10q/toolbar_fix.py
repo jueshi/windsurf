@@ -191,7 +191,7 @@ def apply_toolbar_fix(gui_instance):
         gui_instance._direct_display_chart = types.MethodType(fixed_direct_display_chart, gui_instance)
         logging.info("Toolbar visibility fix applied successfully")
     else:
-        logging.warning("Could not apply toolbar fix: _direct_display_chart method not found")
+        logging.debug("Toolbar fix skipped: _direct_display_chart method not found")
 
 def apply_fixes(gui_instance):
     """

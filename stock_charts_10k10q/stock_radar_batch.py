@@ -32,7 +32,15 @@ import yfinance as yf
 import re
 import os
 from datetime import datetime, timedelta
-import google.generativeai as genai
+try:
+    from google import genai as _genai_new
+    _USE_NEW_GENAI = True
+except ImportError:
+    _USE_NEW_GENAI = False
+    try:
+        import google.generativeai as _genai_new
+    except ImportError:
+        _genai_new = None
 import os
 
 # ===== 用户配置 =====
@@ -80,7 +88,6 @@ def analyze_stock(stock_code):
     CANSLIM分数列表（长度7，用逗号隔开）
     CANSLIM综合评分（数字）
     """
-    genai.configure(api_key=api_key)
     last_err = None
     text = ""
     # Try candidates until one succeeds
@@ -88,8 +95,13 @@ def analyze_stock(stock_code):
         try:
             if not _name:
                 continue
-            model = genai.GenerativeModel(_name)
-            resp = model.generate_content(analysis_prompt)
+            if _USE_NEW_GENAI:
+                client = _genai_new.Client(api_key=api_key)
+                resp = client.models.generate_content(model=_name, contents=analysis_prompt)
+            else:
+                _genai_new.configure(api_key=api_key)
+                model = _genai_new.GenerativeModel(_name)
+                resp = model.generate_content(analysis_prompt)
             text = (resp.text or "").strip()
             if text:
                 break

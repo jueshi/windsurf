@@ -38,7 +38,10 @@ try:
 except ModuleNotFoundError:
     from custom_widgets import CustomDateEntry as DateEntry
 from data_manager import StockDataManager
-import google.generativeai as genai
+try:
+    from google import genai
+except ImportError:
+    genai = None
 import gemini_analyzer
 import buffett_canslim
 import news_fetcher
@@ -1524,7 +1527,10 @@ class StockDataGUI:
         self.compare_base_var = tk.StringVar(value="SPY")
         compare_base_entry = ttk.Entry(compare_ctrl_frame, textvariable=self.compare_base_var, width=8)
         compare_base_entry.pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Label(compare_ctrl_frame, text="(relative performance vs base)", font=("Helvetica", 8)).pack(side=tk.LEFT)
+        compare_base_entry.bind("<Return>", lambda e: self._compare_percentage_performance())
+        compare_base_entry.bind("<FocusOut>", lambda e: self._on_compare_base_changed())
+        self._compare_base_last = "SPY"
+        ttk.Label(compare_ctrl_frame, text="(relative performance vs base, empty = absolute %)", font=("Helvetica", 8)).pack(side=tk.LEFT)
 
         # Use a fixed container to prevent label/image from resizing the parent frame
         self.comparison_chart_container = ttk.Frame(self.comparison_chart_frame)
@@ -1538,7 +1544,20 @@ class StockDataGUI:
         self.comparison_chart_label.pack(fill=tk.BOTH, expand=True)
 
         # --- Sector Rotation tab layout ---
-        sr_outer = ttk.Frame(self.sector_rotation_frame, padding="5")
+        # Sub-notebook inside the Sectors tab
+        self.sr_notebook = ttk.Notebook(self.sector_rotation_frame)
+        self.sr_notebook.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+
+        # Sub-tab 1: Rotation Charts
+        sr_charts_tab = ttk.Frame(self.sr_notebook)
+        self.sr_notebook.add(sr_charts_tab, text="Rotation Charts")
+
+        # Sub-tab 2: Breakout Scanner
+        sr_breakout_tab = ttk.Frame(self.sr_notebook)
+        self.sr_notebook.add(sr_breakout_tab, text="Breakout Scanner")
+
+        # === Rotation Charts sub-tab ===
+        sr_outer = ttk.Frame(sr_charts_tab, padding="5")
         sr_outer.pack(fill=tk.BOTH, expand=True)
 
         # Controls row
@@ -1561,7 +1580,7 @@ class StockDataGUI:
         ttk.Button(self.sr_toggle_frame, text="All On", width=5,
                    command=lambda: self._sr_set_all_etfs(True)).pack(side=tk.LEFT, padx=(0, 2))
         ttk.Button(self.sr_toggle_frame, text="All Off", width=5,
-                   command=lambda: self._sr_set_all_etfs(False)).pack(side=tk.LEFT, padx=(0, 6))
+                   command=lambda: self._sr_set_all_etfs(False)).pack(side=tk.LEFT, padx=(0, 4))
 
         from sector_rotation import CORE_SECTOR_ETFS, SECTOR_ETF_MAP
         self._sr_etf_vars = {}
@@ -1571,6 +1590,18 @@ class StockDataGUI:
                                  command=self._sector_rotation_refresh_view)
             cb.pack(side=tk.LEFT, padx=2)
             self._sr_etf_vars[etf] = var
+
+        # Separator + deep dive controls
+        ttk.Separator(self.sr_toggle_frame, orient="vertical").pack(side=tk.LEFT, fill=tk.Y, padx=6)
+        ttk.Label(self.sr_toggle_frame, text="Deep Dive:", font=("Helvetica", 8)).pack(side=tk.LEFT, padx=(0, 2))
+        self.sr_deepdive_var = tk.StringVar(value=CORE_SECTOR_ETFS[0])
+        sr_dd_combo = ttk.Combobox(self.sr_toggle_frame, textvariable=self.sr_deepdive_var, width=6,
+                                    values=CORE_SECTOR_ETFS, state="readonly")
+        sr_dd_combo.pack(side=tk.LEFT, padx=(0, 3))
+        ttk.Button(self.sr_toggle_frame, text="Top 10 Holdings",
+                   command=self._sr_deep_dive_holdings).pack(side=tk.LEFT, padx=(0, 3))
+        ttk.Button(self.sr_toggle_frame, text="Compare Selected",
+                   command=self._sr_compare_selected).pack(side=tk.LEFT)
 
         # Main content: chart (left) + explanation (right)
         self.sr_content = ttk.PanedWindow(sr_outer, orient=tk.HORIZONTAL)
@@ -1626,6 +1657,46 @@ class StockDataGUI:
         self._sr_data = None
         self._sr_table = None
         self._sr_chart_photo = None
+
+        # === Breakout Scanner sub-tab ===
+        bo_outer = ttk.Frame(sr_breakout_tab, padding="5")
+        bo_outer.pack(fill=tk.BOTH, expand=True)
+
+        # Controls row
+        bo_controls = ttk.Frame(bo_outer)
+        bo_controls.pack(fill=tk.X, pady=(0, 5))
+
+        ttk.Label(bo_controls, text="Top N sectors:").pack(side=tk.LEFT, padx=(0, 3))
+        self.bo_top_n_var = tk.IntVar(value=3)
+        ttk.Spinbox(bo_controls, from_=1, to=11, width=3,
+                    textvariable=self.bo_top_n_var).pack(side=tk.LEFT, padx=(0, 8))
+
+        ttk.Button(bo_controls, text="Scan for Breakouts",
+                   command=self._sr_scan_breakouts).pack(side=tk.LEFT, padx=(0, 8))
+
+        self.bo_status_var = tk.StringVar(value="Click Scan to analyze top sector holdings.")
+        ttk.Label(bo_controls, textvariable=self.bo_status_var, font=("Helvetica", 8)).pack(side=tk.LEFT, padx=5)
+
+        # Results display
+        bo_text_frame = ttk.Frame(bo_outer)
+        bo_text_frame.pack(fill=tk.BOTH, expand=True)
+
+        self.bo_result_text = tk.Text(bo_text_frame, wrap=tk.WORD, font=("Consolas", 10),
+                                      padx=10, pady=10, relief=tk.FLAT, borderwidth=0)
+        self.bo_result_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        bo_scroll = ttk.Scrollbar(bo_text_frame, command=self.bo_result_text.yview)
+        bo_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.bo_result_text.config(yscrollcommand=bo_scroll.set)
+
+        # Text tags for formatting
+        self.bo_result_text.tag_configure("h1", font=("Helvetica", 14, "bold"), foreground="#1a237e", spacing3=6)
+        self.bo_result_text.tag_configure("h2", font=("Helvetica", 11, "bold"), foreground="#1a237e", spacing1=10, spacing3=4)
+        self.bo_result_text.tag_configure("sector", font=("Helvetica", 12, "bold"), foreground="#333", spacing1=12, spacing3=4)
+        self.bo_result_text.tag_configure("strong_buy", font=("Consolas", 10, "bold"), foreground="#2e7d32")
+        self.bo_result_text.tag_configure("watch", font=("Consolas", 10), foreground="#f57c00")
+        self.bo_result_text.tag_configure("avoid", font=("Consolas", 10), foreground="#d32f2f")
+        self.bo_result_text.tag_configure("data", font=("Consolas", 9), foreground="#555")
+        self.bo_result_text.tag_configure("ai", font=("Helvetica", 10), spacing1=3, lmargin1=10, lmargin2=10)
 
         # Create a container for the seasonality chart display
         self.seasonality_chart_container = ttk.Frame(self.seasonality_chart_frame)
@@ -4907,21 +4978,35 @@ Tabs:
             print(f"Error during cleanup: {str(e)}")
             # Don't re-raise the exception as we're already in cleanup
 
+    def _on_compare_base_changed(self):
+        """Refresh comparison chart if base ticker value actually changed."""
+        current = self.compare_base_var.get().strip().upper()
+        if current != self._compare_base_last:
+            self._compare_base_last = current
+            self._compare_percentage_performance()
+
     def _compare_percentage_performance(self, tickers=None):
         """Generate overlayed percentage comparison chart for selected tickers
         using the common available data range"""
-        # Get selected tickers
+        # Get selected tickers (fall back to last compared tickers)
         try:
             if tickers is None:
-                selected_tickers = self._get_selected_tickers()
+                has_cached = bool(getattr(self, '_last_compared_tickers', None))
+                selected_tickers = self._get_selected_tickers(show_warning=not has_cached)
                 if not selected_tickers:
-                    return
+                    # Reuse last compared tickers if available
+                    selected_tickers = getattr(self, '_last_compared_tickers', None)
+                    if not selected_tickers:
+                        return
             else:
                 selected_tickers = tickers
 
             if len(selected_tickers) < 1:
                 messagebox.showwarning("Insufficient Selection", "Please select at least one ticker to compare.")
                 return
+
+            # Cache for reuse when base/date changes
+            self._last_compared_tickers = list(selected_tickers)
 
             # Set active tab to comparison
             self.active_tab = "comparison"
@@ -4936,18 +5021,20 @@ Tabs:
             logging.error(f"Error getting selected tickers: {str(e)}")
             return
 
-        # Get base ticker for relative comparison
-        base_ticker = self.compare_base_var.get().strip().upper() if hasattr(self, 'compare_base_var') else 'SPY'
-        if not base_ticker:
-            base_ticker = 'SPY'
+        # Get base ticker for relative comparison (empty = absolute % comparison)
+        base_ticker = self.compare_base_var.get().strip().upper() if hasattr(self, 'compare_base_var') else ''
+        use_relative = bool(base_ticker)
 
         # Ensure base ticker is in the list
         all_tickers_to_load = list(selected_tickers)
-        if base_ticker not in all_tickers_to_load:
+        if use_relative and base_ticker not in all_tickers_to_load:
             all_tickers_to_load.append(base_ticker)
 
         # Update status
-        self.status_var.set(f"Generating relative comparison chart vs {base_ticker} for {len(selected_tickers)} tickers...")
+        if use_relative:
+            self.status_var.set(f"Generating relative comparison chart vs {base_ticker} for {len(selected_tickers)} tickers...")
+        else:
+            self.status_var.set(f"Generating percentage comparison chart for {len(selected_tickers)} tickers...")
         self.root.update_idletasks()
 
         # Check for missing data (include base ticker)
@@ -4991,7 +5078,7 @@ Tabs:
                 messagebox.showwarning("Insufficient Data", "Need at least one ticker with valid data to generate comparison.")
                 return
 
-            if base_ticker not in ticker_data:
+            if use_relative and base_ticker not in ticker_data:
                 messagebox.showwarning("Base Ticker Missing", f"Could not load data for base ticker '{base_ticker}'. Please check the symbol.")
                 return
         except Exception as e:
@@ -5070,55 +5157,53 @@ Tabs:
 
             plt.figure(figsize=(12, 8))
 
-            # Compute base ticker percentage change first
-            base_data = ticker_data[base_ticker]
-            base_index_naive = base_data.index.tz_localize(None) if hasattr(base_data.index, 'tz_localize') else base_data.index
-            base_mask = (base_index_naive >= common_start) & (base_index_naive <= common_end)
-            base_filtered = base_data.loc[base_mask].copy()
-            base_first_close = base_filtered['Close'].iloc[0]
-            base_filtered['pct_change'] = ((base_filtered['Close'] - base_first_close) / base_first_close) * 100
-            # Build a date->pct map for the base ticker
+            # Compute base ticker percentage change first (only in relative mode)
             base_pct_map = {}
-            for dt, row in base_filtered.iterrows():
-                dt_naive = dt.tz_localize(None) if hasattr(dt, 'tz_localize') else dt
-                base_pct_map[dt_naive.date()] = row['pct_change']
+            if use_relative:
+                base_data = ticker_data[base_ticker]
+                base_index_naive = base_data.index.tz_localize(None) if hasattr(base_data.index, 'tz_localize') else base_data.index
+                base_mask = (base_index_naive >= common_start) & (base_index_naive <= common_end)
+                base_filtered = base_data.loc[base_mask].copy()
+                base_first_close = base_filtered['Close'].iloc[0]
+                base_filtered['pct_change'] = ((base_filtered['Close'] - base_first_close) / base_first_close) * 100
+                for dt, row in base_filtered.iterrows():
+                    dt_naive = dt.tz_localize(None) if hasattr(dt, 'tz_localize') else dt
+                    base_pct_map[dt_naive.date()] = row['pct_change']
 
-            # Plot each ticker's relative percentage change vs base
+            # Plot each ticker's percentage change
             plotted_tickers = []
 
             for ticker_symbol, data in ticker_data.items():
                 try:
-                    # Filter to common date range - ensure timezone consistency
-                    # Convert index to timezone-naive for comparison
                     data_index_naive = data.index.tz_localize(None) if hasattr(data.index, 'tz_localize') else data.index
-
-                    # Create a mask for filtering with consistent timezone handling
                     mask = (data_index_naive >= common_start) & (data_index_naive <= common_end)
                     filtered_data = data.loc[mask].copy()
 
-                    # Debug log the filtered data range
                     if not filtered_data.empty:
                         logging.info(f"Filtered data for {ticker_symbol}: {filtered_data.index.min()} to {filtered_data.index.max()}, {len(filtered_data)} rows")
 
                     if not filtered_data.empty:
-                        # Calculate percentage change from first day
                         first_close = filtered_data['Close'].iloc[0]
                         filtered_data['pct_change'] = ((filtered_data['Close'] - first_close) / first_close) * 100
 
-                        # Subtract base ticker's percentage to get relative performance
-                        filtered_data['relative_pct'] = filtered_data.apply(
-                            lambda row: row['pct_change'] - base_pct_map.get(
-                                (row.name.tz_localize(None) if hasattr(row.name, 'tz_localize') else row.name).date(), 0),
-                            axis=1
-                        )
+                        if use_relative:
+                            # Subtract base ticker's percentage to get relative performance
+                            filtered_data['plot_pct'] = filtered_data.apply(
+                                lambda row: row['pct_change'] - base_pct_map.get(
+                                    (row.name.tz_localize(None) if hasattr(row.name, 'tz_localize') else row.name).date(), 0),
+                                axis=1
+                            )
+                            is_base = ticker_symbol == base_ticker
+                            plt.plot(filtered_data.index, filtered_data['plot_pct'],
+                                     label=ticker_symbol,
+                                     linestyle='--' if is_base else '-',
+                                     alpha=0.5 if is_base else 1.0,
+                                     linewidth=1.5 if is_base else 2)
+                        else:
+                            # Absolute percentage change
+                            plt.plot(filtered_data.index, filtered_data['pct_change'],
+                                     label=ticker_symbol, linewidth=2)
 
-                        # Plot with dashed style for base ticker
-                        is_base = ticker_symbol == base_ticker
-                        plt.plot(filtered_data.index, filtered_data['relative_pct'],
-                                 label=ticker_symbol,
-                                 linestyle='--' if is_base else '-',
-                                 alpha=0.5 if is_base else 1.0,
-                                 linewidth=1.5 if is_base else 2)
                         plotted_tickers.append(ticker_symbol)
                         logging.info(f"Successfully plotted {ticker_symbol}")
                     else:
@@ -5128,19 +5213,23 @@ Tabs:
 
             if not plotted_tickers:
                 messagebox.showwarning("Plot Error", "Could not plot any tickers. Please try different tickers.")
-                plt.close()  # Close the figure to avoid memory leak
+                plt.close()
                 return
 
             # Add chart details
             start_date_str = pd.Timestamp(common_start).strftime('%Y-%m-%d')
             end_date_str = pd.Timestamp(common_end).strftime('%Y-%m-%d')
-            plt.title(f'Relative Performance vs {base_ticker} ({start_date_str} to {end_date_str})')
+            if use_relative:
+                plt.title(f'Relative Performance vs {base_ticker} ({start_date_str} to {end_date_str})')
+                plt.ylabel(f'% vs {base_ticker}')
+            else:
+                plt.title(f'Percentage Performance ({start_date_str} to {end_date_str})')
+                plt.ylabel('% Change')
             plt.xlabel('Date')
-            plt.ylabel(f'% vs {base_ticker}')
             plt.grid(True, alpha=0.3)
             plt.legend(loc='best')
             plt.gcf().autofmt_xdate()
-            plt.axhline(y=0, color='k', linestyle='-', linewidth=1.5, alpha=0.5)  # Zero line = base performance
+            plt.axhline(y=0, color='k', linestyle='-', linewidth=1.5, alpha=0.5)
         except Exception as e:
             messagebox.showerror("Error", f"Error creating plot: {str(e)}")
             logging.error(f"Error creating plot: {str(e)}")
@@ -5344,6 +5433,278 @@ Tabs:
         for var in self._sr_etf_vars.values():
             var.set(state)
         self._sector_rotation_refresh_view()
+
+    def _sr_deep_dive_holdings(self):
+        """Fetch top 10 holdings of the selected sector ETF and load them into Compare tab."""
+        from sector_rotation import get_sector_top_holdings, SECTOR_ETF_MAP
+
+        etf = self.sr_deepdive_var.get()
+        if not etf:
+            return
+
+        sector_name = SECTOR_ETF_MAP.get(etf, etf)
+        self.sr_status_var.set(f"Fetching top 10 holdings for {etf} ({sector_name})...")
+        self.root.update_idletasks()
+
+        holdings = get_sector_top_holdings(etf, n=10)
+        if not holdings:
+            self.sr_status_var.set(f"Could not fetch holdings for {etf}.")
+            messagebox.showwarning("No Holdings", f"Could not retrieve holdings for {etf}.")
+            return
+
+        # Extract ticker symbols
+        tickers = [h["symbol"] for h in holdings]
+        weights_str = ", ".join(f"{h['symbol']} ({h['weight']:.1%})" for h in holdings)
+        logging.info(f"Top 10 holdings for {etf}: {weights_str}")
+
+        # Build a dynamic ticker list name
+        list_name = f"SR_{etf}_Top10"
+        self.ticker_lists[list_name] = tickers
+
+        # Update the combo dropdown and select the new list
+        self.ticker_list_combo['values'] = list(self.ticker_lists.keys())
+        self.ticker_list_var.set(list_name)
+
+        # Load into the listbox
+        self.ticker_listbox.delete(0, tk.END)
+        for i, h in enumerate(holdings):
+            label = f"{h['symbol']} - {h['name']} ({h['weight']:.1%})"
+            self.ticker_listbox.insert(tk.END, label)
+        self.current_tickers = tickers
+
+        # Update tab counts
+        if hasattr(self, '_update_ticker_tab_counts'):
+            self._update_ticker_tab_counts()
+
+        self.sr_status_var.set(f"Loaded {etf} top 10 holdings into ticker list")
+        self.status_var.set(f"Loaded {len(tickers)} tickers from {list_name}: {weights_str}")
+
+    def _sr_compare_selected(self):
+        """Send the checked sector ETFs to the Compare tab."""
+        selected = [etf for etf, var in self._sr_etf_vars.items() if var.get()]
+        if not selected:
+            messagebox.showwarning("No Sectors", "Check at least one sector ETF to compare.")
+            return
+
+        self.compare_base_var.set("SPY")
+        self._compare_percentage_performance(tickers=selected)
+
+    def _sr_scan_breakouts(self):
+        """Scan top sector holdings for breakout candidates using technical analysis + AI."""
+        from sector_rotation import SECTOR_ETF_MAP
+
+        # Ensure sector data is loaded
+        if self._sr_data is None:
+            self.bo_status_var.set("Loading sector data first...")
+            self.root.update_idletasks()
+            self._sector_rotation_refresh()
+            if self._sr_data is None:
+                self.bo_status_var.set("Error: could not load sector data.")
+                return
+
+        if self._sr_table is None or self._sr_table.empty:
+            self.bo_status_var.set("Error: no rotation table available.")
+            return
+
+        top_n = self.bo_top_n_var.get()
+        t = self.bo_result_text
+        t.config(state=tk.NORMAL)
+        t.delete("1.0", tk.END)
+        t.insert(tk.END, "Scanning top sector holdings...\n\n", "h1")
+        t.update_idletasks()
+
+        # Import analysis functions from weekly_sector_report
+        try:
+            from weekly_sector_report import (
+                _get_top_sector_etfs, _build_holdings_analysis,
+                _build_holdings_text, _generate_stock_picks_summary,
+                _build_report_text,
+            )
+        except ImportError as e:
+            t.insert(tk.END, f"Error importing analysis functions: {e}\n")
+            t.config(state=tk.DISABLED)
+            return
+
+        # Get top sectors
+        top_sectors = _get_top_sector_etfs(self._sr_table, n=top_n)
+        sector_names = ", ".join(f"{s['ETF']} ({s['Sector']})" for s in top_sectors)
+        self.bo_status_var.set(f"Analyzing holdings for: {sector_names}")
+        t.insert(tk.END, f"Top {top_n} sectors: {sector_names}\n\n", "h2")
+        t.update_idletasks()
+
+        # Analyze holdings
+        holdings_analysis = _build_holdings_analysis(self.manager, top_sectors)
+
+        if not holdings_analysis:
+            t.insert(tk.END, "No holdings data available.\n")
+            t.config(state=tk.DISABLED)
+            self.bo_status_var.set("Error: no holdings data.")
+            return
+
+        # Build known ticker set for later extraction from AI output
+        all_known_tickers = set()
+        for data in holdings_analysis.values():
+            for h in data["holdings"]:
+                all_known_tickers.add(h["ticker"])
+
+        # Display raw data per sector
+        for etf, data in holdings_analysis.items():
+            sector_name = data["sector"]
+            holdings = data["holdings"]
+            t.insert(tk.END, f"\n{etf} ({sector_name})\n", "sector")
+
+            if not holdings:
+                t.insert(tk.END, "  No holdings data available.\n", "data")
+                continue
+
+            # Header
+            header = f"  {'Ticker':<7} {'Name':<22} {'Wt':>5} {'1W':>7} {'1M':>7} {'3M':>7} {'%52H':>7} {'Vol':>6} {'Cons':>5} {'Score':>5}\n"
+            t.insert(tk.END, header, "data")
+            t.insert(tk.END, "  " + "-" * 90 + "\n", "data")
+
+            for h in holdings:
+                cr = h.get('consolidation_ratio')
+                cr_str = f"{cr:.2f}" if cr == cr else "N/A"
+                vs = h.get('vol_surge')
+                vs_str = f"{vs:.1f}x" if vs == vs else "N/A"
+
+                score = h['breakout_score']
+                if score >= 7:
+                    tag = "strong_buy"
+                elif score >= 4:
+                    tag = "watch"
+                else:
+                    tag = "data"
+
+                line = (f"  {h['ticker']:<7} {h['name'][:21]:<22} {h['weight']:>4.1%} "
+                        f"{h.get('roc_1w', 0):>+6.1f}% {h.get('roc_1m', 0):>+6.1f}% "
+                        f"{h.get('roc_3m', 0):>+6.1f}% {h.get('pct_from_52w_high', 0):>+6.1f}% "
+                        f"{vs_str:>6} {cr_str:>5} {score:>5}\n")
+                t.insert(tk.END, line, tag)
+
+        t.insert(tk.END, "\n")
+        t.update_idletasks()
+
+        # Generate AI analysis
+        self.bo_status_var.set("Generating AI analysis...")
+        t.insert(tk.END, "AI Analysis\n", "h1")
+        t.update_idletasks()
+
+        try:
+            from sector_rotation import build_rolling_ranks
+            rolling_ranks = build_rolling_ranks(self._sr_data)
+            report_text = _build_report_text(self._sr_table, rolling_ranks)
+            holdings_text = _build_holdings_text(holdings_analysis)
+            ai_summary = _generate_stock_picks_summary(report_text, holdings_text)
+
+            # Insert AI summary with basic formatting
+            import re
+            for line in ai_summary.split("\n"):
+                stripped = line.strip()
+                if stripped.startswith("**") and stripped.endswith("**"):
+                    t.insert(tk.END, stripped.strip("*") + "\n", "h2")
+                elif "**" in stripped:
+                    clean = re.sub(r'\*\*(.+?)\*\*', r'\1', stripped)
+                    if stripped[:1].isdigit():
+                        t.insert(tk.END, clean + "\n", "h2")
+                    else:
+                        t.insert(tk.END, clean + "\n", "ai")
+                else:
+                    t.insert(tk.END, line + "\n", "ai")
+
+            # Extract tickers from AI summary grouped by section and load into ticker list
+            pick_sections = self._extract_ai_pick_tickers(ai_summary, all_known_tickers)
+            self._load_picks_into_ticker_list(pick_sections)
+
+            total = sum(len(v) for v in pick_sections.values())
+            self.bo_status_var.set(f"Scan complete. {total} picks loaded into temp_stocks.")
+        except Exception as e:
+            logging.error(f"Breakout AI analysis failed: {e}")
+            t.insert(tk.END, f"\nAI analysis unavailable: {e}\n", "avoid")
+            self.bo_status_var.set(f"Scan complete (AI failed: {str(e)[:50]})")
+
+        t.config(state=tk.DISABLED)
+
+    def _extract_ai_pick_tickers(self, ai_summary, known_tickers):
+        """Extract tickers from AI stock picks summary, grouped by section.
+
+        Returns dict: {"breakout": [...], "emerging": [...], "avoid": [...]}
+        Each list contains unique tickers in the order they appear.
+        """
+        import re
+
+        sections = {"breakout": [], "emerging": [], "avoid": []}
+        current_section = None
+
+        for line in ai_summary.split("\n"):
+            lower = line.lower()
+            if any(kw in lower for kw in ["top breakout", "breakout candidate"]):
+                current_section = "breakout"
+            elif any(kw in lower for kw in ["emerging setup", "watch list", "watchlist"]):
+                current_section = "emerging"
+            elif any(kw in lower for kw in ["avoid list", "stocks to avoid"]):
+                current_section = "avoid"
+
+            if current_section is None:
+                continue
+
+            words = re.findall(r'\b([A-Z]{1,5})\b', line)
+            for w in words:
+                if w in known_tickers and w not in sections[current_section]:
+                    sections[current_section].append(w)
+
+        return sections
+
+    def _load_picks_into_ticker_list(self, pick_sections):
+        """Load AI-picked tickers into ticker list with section headers."""
+        section_labels = {
+            "breakout": "Breakout Candidates",
+            "emerging": "Emerging Setups",
+            "avoid": "Avoid List",
+        }
+
+        # Collect all tickers (de-duped, in section order) for current_tickers
+        all_tickers = []
+        seen = set()
+        for section in ["breakout", "emerging", "avoid"]:
+            for t in pick_sections.get(section, []):
+                if t not in seen:
+                    all_tickers.append(t)
+                    seen.add(t)
+
+        if not all_tickers:
+            return
+
+        # Persist to temp_stocks in ticker_lists.py (without triggering listbox reload)
+        try:
+            import ticker_lists
+            ticker_lists.temp_stocks = all_tickers.copy()
+            self._persist_temp_stocks_to_file(all_tickers)
+        except Exception as e:
+            logging.error(f"Failed to persist temp_stocks: {e}")
+
+        # Update combo dropdown to show temp_stocks
+        self.ticker_lists["temp_stocks"] = all_tickers
+        self.ticker_list_combo['values'] = list(self.ticker_lists.keys())
+        self.ticker_list_var.set("temp_stocks")
+
+        # Populate listbox with section headers and tickers
+        self.ticker_listbox.delete(0, tk.END)
+        for section in ["breakout", "emerging", "avoid"]:
+            tickers = pick_sections.get(section, [])
+            if not tickers:
+                continue
+            header = f"--- {section_labels[section]} ---"
+            self.ticker_listbox.insert(tk.END, header)
+            for t in tickers:
+                self.ticker_listbox.insert(tk.END, t)
+
+        self.current_tickers = all_tickers
+
+        if hasattr(self, '_update_ticker_tab_counts'):
+            self._update_ticker_tab_counts()
+
+        self.status_var.set(f"Loaded {len(all_tickers)} picks into temp_stocks")
 
     def _sr_update_explanation(self):
         """Update the explanation pane based on the selected view."""

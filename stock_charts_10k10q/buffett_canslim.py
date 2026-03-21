@@ -4,7 +4,10 @@ import json
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
-import google.generativeai as genai
+try:
+    from google import genai
+except ImportError:
+    genai = None
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd

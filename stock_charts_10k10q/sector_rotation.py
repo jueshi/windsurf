@@ -251,7 +251,8 @@ def plot_rotation_ranks(ranks_df, save_path=None, visible_etfs=None):
     ax.invert_yaxis()  # Rank 1 at top
     ax.set_yticks(range(1, n_sectors + 1))
     ax.grid(True, alpha=0.3)
-    ax.legend(loc="center left", bbox_to_anchor=(1.01, 0.5), fontsize=8, framealpha=0.9)
+    if plot_etfs:
+        ax.legend(loc="center left", bbox_to_anchor=(1.01, 0.5), fontsize=8, framealpha=0.9)
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
     fig.autofmt_xdate()
     fig.tight_layout()
@@ -350,6 +351,31 @@ def plot_rrg_scatter(data, benchmark=BENCHMARK, window=21, save_path=None):
 
     matplotlib.use(original_backend)
     return fig
+
+
+def get_sector_top_holdings(etf_ticker, n=10):
+    """Fetch top N holdings of a sector ETF via yfinance.
+
+    Returns list of dicts: [{"symbol": "AAPL", "name": "Apple Inc", "weight": 0.132}, ...]
+    """
+    import yfinance as yf
+    try:
+        etf = yf.Ticker(etf_ticker)
+        fd = etf.funds_data
+        holdings = fd.top_holdings
+        if holdings is None or holdings.empty:
+            return []
+        results = []
+        for symbol, row in holdings.head(n).iterrows():
+            results.append({
+                "symbol": symbol,
+                "name": row.get("Name", ""),
+                "weight": row.get("Holding Percent", 0),
+            })
+        return results
+    except Exception as e:
+        logging.warning(f"Could not fetch holdings for {etf_ticker}: {e}")
+        return []
 
 
 def get_missing_sector_tickers(manager, etfs=None, benchmark=BENCHMARK):

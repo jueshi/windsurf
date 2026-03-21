@@ -5,12 +5,20 @@ import time
 import requests
 import logging
 try:
-    import google.generativeai as genai
+    from google import genai as _genai_module
     GEMINI_AVAILABLE = True
 except ModuleNotFoundError:
-    GEMINI_AVAILABLE = False
-    genai = None
-    logging.info("google.generativeai package not installed. Gemini API features will be unavailable.")
+    try:
+        import google.generativeai as _genai_module
+        GEMINI_AVAILABLE = True
+        logging.info("Using legacy google.generativeai package. Consider upgrading to google-genai.")
+    except ModuleNotFoundError:
+        GEMINI_AVAILABLE = False
+        _genai_module = None
+        logging.info("No Gemini SDK installed. Install google-genai for Gemini API features.")
+
+# Lazy-initialized client for new google.genai SDK
+_genai_client = None
 from bs4 import BeautifulSoup
 try:
     from dotenv import load_dotenv
@@ -47,23 +55,45 @@ except ImportError:
     OPENAI_AVAILABLE = False
     logging.info("OpenAI package not installed. Will use Gemini API only.")
 
+def _is_new_genai_sdk() -> bool:
+    """Return True if using google.genai (new SDK) vs google.generativeai (legacy)."""
+    return GEMINI_AVAILABLE and hasattr(_genai_module, "Client")
+
+
+def _get_genai_client():
+    """Get or create the google.genai Client (new SDK only)."""
+    global _genai_client
+    if _genai_client is None:
+        load_dotenv()
+        api_key = os.getenv("GEMINI_API_KEY")
+        if api_key:
+            _genai_client = _genai_module.Client(api_key=api_key)
+    return _genai_client
+
+
 # Helper to list accessible Gemini models that support generateContent
 def _list_supported_gemini_models() -> list:
     """Return the Gemini model names accessible to the current API key."""
     if not GEMINI_AVAILABLE:
         return []
     try:
-        models = genai.list_models()
+        if _is_new_genai_sdk():
+            client = _get_genai_client()
+            if not client:
+                return []
+            models = client.models.list()
+            return [m.name for m in models if hasattr(m, 'name')]
+        else:
+            models = _genai_module.list_models()
+            supported = []
+            for model in models:
+                methods = getattr(model, "supported_generation_methods", []) or []
+                if "generateContent" in methods:
+                    supported.append(model.name)
+            return supported
     except Exception as err:
         logging.warning("Unable to list Gemini models: %s", err)
         return []
-
-    supported = []
-    for model in models:
-        methods = getattr(model, "supported_generation_methods", []) or []
-        if "generateContent" in methods:
-            supported.append(model.name)
-    return supported
 
 
 # Helper to format Gemini API errors with actionable guidance
@@ -273,27 +303,31 @@ def _call_llm(prompt: str, use_openai_first: bool = True) -> str:
     
     # Fall back to Gemini
     if not GEMINI_AVAILABLE:
-        raise Exception("Gemini API is not available. Please install google.generativeai package or set OPENAI_API_KEY.")
-    
+        raise Exception("Gemini API is not available. Install google-genai package or set OPENAI_API_KEY.")
+
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise Exception("No LLM API key available. Set OPENAI_API_KEY or GEMINI_API_KEY in environment variables.")
-    
+
     logging.info("Using Gemini API...")
-    genai.configure(api_key=api_key)
-    
-    try:
-        model = _init_gemini_model_with_fallback()
-    except Exception as e:
-        raise Exception(_format_gemini_error(e))
-    
     rate_limiter = GeminiRateLimiter()
-    
+
     try:
-        response = rate_limiter.make_api_call_with_retry(
-            model.generate_content, prompt
-        )
-        return response.text
+        if _is_new_genai_sdk():
+            client = _get_genai_client()
+            model_name = _init_gemini_model_with_fallback()
+            response = rate_limiter.make_api_call_with_retry(
+                client.models.generate_content,
+                model=model_name, contents=prompt
+            )
+            return response.text
+        else:
+            _genai_module.configure(api_key=api_key)
+            model = _init_gemini_model_with_fallback()
+            response = rate_limiter.make_api_call_with_retry(
+                model.generate_content, prompt
+            )
+            return response.text
     except Exception as e:
         raise Exception(_format_gemini_error(e))
 
@@ -439,22 +473,34 @@ def _get_gemini_model_candidates() -> list:
     return ordered
 
 def _init_gemini_model_with_fallback():
-    """Try to initialize a GenerativeModel across known candidates; fall back on 404/unsupported."""
+    """Try to initialize a GenerativeModel across known candidates; fall back on 404/unsupported.
+
+    For the new google.genai SDK, returns the model name string (Client handles the rest).
+    For the legacy google.generativeai SDK, returns a GenerativeModel instance.
+    """
     if not GEMINI_AVAILABLE:
-        raise Exception("google.generativeai package not installed. Cannot initialize Gemini model.")
-    
+        raise Exception("No Gemini SDK installed. Install google-genai package.")
+
+    if _is_new_genai_sdk():
+        # New SDK: just validate model name by attempting a quick call
+        client = _get_genai_client()
+        if not client:
+            raise Exception("GEMINI_API_KEY not set.")
+        candidates = _get_gemini_model_candidates()
+        # New SDK doesn't need model instantiation; return first candidate
+        return candidates[0] if candidates else "gemini-2.5-flash"
+
+    # Legacy SDK
     last_err = None
     for name in _get_gemini_model_candidates():
         try:
-            return genai.GenerativeModel(name)
+            return _genai_module.GenerativeModel(name)
         except Exception as e:
             last_err = e
             msg = str(e)
             if any(tok in msg for tok in ["404", "not found", "NOT_FOUND", "not supported", "Unsupported"]):
                 continue
-            # Other errors (auth, service disabled) should bubble for better guidance
             raise
-    # If none worked, raise the last error for formatting upstream
     raise last_err or Exception("No supported Gemini model found")
 
 def analyze_ticker(ticker, company_info):

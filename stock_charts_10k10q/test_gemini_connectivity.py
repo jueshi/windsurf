@@ -1,6 +1,11 @@
 import os
 import sys
-import google.generativeai as genai
+try:
+    from google import genai
+    _USE_NEW = True
+except ImportError:
+    import google.generativeai as genai
+    _USE_NEW = False
 from dotenv import load_dotenv
 
 
@@ -11,16 +16,14 @@ def test_basic_call():
         print("GEMINI_API_KEY is not set. Please add it to your .env file or environment.")
         sys.exit(1)
 
-    genai.configure(api_key=api_key)
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
-    except Exception as e:
-        print("Failed to initialize Gemini model.\n")
-        print(str(e))
-        sys.exit(2)
-
-    try:
-        resp = model.generate_content("Return the string OK")
+        if _USE_NEW:
+            client = genai.Client(api_key=api_key)
+            resp = client.models.generate_content(model="gemini-2.5-flash", contents="Return the string OK")
+        else:
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel("gemini-2.5-flash")
+            resp = model.generate_content("Return the string OK")
         print("Model response:\n", resp.text)
     except Exception as e:
         print("Call failed:\n")

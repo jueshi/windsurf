@@ -290,7 +290,8 @@ Jues401k_stocks_stocks = ["ALAB", "QQQ", "IWM", "GLD", "AAPL", "GOOGL", "MSFT", 
 
 
 nucleus_stock_stocks = ["BX", "CEG", "SMR", "NLR", "URA", "CCJ", "URNM", "URAN", "BWXT"]
-sector_etfs = ["IBB", "KRE", "QQQ", "VAW", "VCR", "VDC", "VDE", "VFH", "VGT", "VHT", "VIS", "VNQ", "VOX", "VPU", "XLB", "XLC", "XLE", "XLF", "XLI", "XLK", "XLP", "XLRE", "XLU", "XLV", "XLY", "XOP"]
+sector_etfs = ["IBB", "KRE", "QQQ", "VAW", "VCR", "VDC", "VDE", "VFH", "VGT", "VHT", "VIS", "VNQ", "VOX", "VPU", "XLB", "XLC", "XLE", "XLF", "XLI", "XLK", "XLP", "XLRE", "XLU", "XLV", "XLY", "XOP", "SPY"]
+
 
 
 
@@ -703,43 +704,11 @@ if __name__ == '__main__':
 temp_stocks = [
     "XOM",
     "CVX",
-    "SHEL",
-    "BP",
+    "VLO",
+    "NEE",
+    "ETN",
     "SLB",
-    "HAL",
-    "JPM",
-    "BAC",
-    "GOOGL",
-    "GM",
-    "F",
-    "COIN",
-    "MSTR",
-    "ZM",
-    "MSFT",
-    "ADBE",
-    "DAL",
-    "UAL",
-    "LUV",
-    "FDX",
-    "UPS",
-    "CAT",
-    "DE",
-    "TSLA",
-    "AMZN",
-    "NVDA",
-    "TLT",
-    "BND",
-    "SPG",
-    "PLD",
-    "DHI",
-    "BX",
-    "KKR",
-    "APO",
-    "CG",
-    "UBER",
-    "LYFT",
-    "SLG",
-    "VNO"
+    "VST"
 ]
 
 

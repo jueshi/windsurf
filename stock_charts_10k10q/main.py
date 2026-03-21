@@ -67,38 +67,19 @@ def suppress_tkinter_exit_errors():
             main_thread_id = threading.current_thread().ident
             
             # Patch the tk 'call' method on the base Mix-in (Misc) to handle async thread issues
-            original_tkapp_call = tk.Misc.call
-            
-            def safe_tkapp_call(self, *args, **kwargs):
-                try:
-                    # Only proceed with the call if we're in the main thread
-                    if threading.current_thread().ident == main_thread_id:
-                        return original_tkapp_call(self, *args, **kwargs)
-                    else:
-                        # For non-main threads, use a safer approach or queue the call
-                        return None
-                except (RuntimeError, AttributeError, TypeError) as e:
-                    # Log the error but don't crash
-                    print(f"Tkinter thread error suppressed: {e}")
-                    return None
-            
-            # Apply the patch to Misc so it affects all Tk widgets/instances
-            tk.Misc.call = safe_tkapp_call
-            
-            # Also patch the async_hook if available
-            original_tcl_async_hook = None
-            if hasattr(tk.Tcl(), 'async_hook'):
-                original_tcl_async_hook = tk.Tcl().async_hook
+            if hasattr(tk.Misc, 'call'):
+                original_tkapp_call = tk.Misc.call
 
-                def safe_async_hook(*args, **kwargs):
+                def safe_tkapp_call(self, *args, **kwargs):
                     try:
-                        if original_tcl_async_hook and threading.current_thread().ident == main_thread_id:
-                            return original_tcl_async_hook(*args, **kwargs)
-                    except Exception as e:
-                        print(f"Async hook error suppressed: {e}")
-                        pass
+                        if threading.current_thread().ident == main_thread_id:
+                            return original_tkapp_call(self, *args, **kwargs)
+                        else:
+                            return None
+                    except (RuntimeError, AttributeError, TypeError):
+                        return None
 
-                tk.Tcl().async_hook = safe_async_hook
+                tk.Misc.call = safe_tkapp_call
     except Exception as e:
         # If patching fails, continue without it
         print(f"Failed to patch Tkinter thread handling: {e}")

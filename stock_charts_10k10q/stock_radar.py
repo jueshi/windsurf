@@ -1,4 +1,9 @@
-import google.generativeai as genai
+try:
+    from google import genai as _genai
+    _USE_NEW_GENAI = True
+except ImportError:
+    import google.generativeai as _genai
+    _USE_NEW_GENAI = False
 import pandas as pd
 import re, os, smtplib
 import json
@@ -12,7 +17,11 @@ from email.mime.text import MIMEText
 
 # ===== 用户配置 =====
 stock_list = ["AAPL", "NVDA", "MSFT"]
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+_api_key = os.getenv("GEMINI_API_KEY")
+if _USE_NEW_GENAI:
+    _genai_client = _genai.Client(api_key=_api_key)
+else:
+    _genai.configure(api_key=_api_key)
 model_name = "gemini-1.5-flash"
 summary_file = "stock_summary_report.xlsx"
 
@@ -35,11 +44,17 @@ def analyze_stock(stock_code):
     - 仅输出紧凑JSON，不要有任何额外文字或标点
     - 示例：{{"buffett_scores":[1,2,3,4,5,6,7,8],"buffett_total":70,"canslim_scores":[1,2,3,4,5,6,7],"canslim_total":72}}
     """.format(stock_code=stock_code)
-    model = genai.GenerativeModel(model_name)
-    resp = model.generate_content(
-        prompt,
-        generation_config={"temperature": 0}
-    )
+    if _USE_NEW_GENAI:
+        resp = _genai_client.models.generate_content(
+            model=model_name, contents=prompt,
+            config={"temperature": 0}
+        )
+    else:
+        model = _genai.GenerativeModel(model_name)
+        resp = model.generate_content(
+            prompt,
+            generation_config={"temperature": 0}
+        )
     text = resp.text
 
     # 解析JSON输出，带有回退策略
