@@ -1685,11 +1685,11 @@ class StockDataGUI:
         self.root.bind("<Control-Right>", lambda e: self._go_next_list())
         self.root.bind("<Control-Left>", lambda e: self._go_prev_list())
         self.root.bind("<F5>", lambda e: self._refresh_ticker_lists())
-        self.root.bind("<Control-1>", lambda e: self.chart_notebook.select(0))  # Chart tab
-        self.root.bind("<Control-2>", lambda e: self.chart_notebook.select(1))  # Compare tab
-        self.root.bind("<Control-3>", lambda e: self.chart_notebook.select(2))  # Sectors tab
-        self.root.bind("<Control-4>", lambda e: self.chart_notebook.select(3))  # Seasonal tab
-        self.root.bind("<Control-5>", lambda e: self.chart_notebook.select(4))  # Fundamentals tab
+        self.root.bind("<Control-Key-1>", lambda e: self.chart_notebook.select(0))  # Chart tab
+        self.root.bind("<Control-Key-2>", lambda e: self.chart_notebook.select(1))  # Compare tab
+        self.root.bind("<Control-Key-3>", lambda e: self.chart_notebook.select(2))  # Sectors tab
+        self.root.bind("<Control-Key-4>", lambda e: self.chart_notebook.select(3))  # Seasonal tab
+        self.root.bind("<Control-Key-5>", lambda e: self.chart_notebook.select(4))  # Fundamentals tab
         
         # Log keyboard shortcuts
         logging.info("Keyboard shortcuts enabled: Ctrl+D (download), Ctrl+R (report), Ctrl+W (watch), Ctrl+B (BA), Ctrl+N (news)")
@@ -3519,17 +3519,17 @@ Tabs:
                         self.bc_status_var.set("Idle. Not re-running automatically.")
                 return
 
-            # Tab indices are: 0: Individual, 1: Comparison, 2: Seasonality, 3: Fundamental, 4: Business Analysis
-            if current_tab_index == 4:
+            # Tab indices: 0=Chart, 1=Compare, 2=Sectors, 3=Seasonal, 4=Fundamentals, 5=Business
+            if current_tab_index == 5:
                 if selected_tickers:
                     ticker = selected_tickers[0]
                     self._load_cached_analysis(ticker)
-            elif current_tab_index == 3:
+            elif current_tab_index == 4:
                 self._display_fundamental_data(selected_tickers)
             elif selected_tickers:
                 if current_tab_index == 1:
                     self._compare_percentage_performance(tickers=selected_tickers)
-                elif current_tab_index == 2:
+                elif current_tab_index == 3:
                     self._generate_seasonality_chart(selected_tickers[0])
                 elif current_tab_index == 0:
                     self._display_chart(selected_tickers[0])
@@ -3554,17 +3554,17 @@ Tabs:
                     self._analyze_buffett_canslim_current()
                 return
 
-            # Tab indices are: 0: Individual, 1: Comparison, 2: Seasonality, 3: Fundamental, 4: Business Analysis
-            if current_tab_index == 4:
+            # Tab indices: 0=Chart, 1=Compare, 2=Sectors, 3=Seasonal, 4=Fundamentals, 5=Business
+            if current_tab_index == 5:
                 if selected_tickers:
                     ticker = selected_tickers[0]
                     self._load_cached_analysis(ticker)
-            elif current_tab_index == 3:
+            elif current_tab_index == 4:
                 self._display_fundamental_data(selected_tickers)
             elif selected_tickers:
                 if current_tab_index == 1:
                     self._compare_percentage_performance(tickers=selected_tickers)
-                elif current_tab_index == 2:
+                elif current_tab_index == 3:
                     self._generate_seasonality_chart(selected_tickers[0])
                 elif current_tab_index == 0:
                     self._display_chart(selected_tickers[0])
