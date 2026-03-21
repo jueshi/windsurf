@@ -1224,6 +1224,8 @@ def analyze_news(news_articles):
     """
     good_news = []
     bad_news = []
+    all_positive_tickers = []
+    all_negative_tickers = []
 
     for article in news_articles:
         prompt = f"""
@@ -1231,8 +1233,12 @@ def analyze_news(news_articles):
         并提供具体数据和百分比变化。
         对重大新闻，请分析其对相关板块和具体个股的潜在影响（列出股票代码和影响逻辑）。
         Followed by an English version of the response in a separate paragraph as well.
-        请以JSON格式返回，包含"summary"、"sentiment"和"sector_impact"三个字段。
-        其中"sector_impact"为字符串，描述受影响的板块与个股（如无明显影响可留空）。
+        请以JSON格式返回，包含以下字段：
+        - "summary": 新闻摘要
+        - "sentiment": "利好"、"利空"或"中性"
+        - "sector_impact": 描述受影响的板块与个股（如无明显影响可留空）
+        - "positive_tickers": 可能受益的股票代码列表，如 ["AAPL", "MSFT"]（无则为空列表）
+        - "negative_tickers": 可能受损的股票代码列表，如 ["XOM", "CVX"]（无则为空列表）
 
         新闻标题: {article.get('title', 'N/A')}
         新闻内容: {article.get('content', 'N/A')}
@@ -1247,6 +1253,17 @@ def analyze_news(news_articles):
             summary = result.get('summary', '无法生成摘要。')
             sentiment = result.get('sentiment', '中性').lower()
             sector_impact = result.get('sector_impact', '')
+            pos_tickers = result.get('positive_tickers', [])
+            neg_tickers = result.get('negative_tickers', [])
+
+            if isinstance(pos_tickers, list):
+                for t in pos_tickers:
+                    if isinstance(t, str) and t.upper() not in all_positive_tickers:
+                        all_positive_tickers.append(t.upper())
+            if isinstance(neg_tickers, list):
+                for t in neg_tickers:
+                    if isinstance(t, str) and t.upper() not in all_negative_tickers:
+                        all_negative_tickers.append(t.upper())
 
             impact_suffix = f"\n  > 板块影响: {sector_impact}" if sector_impact else ""
             if "利好" in sentiment:
@@ -1256,6 +1273,12 @@ def analyze_news(news_articles):
         except Exception as e:
             print(f"Error processing article: {e}")
             continue
+
+    # Combine impacted tickers: positive first, then negative (no duplicates)
+    impacted_tickers = list(all_positive_tickers)
+    for t in all_negative_tickers:
+        if t not in impacted_tickers:
+            impacted_tickers.append(t)
 
     # Format the final output
     output = "## 新闻分析\n\n"
@@ -1271,7 +1294,7 @@ def analyze_news(news_articles):
     else:
         output += "近期无明显利空消息。\n"
 
-    return output
+    return output, impacted_tickers
 
 def general_search(ticker, company_info, query):
     """
@@ -1338,6 +1361,10 @@ def summarize_market_news(articles, tickers=None):
 2. **板块与个股影响分析**：对每条重大新闻，分析其对相关板块（如科技、能源、金融等）的潜在传导路径，并列出可能受益或受损的具体个股（附股票代码），说明逻辑。
 3. 紧接着提供一段英文版本，内容与中文段落保持一致。
 4. 采用资讯型博客语气，提炼主线逻辑并点出潜在影响。
+5. **最后必须**在文末添加如下格式的结构化标签（每行一个标签，股票代码用逗号分隔）：
+   POSITIVE_TICKERS: AAPL, MSFT, ...
+   NEGATIVE_TICKERS: TSLA, BA, ...
+   （列出分析中提到的所有可能受益的个股代码在 POSITIVE_TICKERS，所有可能受损的在 NEGATIVE_TICKERS；如无则留空）
 """
 
     try:
@@ -1379,6 +1406,10 @@ def summarize_crypto_news(articles, tickers=None):
 2. **板块与代币影响分析**：对每条重大新闻，分析其对相关赛道（如DeFi、L1/L2、Meme、RWA等）的传导路径，并列出可能受益或受损的具体代币（附代币符号），说明逻辑。
 3. 紧接着提供一段英文版本，信息需与中文一致，可给出交易/风险提示。
 4. 语气需兼顾专业与博客风格，可加入要点列表帮助投资者快速吸收。
+5. **最后必须**在文末添加如下格式的结构化标签（每行一个标签，代码用逗号分隔）：
+   POSITIVE_TICKERS: BTC-USD, MSTR, ...
+   NEGATIVE_TICKERS: ...
+   （列出分析中提到的所有可能受益的代码在 POSITIVE_TICKERS，所有可能受损的在 NEGATIVE_TICKERS；如无则留空）
 """
 
     try:
@@ -1420,6 +1451,10 @@ def summarize_etf_news(articles, tickers=None):
 2. **板块与个股影响分析**：对每条重大新闻，分析其对相关板块（如科技、能源、金融、医疗等）的传导路径，列出可能受影响的ETF及其重仓个股（附代码），说明逻辑。
 3. 紧接着提供一段英文版本，确保信息与中文一致。
 4. 语气保持专业且具有博客风格，在结尾附上对ETF投资者的观察建议。
+5. **最后必须**在文末添加如下格式的结构化标签（每行一个标签，股票代码用逗号分隔）：
+   POSITIVE_TICKERS: XLE, XOM, ...
+   NEGATIVE_TICKERS: XLU, UAL, ...
+   （列出分析中提到的所有可能受益的代码在 POSITIVE_TICKERS，所有可能受损的在 NEGATIVE_TICKERS；如无则留空）
 """
 
     try:
@@ -1473,6 +1508,10 @@ def summarize_stock_news(articles, tickers=None):
 2. **板块与个股影响分析**：对每条重大新闻，分析其对相关板块（如上下游产业链、竞争对手等）的传导路径，并列出可能受益或受损的具体个股（附股票代码），说明逻辑。
 3. 紧接着提供一段英文版本，内容与中文段落保持一致。
 4. 语气需兼具专业与博客风格，让投资者快速抓住重点，可在结尾给出观察建议。
+5. **最后必须**在文末添加如下格式的结构化标签（每行一个标签，股票代码用逗号分隔）：
+   POSITIVE_TICKERS: AAPL, MSFT, ...
+   NEGATIVE_TICKERS: TSLA, BA, ...
+   （列出分析中提到的所有可能受益的个股代码在 POSITIVE_TICKERS，所有可能受损的在 NEGATIVE_TICKERS；如无则留空）
 """
 
     try:

@@ -5743,8 +5743,21 @@ Tabs:
                 safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
                 safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, beautified_result)
                 safe_update_text_widget(self.business_analysis_text, 'see', "1.0")
-                
-                # Update status using thread-safe method
+
+                # Save 10-K study to markdown file with timestamp
+                try:
+                    analysis_dir = os.path.join("stock_data", "business_analysis")
+                    os.makedirs(analysis_dir, exist_ok=True)
+                    ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    analysis_file = os.path.join(analysis_dir, f"{ticker}_10K_study_{ts}.md")
+                    with open(analysis_file, "w", encoding="utf-8") as f:
+                        f.write(f"# 10-K Study: {ticker}\n\n")
+                        f.write(f"_Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}_\n\n")
+                        f.write(beautified_result)
+                    logging.info(f"Saved 10-K study to {analysis_file}")
+                except Exception as e:
+                    logging.error(f"Could not save 10-K study: {e}")
+
                 safe_update_status(self.status_var, f"Completed 10-K study for {ticker}")
             except Exception as e:
                 logging.error(f"Error in 10-K study thread: {e}")
@@ -5788,19 +5801,27 @@ Tabs:
                                        f"\nFound {len(news_articles)} news articles. Analyzing...")
                 
                 logging.info(f"Analyzing {len(news_articles)} news articles for {ticker}")
-                analysis_result = gemini_analyzer.analyze_news(news_articles)
-                
+                analysis_result, impacted_tickers = gemini_analyzer.analyze_news(news_articles)
+
                 # Update UI with results using thread-safe methods
                 safe_update_text_widget(self.business_analysis_text, 'delete', "1.0", tk.END)
                 safe_update_text_widget(self.business_analysis_text, 'insert', tk.END, analysis_result)
                 safe_update_text_widget(self.business_analysis_text, 'see', "1.0")
-                
-                # Save the analysis to a file
+
+                # Save impacted tickers to temp_stocks
+                if impacted_tickers:
+                    logging.info(f"News impacted tickers: {impacted_tickers}")
+                    self._save_temp_stock_list(impacted_tickers)
+
+                # Save the analysis to a markdown file with timestamp
                 try:
                     analysis_dir = os.path.join("stock_data", "business_analysis")
                     os.makedirs(analysis_dir, exist_ok=True)
-                    analysis_file = os.path.join(analysis_dir, f"{ticker}_news_analysis.txt")
+                    ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    analysis_file = os.path.join(analysis_dir, f"{ticker}_news_analysis_{ts}.md")
                     with open(analysis_file, "w", encoding="utf-8") as f:
+                        f.write(f"# News Analysis: {ticker}\n\n")
+                        f.write(f"_Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}_\n\n")
                         f.write(analysis_result)
                     safe_update_status(self.status_var, f"Saved news analysis for {ticker}")
                 except Exception as e:
@@ -5880,9 +5901,30 @@ Tabs:
             formatted = summary or "Gemini did not return any content."
             self.market_news_original_text = formatted
 
+            # Extract impacted tickers from LLM output and update temp_stocks
+            impacted = self._parse_impacted_tickers(formatted)
+            if impacted:
+                self._update_news_temp_list(impacted)
+                logging.info(f"Market news impacted tickers: {impacted}")
+
             safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
             safe_update_text_widget(self.market_news_text, 'insert', tk.END, formatted)
             safe_update_text_widget(self.market_news_text, 'see', "1.0")
+
+            # Save market news summary to markdown file with timestamp
+            try:
+                analysis_dir = os.path.join("stock_data", "business_analysis")
+                os.makedirs(analysis_dir, exist_ok=True)
+                ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+                news_file = os.path.join(analysis_dir, f"market_news_{ts}.md")
+                with open(news_file, "w", encoding="utf-8") as f:
+                    f.write(f"# Market News Summary\n\n")
+                    f.write(f"_Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}_\n\n")
+                    f.write(formatted)
+                logging.info(f"Saved market news summary to {news_file}")
+            except Exception as e:
+                logging.error(f"Could not save market news summary: {e}")
+
             safe_update_status(self.status_var, "Market news blog updated")
 
         threading.Thread(target=news_thread, daemon=True, name="FinvizMarketNewsSummary").start()
@@ -5952,6 +5994,12 @@ Tabs:
 
             formatted = summary or "Gemini did not return any content."
             self.market_news_original_text = formatted
+
+            # Extract impacted tickers from LLM output and update temp_stocks
+            impacted = self._parse_impacted_tickers(formatted)
+            if impacted:
+                self._update_news_temp_list(impacted)
+                logging.info(f"Stock news impacted tickers: {impacted}")
 
             safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
             safe_update_text_widget(self.market_news_text, 'insert', tk.END, formatted)
@@ -6026,6 +6074,12 @@ Tabs:
             formatted = summary or "Gemini did not return any content."
             self.market_news_original_text = formatted
 
+            # Extract impacted tickers from LLM output and update temp_stocks
+            impacted = self._parse_impacted_tickers(formatted)
+            if impacted:
+                self._update_news_temp_list(impacted)
+                logging.info(f"ETF news impacted tickers: {impacted}")
+
             safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
             safe_update_text_widget(self.market_news_text, 'insert', tk.END, formatted)
             safe_update_text_widget(self.market_news_text, 'see', "1.0")
@@ -6098,6 +6152,12 @@ Tabs:
 
             formatted = summary or "Gemini did not return any content."
             self.market_news_original_text = formatted
+
+            # Extract impacted tickers from LLM output and update temp_stocks
+            impacted = self._parse_impacted_tickers(formatted)
+            if impacted:
+                self._update_news_temp_list(impacted)
+                logging.info(f"Crypto news impacted tickers: {impacted}")
 
             safe_update_text_widget(self.market_news_text, 'delete', "1.0", tk.END)
             safe_update_text_widget(self.market_news_text, 'insert', tk.END, formatted)
@@ -6503,6 +6563,29 @@ Tabs:
         lines.append("]")
         return lines
 
+    def _parse_impacted_tickers(self, summary_text: str) -> List[str]:
+        """Parse POSITIVE_TICKERS and NEGATIVE_TICKERS from LLM summary output.
+        Returns positive tickers first, then negative ones (no duplicates)."""
+        positive = []
+        negative = []
+        for line in summary_text.splitlines():
+            stripped = line.strip()
+            if stripped.upper().startswith("POSITIVE_TICKERS:"):
+                raw = stripped.split(":", 1)[1]
+                positive = [t.strip().upper() for t in raw.split(",") if t.strip()]
+            elif stripped.upper().startswith("NEGATIVE_TICKERS:"):
+                raw = stripped.split(":", 1)[1]
+                negative = [t.strip().upper() for t in raw.split(",") if t.strip()]
+
+        # Deduplicate while preserving order: positive first, then negative
+        seen = set()
+        result = []
+        for t in positive + negative:
+            if t and t not in seen and len(t) >= 1:
+                seen.add(t)
+                result.append(t)
+        return result
+
     def _update_news_temp_list(self, tickers: List[str]):
         tickers = tickers or []
         self.stock_news_temp_tickers = tickers
@@ -6566,8 +6649,11 @@ Tabs:
                 try:
                     analysis_dir = os.path.join("stock_data", "business_analysis")
                     os.makedirs(analysis_dir, exist_ok=True)
-                    analysis_file = os.path.join(analysis_dir, f"{ticker}_10Q_analysis.txt")
+                    ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    analysis_file = os.path.join(analysis_dir, f"{ticker}_10Q_analysis_{ts}.md")
                     with open(analysis_file, "w", encoding="utf-8") as f:
+                        f.write(f"# 10-Q Analysis: {ticker}\n\n")
+                        f.write(f"_Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}_\n\n")
                         f.write(analysis_result)
                     safe_update_status(self.status_var, f"Saved 10-Q analysis for {ticker}")
                 except Exception as e:

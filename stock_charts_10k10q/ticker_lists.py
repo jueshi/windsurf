@@ -7,7 +7,10 @@ import json
 
 A_ping_401k_ping = ["AAPL", "AMD", "AMZN", "AMZU", "APP", "ASAN", "AVGO", "CRDO", "ENVA", "FRMI", "GGLL", "GS", "INTC", "JPM", "LRCX", "META", "MSFU", "MSTR", "MSTX", "MU", "NVDA", "NVDL", "ORCL", "PLTR", "PRCT", "QQQ", "RDDT", "SPMO", "SPY", "TECS", "TQQQ", "TSLA", "TSLL", "UEC", "V"]
 
-A_jue_401k_2025 = ["AAOI", "AAPL", "ABBV", "ADI", "AFRM", "ALAB", "AMCR", "AMGN", "AMZU", "APP", "APPX", "ARMG", "ATO", "AVGO", "AVL", "AVPT", "AZN", "BABX", "BEN", "BIDU", "BRKB", "BRKU", "CELH", "CELT", "CQQQ", "CRCG", "CRCL", "CRDO", "CRDU", "CRM", "CRMG", "CRWD", "CRWL", "CRWV", "CTAS", "DBC", "DIS", "DOV", "DOXGX", "ED", "EDMCQ", "ESS", "FBL", "FBTC", "FIG", "FIGR", "FNGU", "FSSNX", "FXAIX", "GLD", "GS", "GSX", "GWW", "HD", "INTC", "JD", "JNJ", "LABX", "MA", "MCD", "MSFX", "MSTX", "NFXL", "ORCL", "ORCX", "PG", "PLTG", "PLTR", "PLTU", "QQQ", "SPY", "TECS", "THD", "TMO", "TNA", "TSLL", "UBRL", "VGT", "VIGIX", "YINN", "COSW", "NVDA", "AMD"]
+A_jue_401k_2025 = ["AAOI", "AAPL", "ABBV", "ADI", "AFRM", "ALAB", "AMCR", "AMGN", "AMZU", "APP", "APPX", "ARMG", "ATO", "AVGO", "AVL", "AVPT", "AZN", "BABX", "BEN", "BIDU", "BRKB", "BRKU", "CELH", "CELT", "CQQQ", "CRCG", "CRCL", "CRDO", "CRDU", "CRM", "CRMG", "CRWD", "CRWL", "CRWV", "CTAS", "DBC", "DIS", "DOV", "DOXGX", "ED", "EDMCQ", "ESS", "FBL", "FBTC", "FIG", "FIGR", "FNGU", "FSSNX", "FXAIX", "GLD", "GS", "GSX", "GWW", "HD", "INTC", "JD", "JNJ", "LABX", "MA", "MCD", "MSFX", "MSTX", "NFXL", "ORCL", "ORCX", "PG", "PLTG", "PLTR", "PLTU", "QQQ", "SPY", "TECS", "THD", "TMO", "TNA", "TSLL", "UBRL", "VGT", "VIGIX", "YINN", "COSW", "NVDA", "AMD", "LITE", "MU", "COHR"]
+
+
+
 
 A_magic_formula_12_22_25 = ["MO", "AMCX", "ATRA", "BTMD", "BBUC", "BMBL", "CRK", "CCSI", "CROX", "EGREF", "ESP", "EWCZ", "EVER", "FOXA", "FC", "GAMB", "GDEV", "GOT", "HRB", "HRMY", "HPQ", "IDT", "INVA", "IPG", "JILL", "LNTH", "LEVN", "NL", "OMC", "OMI", "MD", "PBI", "PLTK", "PTCT", "PRYI", "RCLD", "RIGL", "RMNI", "SBG", "SSTK", "SKYA", "SIRI", "TGNA", "AREN", "T2OO", "UIS", "WWW", "XPOF", "ANF"]
 
@@ -698,19 +701,45 @@ if __name__ == '__main__':
 
 
 temp_stocks = [
-    "FRHC",
-    "FLNG",
-    "META",
-    "MU",
-    "BABA",
-    "GOOG",
+    "XOM",
+    "CVX",
+    "SHEL",
+    "BP",
+    "SLB",
+    "HAL",
+    "JPM",
+    "BAC",
     "GOOGL",
-    "AMZN",
+    "GM",
+    "F",
+    "COIN",
+    "MSTR",
+    "ZM",
     "MSFT",
-    "ORA",
-    "HIVE",
-    "SPY",
-    "BHP"
+    "ADBE",
+    "DAL",
+    "UAL",
+    "LUV",
+    "FDX",
+    "UPS",
+    "CAT",
+    "DE",
+    "TSLA",
+    "AMZN",
+    "NVDA",
+    "TLT",
+    "BND",
+    "SPG",
+    "PLD",
+    "DHI",
+    "BX",
+    "KKR",
+    "APO",
+    "CG",
+    "UBER",
+    "LYFT",
+    "SLG",
+    "VNO"
 ]
 
 
