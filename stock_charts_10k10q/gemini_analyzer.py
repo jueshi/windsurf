@@ -7,12 +7,12 @@ import logging
 try:
     from google import genai as _genai_module
     GEMINI_AVAILABLE = True
-except ModuleNotFoundError:
+except (ImportError, ModuleNotFoundError):
     try:
         import google.generativeai as _genai_module
         GEMINI_AVAILABLE = True
         logging.info("Using legacy google.generativeai package. Consider upgrading to google-genai.")
-    except ModuleNotFoundError:
+    except (ImportError, ModuleNotFoundError):
         GEMINI_AVAILABLE = False
         _genai_module = None
         logging.info("No Gemini SDK installed. Install google-genai for Gemini API features.")

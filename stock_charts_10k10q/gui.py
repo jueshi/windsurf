@@ -3440,6 +3440,14 @@ Tabs:
                 
                 fig.add_trace(go.Scatter(x=avg_df.index, y=avg_df['Average'], mode='lines', name='Average', line=dict(color='black', width=3), opacity=0.8))
 
+            # --- Add "Today" vertical line ---
+            today = datetime.today()
+            today_trading_day = int(round((today.timetuple().tm_yday / 365.0) * 252))
+            today_trading_day = max(1, min(252, today_trading_day))
+            fig.add_vline(x=today_trading_day, line=dict(color="red", width=1.5, dash="dot"),
+                          annotation_text="Today", annotation_position="top right",
+                          annotation=dict(font_size=10, font_color="red"))
+
             # --- Finalize and Display Figure ---
             # Use fixed x-axis range (1-252) to always show full year
             fig.add_shape(type="line", x0=1, y0=0, x1=252, y1=0, line=dict(color="black", width=1, dash="dash"))

@@ -702,13 +702,28 @@ if __name__ == '__main__':
 
 
 temp_stocks = [
+    "HCM",
+    "APGE",
+    "CWH",
+    "VIRT",
+    "AGCO",
+    "CNH",
+    "CTVA",
+    "DE",
+    "MRK",
+    "SNPS",
+    "MU",
+    "TSLA",
+    "FFAI",
+    "AMZN",
+    "CMCSA",
+    "DIS",
+    "IMAX",
     "XOM",
-    "CVX",
-    "VLO",
-    "NEE",
-    "ETN",
-    "SLB",
-    "VST"
+    "PSKY",
+    "SCOR",
+    "XHB",
+    "XLRE"
 ]
 
 
