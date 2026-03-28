@@ -5799,9 +5799,9 @@ Tabs:
             try:
                 safe_update_status(self.sr_status_var, "Generating and sending weekly report...")
 
-                # Run the weekly sector report script
+                # Run the weekly sector report script via pipenv to use the correct virtualenv
                 result = subprocess.run(
-                    ["python", "weekly_sector_report.py"],
+                    ["pipenv", "run", "python", "weekly_sector_report.py"],
                     cwd=os.path.dirname(os.path.abspath(__file__)),
                     capture_output=True,
                     text=True,
