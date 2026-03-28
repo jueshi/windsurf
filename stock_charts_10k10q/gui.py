@@ -5792,12 +5792,12 @@ Tabs:
 
     def _send_sector_rotation_email(self):
         """Send the weekly sector rotation email in a background thread."""
+        import subprocess
+        import threading
+
         def _email_worker():
             try:
                 safe_update_status(self.root, lambda: self.sr_status_var.set("Generating and sending weekly report..."))
-
-                # Import here to avoid issues at startup
-                import subprocess
 
                 # Run the weekly sector report script
                 result = subprocess.run(
@@ -5823,7 +5823,6 @@ Tabs:
                 safe_show_message(self.root, "Error", f"Failed to send report:\n{str(e)}")
 
         # Start in background thread to avoid freezing the GUI
-        import threading
         thread = threading.Thread(target=_email_worker, daemon=True)
         thread.start()
 
