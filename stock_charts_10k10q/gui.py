@@ -5797,7 +5797,7 @@ Tabs:
 
         def _email_worker():
             try:
-                safe_update_status(self.root, lambda: self.sr_status_var.set("Generating and sending weekly report..."))
+                safe_update_status(self.sr_status_var, "Generating and sending weekly report...")
 
                 # Run the weekly sector report script
                 result = subprocess.run(
@@ -5809,18 +5809,18 @@ Tabs:
                 )
 
                 if result.returncode == 0:
-                    safe_update_status(self.root, lambda: self.sr_status_var.set("✓ Weekly report sent successfully!"))
-                    safe_show_message(self.root, "Success", "Weekly sector rotation report sent to jueshi@gmail.com")
+                    safe_update_status(self.sr_status_var, "✓ Weekly report sent successfully!")
+                    safe_show_message('info', "Success", "Weekly sector rotation report sent to jueshi@gmail.com")
                 else:
                     error_msg = result.stderr or result.stdout
-                    safe_update_status(self.root, lambda: self.sr_status_var.set("✗ Failed to send report"))
-                    safe_show_message(self.root, "Error", f"Failed to send report:\n{error_msg}")
+                    safe_update_status(self.sr_status_var, "✗ Failed to send report")
+                    safe_show_message('error', "Error", f"Failed to send report:\n{error_msg}")
             except subprocess.TimeoutExpired:
-                safe_update_status(self.root, lambda: self.sr_status_var.set("✗ Report generation timed out"))
-                safe_show_message(self.root, "Error", "Report generation timed out (exceeded 5 minutes)")
+                safe_update_status(self.sr_status_var, "✗ Report generation timed out")
+                safe_show_message('error', "Error", "Report generation timed out (exceeded 5 minutes)")
             except Exception as e:
-                safe_update_status(self.root, lambda: self.sr_status_var.set(f"✗ Error: {str(e)}"))
-                safe_show_message(self.root, "Error", f"Failed to send report:\n{str(e)}")
+                safe_update_status(self.sr_status_var, f"✗ Error: {str(e)}")
+                safe_show_message('error', "Error", f"Failed to send report:\n{str(e)}")
 
         # Start in background thread to avoid freezing the GUI
         thread = threading.Thread(target=_email_worker, daemon=True)
