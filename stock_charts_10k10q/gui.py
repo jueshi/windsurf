@@ -1564,6 +1564,7 @@ class StockDataGUI:
         sr_controls = ttk.Frame(sr_outer)
         sr_controls.pack(fill=tk.X, pady=(0, 5))
         ttk.Button(sr_controls, text="Refresh Data", command=self._sector_rotation_refresh).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(sr_controls, text="📧 Send Weekly Report", command=self._send_sector_rotation_email).pack(side=tk.LEFT, padx=(0, 5))
 
         self.sr_view_var = tk.StringVar(value="heatmap")
         for val, label in [("heatmap", "Heatmap"), ("ranks", "Rank History"), ("rrg", "RRG Scatter")]:
@@ -5788,6 +5789,43 @@ Tabs:
             t.insert(tk.END, "Select a view to see guidance.\n")
 
         t.config(state=tk.DISABLED)
+
+    def _send_sector_rotation_email(self):
+        """Send the weekly sector rotation email in a background thread."""
+        def _email_worker():
+            try:
+                safe_update_status(self.root, lambda: self.sr_status_var.set("Generating and sending weekly report..."))
+
+                # Import here to avoid issues at startup
+                import subprocess
+
+                # Run the weekly sector report script
+                result = subprocess.run(
+                    ["python", "weekly_sector_report.py"],
+                    cwd=os.path.dirname(os.path.abspath(__file__)),
+                    capture_output=True,
+                    text=True,
+                    timeout=300  # 5 minute timeout
+                )
+
+                if result.returncode == 0:
+                    safe_update_status(self.root, lambda: self.sr_status_var.set("✓ Weekly report sent successfully!"))
+                    safe_show_message(self.root, "Success", "Weekly sector rotation report sent to jueshi@gmail.com")
+                else:
+                    error_msg = result.stderr or result.stdout
+                    safe_update_status(self.root, lambda: self.sr_status_var.set("✗ Failed to send report"))
+                    safe_show_message(self.root, "Error", f"Failed to send report:\n{error_msg}")
+            except subprocess.TimeoutExpired:
+                safe_update_status(self.root, lambda: self.sr_status_var.set("✗ Report generation timed out"))
+                safe_show_message(self.root, "Error", "Report generation timed out (exceeded 5 minutes)")
+            except Exception as e:
+                safe_update_status(self.root, lambda: self.sr_status_var.set(f"✗ Error: {str(e)}"))
+                safe_show_message(self.root, "Error", f"Failed to send report:\n{str(e)}")
+
+        # Start in background thread to avoid freezing the GUI
+        import threading
+        thread = threading.Thread(target=_email_worker, daemon=True)
+        thread.start()
 
     def _view_html_report(self):
         """Generate and view HTML report for the current ticker list"""
