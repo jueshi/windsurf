@@ -361,10 +361,13 @@ def _build_html_email(ai_summary, rotation_table, rolling_ranks,
             {_val_cell(row.get('composite', 0), '+.1f')}
         </tr>"""
 
-    # Rank changes
-    rank_change_rows = ""
-    if not rolling_ranks.empty and len(rolling_ranks) >= 5:
-        recent = rolling_ranks.iloc[-5:]
+    # Helper function to build rank change rows for a time period
+    def _build_rank_changes(rolling_ranks, lookback_days, label):
+        """Build rank change rows for a specific lookback period."""
+        if rolling_ranks.empty or len(rolling_ranks) < lookback_days:
+            return ""
+
+        recent = rolling_ranks.iloc[-lookback_days:]
         changes = []
         for etf in rolling_ranks.columns:
             start_rank = int(recent[etf].iloc[0])
@@ -372,6 +375,8 @@ def _build_html_email(ai_summary, rotation_table, rolling_ranks,
             delta = start_rank - end_rank
             changes.append((etf, start_rank, end_rank, delta))
         changes.sort(key=lambda x: -x[3])  # biggest improvement first
+
+        rows = ""
         for etf, sr, er, delta in changes:
             if delta > 0:
                 arrow, color = "&#9650;", "#2e7d32"
@@ -380,7 +385,7 @@ def _build_html_email(ai_summary, rotation_table, rolling_ranks,
             else:
                 arrow, color = "&#9644;", "#999"
             name = SECTOR_ETF_MAP.get(etf, etf)
-            rank_change_rows += (
+            rows += (
                 f'<tr><td style="padding:4px 10px;font-weight:600;">{etf}</td>'
                 f'<td style="padding:4px 10px;">{name}</td>'
                 f'<td style="padding:4px 10px;text-align:center;">{sr}</td>'
@@ -388,6 +393,12 @@ def _build_html_email(ai_summary, rotation_table, rolling_ranks,
                 f'<td style="padding:4px 10px;text-align:center;color:{color};font-weight:700;">'
                 f'{arrow} {abs(delta)}</td></tr>'
             )
+        return rows
+
+    # Rank changes for different periods
+    rank_change_rows_5d = _build_rank_changes(rolling_ranks, 5, "5-day")
+    rank_change_rows_1w = _build_rank_changes(rolling_ranks, 5, "1-week")
+    rank_change_rows_1m = _build_rank_changes(rolling_ranks, 21, "1-month")
 
     # Absolute returns table
     abs_rows = ""
@@ -429,13 +440,22 @@ def _build_html_email(ai_summary, rotation_table, rolling_ranks,
 <tbody>{rank_rows}</tbody>
 </table>
 
-<h2 style="color:#1a237e;font-size:16px;">Rank Changes (5-day)</h2>
+<h2 style="color:#1a237e;font-size:16px;">Rank Changes Since Last Week (5-day)</h2>
 <table style="border-collapse:collapse;width:100%;font-size:13px;margin-bottom:20px;">
 <thead><tr>
     <th {th_left}>ETF</th><th {th_left}>Sector</th>
     <th {th_center}>From</th><th {th_center}>To</th><th {th_center}>Change</th>
 </tr></thead>
-<tbody>{rank_change_rows}</tbody>
+<tbody>{rank_change_rows_5d if rank_change_rows_5d else '<tr><td colspan="5" style="padding:8px 10px;text-align:center;color:#999;">Insufficient data</td></tr>'}</tbody>
+</table>
+
+<h2 style="color:#1a237e;font-size:16px;">Rank Changes Since Last Month (21-day)</h2>
+<table style="border-collapse:collapse;width:100%;font-size:13px;margin-bottom:20px;">
+<thead><tr>
+    <th {th_left}>ETF</th><th {th_left}>Sector</th>
+    <th {th_center}>From</th><th {th_center}>To</th><th {th_center}>Change</th>
+</tr></thead>
+<tbody>{rank_change_rows_1m if rank_change_rows_1m else '<tr><td colspan="5" style="padding:8px 10px;text-align:center;color:#999;">Insufficient data</td></tr>'}</tbody>
 </table>
 
 <h2 style="color:#1a237e;font-size:16px;">Absolute Returns</h2>
