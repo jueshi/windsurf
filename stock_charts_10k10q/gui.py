@@ -1565,6 +1565,7 @@ class StockDataGUI:
         sr_controls.pack(fill=tk.X, pady=(0, 5))
         ttk.Button(sr_controls, text="Refresh Data", command=self._sector_rotation_refresh).pack(side=tk.LEFT, padx=(0, 5))
         ttk.Button(sr_controls, text="📧 Send Weekly Report", command=self._send_sector_rotation_email).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(sr_controls, text="📊 Send RS Study", command=self._send_relative_strength_email).pack(side=tk.LEFT, padx=(0, 5))
 
         self.sr_view_var = tk.StringVar(value="heatmap")
         for val, label in [("heatmap", "Heatmap"), ("ranks", "Rank History"), ("rrg", "RRG Scatter")]:
@@ -5821,6 +5822,42 @@ Tabs:
             except Exception as e:
                 safe_update_status(self.sr_status_var, f"✗ Error: {str(e)}")
                 safe_show_message('error', "Error", f"Failed to send report:\n{str(e)}")
+
+        # Start in background thread to avoid freezing the GUI
+        thread = threading.Thread(target=_email_worker, daemon=True)
+        thread.start()
+
+    def _send_relative_strength_email(self):
+        """Send the relative strength study email in a background thread."""
+        import subprocess
+        import threading
+
+        def _email_worker():
+            try:
+                safe_update_status(self.sr_status_var, "Generating relative strength study...")
+
+                # Run the relative strength email script via pipenv to use the correct virtualenv
+                result = subprocess.run(
+                    ["pipenv", "run", "python", "relative_strength_email.py"],
+                    cwd=os.path.dirname(os.path.abspath(__file__)),
+                    capture_output=True,
+                    text=True,
+                    timeout=300  # 5 minute timeout
+                )
+
+                if result.returncode == 0:
+                    safe_update_status(self.sr_status_var, "✓ Relative strength study sent successfully!")
+                    safe_show_message('info', "Success", "Relative strength study sent to jueshi@gmail.com")
+                else:
+                    error_msg = result.stderr or result.stdout
+                    safe_update_status(self.sr_status_var, "✗ Failed to send RS study")
+                    safe_show_message('error', "Error", f"Failed to send study:\n{error_msg}")
+            except subprocess.TimeoutExpired:
+                safe_update_status(self.sr_status_var, "✗ RS study generation timed out")
+                safe_show_message('error', "Error", "Study generation timed out (exceeded 5 minutes)")
+            except Exception as e:
+                safe_update_status(self.sr_status_var, f"✗ Error: {str(e)}")
+                safe_show_message('error', "Error", f"Failed to send study:\n{str(e)}")
 
         # Start in background thread to avoid freezing the GUI
         thread = threading.Thread(target=_email_worker, daemon=True)
