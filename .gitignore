@@ -7,3 +7,9 @@ env/
 venv/
 .env
 .venv
+git_backup_files/
+sec-edgar-filings/
+stock_charts_10k10q/stock_data/
+stock_charts_10k10q/.env
+webapp/stock_toolbox.db
+webapp/stock_data/

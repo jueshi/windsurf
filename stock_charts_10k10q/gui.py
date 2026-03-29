@@ -5801,6 +5801,8 @@ Tabs:
                 safe_update_status(self.sr_status_var, "Generating and sending weekly report...")
 
                 # Run the weekly sector report script via pipenv to use the correct virtualenv
+                env = os.environ.copy()
+                env["PIPENV_IGNORE_VIRTUALENVS"] = "1"  # Force pipenv to use project's own environment
                 result = subprocess.run(
                     ["pipenv", "run", "python", "weekly_sector_report.py"],
                     cwd=os.path.dirname(os.path.abspath(__file__)),
@@ -5808,7 +5810,8 @@ Tabs:
                     text=True,
                     encoding="utf-8",
                     errors="replace",
-                    timeout=300  # 5 minute timeout
+                    timeout=300,  # 5 minute timeout
+                    env=env
                 )
 
                 if result.returncode == 0:
@@ -5839,6 +5842,8 @@ Tabs:
                 safe_update_status(self.sr_status_var, "Generating relative strength study...")
 
                 # Run the relative strength email script via pipenv to use the correct virtualenv
+                env = os.environ.copy()
+                env["PIPENV_IGNORE_VIRTUALENVS"] = "1"  # Force pipenv to use project's own environment
                 result = subprocess.run(
                     ["pipenv", "run", "python", "relative_strength_email.py"],
                     cwd=os.path.dirname(os.path.abspath(__file__)),
@@ -5846,7 +5851,8 @@ Tabs:
                     text=True,
                     encoding="utf-8",
                     errors="replace",
-                    timeout=300  # 5 minute timeout
+                    timeout=300,  # 5 minute timeout
+                    env=env
                 )
 
                 if result.returncode == 0:

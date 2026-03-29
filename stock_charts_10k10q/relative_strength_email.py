@@ -74,10 +74,25 @@ def _build_rank_changes_table(rolling_ranks, lookback_days, label):
     return changes
 
 
+def _translate_ticker_for_stockcharts(ticker):
+    """Translate ticker symbols to StockCharts.com format.
+
+    Some tickers use different symbols on StockCharts:
+    - BRK-A -> BRK/A
+    - BRK-B -> BRK/B
+    """
+    translation_map = {
+        "BRK-A": "BRK/A",
+        "BRK-B": "BRK/B",
+    }
+    return translation_map.get(ticker, ticker)
+
+
 def _build_live_charts_html(tickers):
     """Build HTML with live StockCharts.com chart images embedded directly.
 
     Each ticker gets daily (1yr), weekly (5yr), and monthly (max) charts in a row.
+    Translates ticker symbols to StockCharts.com format (e.g., BRK-A -> BRK/A).
     """
     if not tickers:
         return ""
@@ -92,10 +107,11 @@ def _build_live_charts_html(tickers):
     sections.append('<h2 style="color:#1a237e;font-size:16px;margin-top:30px;">Technical Charts (Live)</h2>')
 
     for ticker in tickers:
+        chart_ticker = _translate_ticker_for_stockcharts(ticker)
         sections.append(f'<p style="font-weight:700;font-size:13px;margin:12px 0 4px;">{ticker}</p>')
         sections.append('<table style="border-collapse:collapse;"><tr>')
         for p, label, yr, mn, dy, style_id in timeframes:
-            url = (f"https://stockcharts.com/c-sc/sc?s={ticker}&p={p}"
+            url = (f"https://stockcharts.com/c-sc/sc?s={chart_ticker}&p={p}"
                    f"&yr={yr}&mn={mn}&dy={dy}&i={style_id}")
             sections.append(
                 f'<td style="padding:2px;vertical-align:top;">'
