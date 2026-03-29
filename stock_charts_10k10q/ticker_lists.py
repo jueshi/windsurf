@@ -7,7 +7,10 @@ import json
 
 A_ping_401k_ping = ["AAPL", "AMD", "AMZN", "AMZU", "APP", "ASAN", "AVGO", "CRDO", "ENVA", "FRMI", "GGLL", "GS", "INTC", "JPM", "LRCX", "META", "MSFU", "MSTR", "MSTX", "MU", "NVDA", "NVDL", "ORCL", "PLTR", "PRCT", "QQQ", "RDDT", "SPMO", "SPY", "TECS", "TQQQ", "TSLA", "TSLL", "UEC", "V"]
 
-A_jue_401k_2025 = ["AAOI", "AAPL", "ABBV", "ADI", "AFRM", "ALAB", "AMCR", "AMGN", "AMZU", "APP", "APPX", "ARMG", "ATO", "AVGO", "AVL", "AVPT", "AZN", "BABX", "BEN", "BIDU", "BRKB", "BRKU", "CELH", "CELT", "CQQQ", "CRCG", "CRCL", "CRDO", "CRDU", "CRM", "CRMG", "CRWD", "CRWL", "CRWV", "CTAS", "DBC", "DIS", "DOV", "DOXGX", "ED", "EDMCQ", "ESS", "FBL", "FBTC", "FIG", "FIGR", "FNGU", "FSSNX", "FXAIX", "GLD", "GS", "GSX", "GWW", "HD", "INTC", "JD", "JNJ", "LABX", "MA", "MCD", "MSFX", "MSTX", "NFXL", "ORCL", "ORCX", "PG", "PLTG", "PLTR", "PLTU", "QQQ", "SPY", "TECS", "THD", "TMO", "TNA", "TSLL", "UBRL", "VGT", "VIGIX", "YINN", "COSW", "NVDA", "AMD", "LITE", "MU", "COHR"]
+A_jue_401k_2025 = ["MSTX", "AAOI", "LITE", "ARMG", "MU", "DBC", "COHR", "TECS", "JNJ", "ED", "INTC", "ATO", "CRCL", "COSW", "GSX", "ADI", "NFXL", "AMGN", "DOV", "AZN", "THD", "AMD", "GWW", "PG", "JD", "CRWV", "ESS", "AAPL", "DOXGX", "QQQ", "FXAIX", "VGT", "ABBV", "SPY", "FSSNX", "MCD", "GLD", "BEN", "GS", "NVDA", "HD", "VIGIX", "FIGR", "AMCR", "MA", "AVGO", "UBRL", "CELT", "CQQQ", "PLTR", "BIDU", "TMO", "CRCG", "BRKU", "FBTC", "DIS", "CRWD", "CTAS", "PLTU", "PLTG", "ORCL", "TNA", "ALAB", "CRM", "AVPT", "AMZU", "ORCX", "AVL", "FNGU", "CRDO", "AFRM", "YINN", "MSFX", "CELH", "CRWL", "APP", "BABX", "TSLL", "CRMG", "FIG", "FBL", "LABX", "CRDU", "APPX", "EDMCQ", "BRK-B"]
+
+
+
 
 
 
@@ -517,7 +520,9 @@ comet_stocks = ["QQQ", "CRDO", "ALAB", "AMD", "INTC"]
 AI_semi_stocks = ["AAPL", "AMD", "AMAT", "AMKR", "AMZN", "ARM", "ASMIY", "ASML", "ASX", "ATEYY", "AVGO", "BESIY", "CAMT", "CDNS", "DD", "ENTG", "GOOG", "INTC", "KLAC", "LRCX", "META", "MRVL", "MSFT", "NVDA", "ONTO", "QCOM", "SHECY", "SIEGY", "SNPS", "SSNLF", "SUOPY", "TER", "TOELY", "TSM"]
 
 
-AA_spy_stocks = ["VOO", "IVV", "SPY", "CSPX", "TWLO", "SPXC", "SPXD", "SPXE", "SPXL", "SPXS", "SPXT", "SPXU", "SPXV", "SPXX"]
+AA_spy_stocks = ["SPXU", "SPXS", "SPXD", "SPXC", "SPXT", "IVV", "SPXV", "SPY", "VOO", "SPXX", "SPXE", "TWLO", "SPXL"]
+
+
 
 
 
