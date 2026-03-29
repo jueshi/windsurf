@@ -5806,6 +5806,8 @@ Tabs:
                     cwd=os.path.dirname(os.path.abspath(__file__)),
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     timeout=300  # 5 minute timeout
                 )
 
@@ -5842,6 +5844,8 @@ Tabs:
                     cwd=os.path.dirname(os.path.abspath(__file__)),
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     timeout=300  # 5 minute timeout
                 )
 
