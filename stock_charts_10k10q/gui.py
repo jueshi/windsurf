@@ -47,6 +47,7 @@ import buffett_canslim
 import news_fetcher
 import sec_filing_extractor
 import sec_api_wrapper
+from relative_strength import build_relative_strength_table, build_rolling_ranks, BENCHMARK
 import webbrowser
 import tempfile
 from live_chart_generator import generate_chart_html
@@ -76,6 +77,7 @@ class StockDataGUI:
         self.manager = manager
         self.current_tickers = []
         self.watch_list = []
+        self._rs_last_table = None  # last RS analysis result, used by Sort button
         
         # Configure modern styles
         self.style = configure_styles(root)
@@ -1520,8 +1522,20 @@ class StockDataGUI:
         self.chart_label = ttk.Label(self.individual_chart_frame)
         self.chart_label.pack(fill=tk.BOTH, expand=True)
 
-        # Base ticker control bar for comparison
-        compare_ctrl_frame = ttk.Frame(self.comparison_chart_frame)
+        # --- Compare tab sub-notebook ---
+        self.compare_notebook = ttk.Notebook(self.comparison_chart_frame)
+        self.compare_notebook.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+
+        # Sub-tab 1: Charts (existing content)
+        compare_charts_tab = ttk.Frame(self.compare_notebook)
+        self.compare_notebook.add(compare_charts_tab, text="Charts")
+
+        # Sub-tab 2: Relative Strength (new)
+        self.rs_tab_frame = ttk.Frame(self.compare_notebook)
+        self.compare_notebook.add(self.rs_tab_frame, text="Relative Strength")
+
+        # --- Charts sub-tab content (re-parented from comparison_chart_frame) ---
+        compare_ctrl_frame = ttk.Frame(compare_charts_tab)
         compare_ctrl_frame.pack(fill=tk.X, padx=5, pady=(2, 0))
         ttk.Label(compare_ctrl_frame, text="Base:").pack(side=tk.LEFT, padx=(0, 2))
         self.compare_base_var = tk.StringVar(value="SPY")
@@ -1533,7 +1547,7 @@ class StockDataGUI:
         ttk.Label(compare_ctrl_frame, text="(relative performance vs base, empty = absolute %)", font=("Helvetica", 8)).pack(side=tk.LEFT)
 
         # Use a fixed container to prevent label/image from resizing the parent frame
-        self.comparison_chart_container = ttk.Frame(self.comparison_chart_frame)
+        self.comparison_chart_container = ttk.Frame(compare_charts_tab)
         self.comparison_chart_container.pack(fill=tk.BOTH, expand=True)
         # Disable geometry propagation so the container size is driven by layout, not image natural size
         try:
@@ -1542,6 +1556,9 @@ class StockDataGUI:
             pass
         self.comparison_chart_label = ttk.Label(self.comparison_chart_container)
         self.comparison_chart_label.pack(fill=tk.BOTH, expand=True)
+
+        # --- Relative Strength sub-tab content ---
+        self._create_rs_tab()
 
         # --- Sector Rotation tab layout ---
         # Sub-notebook inside the Sectors tab
@@ -5317,6 +5334,218 @@ Tabs:
             logging.error(f"Error saving or displaying chart: {str(e)}")
             plt.close()  # Ensure figure is closed
             self.status_var.set("Error generating comparison chart")
+
+    # =====================================================================
+    # Relative Strength Analysis (Compare tab)
+    # =====================================================================
+
+    def _create_rs_tab(self):
+        """Build the Relative Strength sub-tab widgets inside self.rs_tab_frame."""
+        outer = ttk.Frame(self.rs_tab_frame, padding="5")
+        outer.pack(fill=tk.BOTH, expand=True)
+
+        # --- Controls row ---
+        rs_ctrl = ttk.Frame(outer)
+        rs_ctrl.pack(fill=tk.X, pady=(0, 5))
+
+        ttk.Button(rs_ctrl, text="Run RS Analysis",
+                   command=self._run_rs_analysis).pack(side=tk.LEFT, padx=(0, 5))
+
+        self.rs_status_var = tk.StringVar(value="Click 'Run RS Analysis' to score all tickers.")
+        ttk.Label(rs_ctrl, textvariable=self.rs_status_var,
+                  font=("Helvetica", 8)).pack(side=tk.LEFT, padx=(0, 10))
+
+        ttk.Button(rs_ctrl, text="Sort by RS",
+                   command=self._sort_tickers_by_rs).pack(side=tk.LEFT)
+
+        # --- Treeview table ---
+        rs_tree_frame = ttk.Frame(outer)
+        rs_tree_frame.pack(fill=tk.BOTH, expand=True)
+
+        rs_cols = ("Rank", "Ticker", "1W RS", "2W RS", "1M RS", "3M RS", "Score",
+                   "1W Chg", "1M Chg")
+        self.rs_tree = ttk.Treeview(rs_tree_frame, columns=rs_cols,
+                                    show="headings", style="Custom.Treeview")
+
+        col_widths = {
+            "Rank":   50, "Ticker": 70, "1W RS": 75, "2W RS": 75,
+            "1M RS":  75, "3M RS": 75, "Score": 70, "1W Chg": 75, "1M Chg": 75,
+        }
+        for col in rs_cols:
+            self.rs_tree.heading(col, text=col)
+            self.rs_tree.column(col, width=col_widths[col], anchor="center")
+
+        rs_vsb = ttk.Scrollbar(rs_tree_frame, orient="vertical",
+                               command=self.rs_tree.yview)
+        self.rs_tree.configure(yscrollcommand=rs_vsb.set)
+        rs_vsb.pack(side=tk.RIGHT, fill=tk.Y)
+        self.rs_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Color tags (green for positive, red for negative)
+        self.rs_tree.tag_configure("positive", foreground=Colors.SUCCESS)
+        self.rs_tree.tag_configure("negative", foreground=Colors.ERROR)
+        self.rs_tree.tag_configure("neutral",  foreground=Colors.TEXT_PRIMARY)
+
+    def _run_rs_analysis(self):
+        """Load all tickers, compute RS, populate the Treeview. Runs in background thread."""
+        tickers = list(self.current_tickers)
+        if not tickers:
+            safe_update_status(self.rs_status_var, "No tickers loaded.")
+            return
+
+        safe_update_status(self.rs_status_var,
+                           f"Loading data for {len(tickers)} tickers…")
+
+        result_queue = Queue()
+
+        def worker():
+            try:
+                stock_data = {}
+                for ticker in tickers:
+                    try:
+                        df = self.manager.load_data(ticker)
+                        if df is not None and not df.empty and "Close" in df.columns:
+                            stock_data[ticker] = df[["Close"]].copy()
+                    except Exception as e:
+                        logging.warning(f"RS: skipping {ticker}: {e}")
+
+                if not stock_data:
+                    result_queue.put(("error", "No valid ticker data loaded."))
+                    return
+
+                # Load benchmark
+                bench_df = self.manager.load_data(BENCHMARK)
+                if bench_df is None or bench_df.empty or "Close" not in bench_df.columns:
+                    result_queue.put(("error", f"Could not load benchmark {BENCHMARK}."))
+                    return
+                benchmark_data = bench_df[["Close"]].copy()
+
+                rs_table = build_relative_strength_table(stock_data, benchmark_data)
+                rolling   = build_rolling_ranks(stock_data, benchmark_data)
+                result_queue.put(("ok", rs_table, rolling))
+            except Exception as e:
+                result_queue.put(("error", str(e)))
+
+        def check_result():
+            if not result_queue.empty():
+                payload = result_queue.get()
+                if payload[0] == "error":
+                    safe_update_status(self.rs_status_var, f"Error: {payload[1]}")
+                else:
+                    _, rs_table, rolling = payload
+                    self._populate_rs_table(rs_table, rolling)
+            else:
+                self.root.after(100, check_result)
+
+        threading.Thread(target=worker, daemon=True).start()
+        self.root.after(100, check_result)
+
+    def _populate_rs_table(self, rs_table, rolling):
+        """Populate self.rs_tree from build_relative_strength_table output.
+
+        Args:
+            rs_table: DataFrame with columns [Rank, Ticker, 1W, 2W, 1M, 3M, Composite]
+            rolling:  DataFrame with DatetimeIndex, one column per ticker (value = rank)
+        """
+        self._rs_last_table = rs_table
+
+        # Clear existing rows
+        for row in self.rs_tree.get_children():
+            self.rs_tree.delete(row)
+
+        if rs_table.empty:
+            safe_update_status(self.rs_status_var, "No RS data to display.")
+            return
+
+        # Pre-compute rank changes for 1W (5 trading days) and 1M (21 trading days)
+        rank_changes_1w = {}
+        rank_changes_1m = {}
+        if rolling is not None and not rolling.empty:
+            for ticker in rolling.columns:
+                col = rolling[ticker].dropna()
+                if len(col) >= 6:
+                    rank_changes_1w[ticker] = int(col.iloc[-6]) - int(col.iloc[-1])  # positive = improved
+                if len(col) >= 22:
+                    rank_changes_1m[ticker] = int(col.iloc[-22]) - int(col.iloc[-1])
+
+        def fmt_pct(val):
+            """Format a percentage value with 2 decimal places, or dash if NaN."""
+            try:
+                if pd.isna(val):
+                    return "-"
+                return f"{val:+.2f}%"
+            except Exception:
+                return "-"
+
+        def fmt_chg(chg):
+            """Format rank change with an up/down arrow."""
+            if chg > 0:
+                return f"▲{chg}"
+            elif chg < 0:
+                return f"▼{abs(chg)}"
+            else:
+                return "–"
+
+        def row_tag(score):
+            """Return color tag based on composite RS score."""
+            try:
+                if pd.isna(score):
+                    return "neutral"
+                return "positive" if score > 0 else "negative"
+            except Exception:
+                return "neutral"
+
+        for _, row in rs_table.iterrows():
+            ticker = row["Ticker"]
+            chg_1w = rank_changes_1w.get(ticker, None)
+            chg_1m = rank_changes_1m.get(ticker, None)
+
+            values = (
+                int(row["Rank"]),
+                ticker,
+                fmt_pct(row["1W"]),
+                fmt_pct(row["2W"]),
+                fmt_pct(row["1M"]),
+                fmt_pct(row["3M"]),
+                f"{row['Composite']:.2f}" if not pd.isna(row["Composite"]) else "-",
+                fmt_chg(chg_1w) if chg_1w is not None else "-",
+                fmt_chg(chg_1m) if chg_1m is not None else "-",
+            )
+            tag = row_tag(row["Composite"])
+            self.rs_tree.insert("", tk.END, values=values, tags=(tag,))
+
+        n = len(rs_table)
+        safe_update_status(self.rs_status_var,
+                           f"RS analysis complete — {n} tickers ranked.")
+
+    def _sort_tickers_by_rs(self):
+        """Re-order self.ticker_listbox by relative strength rank (best first)."""
+        if self._rs_last_table is None or self._rs_last_table.empty:
+            safe_update_status(self.rs_status_var,
+                               "Run RS Analysis first before sorting.")
+            return
+
+        # Build rank lookup from last computed table
+        rank_map = {
+            row["Ticker"]: int(row["Rank"])
+            for _, row in self._rs_last_table.iterrows()
+        }
+
+        # Sort: ranked tickers first (ascending rank = best first), then unranked
+        n_tickers = len(self.current_tickers)
+        sorted_tickers = sorted(
+            self.current_tickers,
+            key=lambda t: rank_map.get(t, n_tickers + 1)
+        )
+
+        self.current_tickers = sorted_tickers
+        self.ticker_listbox.delete(0, tk.END)
+        for ticker in sorted_tickers:
+            self.ticker_listbox.insert(tk.END, ticker)
+
+        self._save_current_ticker_list_order()
+        safe_update_status(self.rs_status_var,
+                           f"Tickers re-sorted by RS rank ({len(sorted_tickers)} tickers).")
 
     # =====================================================================
     # Sector Rotation Analysis
