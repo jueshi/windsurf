@@ -19,7 +19,6 @@ import json
 import argparse
 import logging
 from datetime import datetime
-import pandas as pd
 
 # Ensure project directory is on the path
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -114,7 +113,7 @@ def _build_html_email(rs_table, rolling_ranks, chart_html):
 
     # Helper for value cells with color coding
     def _val_cell(val, fmt="+.2f"):
-        if val != val or pd.isna(val):  # NaN
+        if val != val:  # NaN check (NaN != NaN is True)
             return '<td style="padding:6px 10px;text-align:right;color:#999;">N/A</td>'
         color = "#2e7d32" if val > 0 else "#d32f2f" if val < 0 else "#666"
         return f'<td style="padding:6px 10px;text-align:right;color:{color};font-weight:600;">{val:{fmt}}%</td>'
