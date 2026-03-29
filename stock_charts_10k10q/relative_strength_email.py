@@ -25,7 +25,7 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 if script_dir not in sys.path:
     sys.path.insert(0, script_dir)
 
-from data_manager import StockDataManager
+from simple_data_loader import update_data
 from relative_strength import (
     load_stock_data, build_relative_strength_table, build_rolling_ranks, BENCHMARK
 )
@@ -40,12 +40,12 @@ DEFAULT_RECIPIENT = "jueshi@gmail.com"
 BIG_CAP_TICKERS = mega_tickers[:20]  # Top 20 mega cap stocks
 
 
-def _update_stock_data(manager, tickers):
+def _update_stock_data(tickers):
     """Download/refresh data for all stocks and benchmark."""
     all_tickers = list(tickers) + [BENCHMARK]
     for ticker in all_tickers:
         try:
-            manager.update_data(ticker)
+            update_data(ticker)
         except Exception as e:
             logging.warning(f"Failed to update {ticker}: {e}")
 
@@ -261,16 +261,13 @@ def main():
 
     logging.info("Starting relative strength analysis...")
 
-    # Initialize data manager
-    manager = StockDataManager()
-
     # Update stock data
     logging.info(f"Updating data for {len(BIG_CAP_TICKERS)} stocks...")
-    _update_stock_data(manager, BIG_CAP_TICKERS)
+    _update_stock_data(BIG_CAP_TICKERS)
 
     # Load data
     logging.info("Loading stock data...")
-    all_data = load_stock_data(manager, BIG_CAP_TICKERS + [BENCHMARK])
+    all_data = load_stock_data(BIG_CAP_TICKERS + [BENCHMARK])
     stock_data = {t: all_data[t] for t in BIG_CAP_TICKERS if t in all_data}
     benchmark_data = all_data.get(BENCHMARK)
 
@@ -283,9 +280,13 @@ def main():
     rs_table = build_relative_strength_table(stock_data, benchmark_data)
     rolling_ranks = build_rolling_ranks(stock_data, benchmark_data)
 
+    if rs_table.empty:
+        logging.error("No relative strength data available")
+        sys.exit(1)
+
     # Generate charts using StockCharts.com live images
-    logging.info(f"Generating charts for {len(stock_data)} stocks...")
-    chart_tickers = list(rs_table["Ticker"].values)  # Use ranked order
+    logging.info(f"Generating charts for {len(rs_table)} stocks...")
+    chart_tickers = list(rs_table["Ticker"].values) if "Ticker" in rs_table.columns else list(rs_table.index)
     chart_html = _build_live_charts_html(chart_tickers)
 
     # Build email
