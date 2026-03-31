@@ -2044,7 +2044,8 @@ Tabs:
             if not selected_list or selected_list not in self.ticker_lists:
                 messagebox.showwarning("No List Selected", "Please select a ticker list first.")
                 return
-            tickers = [t for t in self.ticker_lists.get(selected_list, []) if isinstance(t, str) and t.strip()]
+            # Use current_tickers to respect the current listbox order (e.g. after RS sort)
+            tickers = [t for t in self.current_tickers if isinstance(t, str) and t.strip()]
             if not tickers:
                 messagebox.showwarning("Empty List", "The selected ticker list is empty.")
                 return
@@ -2069,7 +2070,8 @@ Tabs:
             if not selected_list or selected_list not in self.ticker_lists:
                 messagebox.showwarning("No List Selected", "Please select a ticker list first.")
                 return
-            tickers = [t for t in self.ticker_lists.get(selected_list, []) if isinstance(t, str) and t.strip()]
+            # Use current_tickers to respect the current listbox order (e.g. after RS sort)
+            tickers = [t for t in self.current_tickers if isinstance(t, str) and t.strip()]
             if not tickers:
                 messagebox.showwarning("Empty List", "The selected ticker list is empty.")
                 return
@@ -2094,8 +2096,9 @@ Tabs:
             if not selected_list or selected_list not in self.ticker_lists:
                 messagebox.showwarning("No List Selected", "Please select a ticker list first.")
                 return
-            
-            tickers = [t for t in self.ticker_lists.get(selected_list, []) if isinstance(t, str) and t.strip()]
+
+            # Use current_tickers to respect the current listbox order (e.g. after RS sort)
+            tickers = [t for t in self.current_tickers if isinstance(t, str) and t.strip()]
             if not tickers:
                 messagebox.showwarning("Empty List", "The selected ticker list is empty.")
                 return
@@ -2128,7 +2131,8 @@ Tabs:
                 messagebox.showwarning("No List Selected", "Please select a ticker list first.")
                 return
 
-            tickers = [t for t in self.ticker_lists.get(selected_list, []) if isinstance(t, str) and t.strip()]
+            # Use current_tickers to respect the current listbox order (e.g. after RS sort)
+            tickers = [t for t in self.current_tickers if isinstance(t, str) and t.strip()]
             if not tickers:
                 messagebox.showwarning("Empty List", "The selected ticker list is empty.")
                 return
@@ -2172,7 +2176,8 @@ Tabs:
                 messagebox.showwarning("No List Selected", "Please select a ticker list first.")
                 return
 
-            tickers = [t for t in self.ticker_lists.get(selected_list, []) if isinstance(t, str) and t.strip()]
+            # Use current_tickers to respect the current listbox order (e.g. after RS sort)
+            tickers = [t for t in self.current_tickers if isinstance(t, str) and t.strip()]
             if not tickers:
                 messagebox.showwarning("Empty List", "The selected ticker list is empty.")
                 return

@@ -32,7 +32,8 @@ index_tickers = ["SPX", "DJIA", "COMP", "RUT", "NYA", "INX", "DAX", "CAC", "^HSI
 tickers_comment_dict = {} #manually build a dictionary of tickers and comments
 
 # List of tickers to process
-Jues401k_stocks = ["AAOI", "AAPL", "ADI", "AFRM", "ALAB", "AMD", "AMZA", "AMZN", "AVGO", "BABA", "BIDU", "BRK-B", "COST", "CQQQ", "CRDO", "CRM", "EWS", "GLD", "GOOGL", "INTC", "IWM", "JD", "LRCX", "MCD", "META", "MRVL", "MSFT", "NIO", "NKE", "NVDA", "PLTR", "QQQ", "SOFI", "SPMO", "SPYU", "SPYV", "SPYX", "TECL", "TECS", "TNA", "TSLA", "TSM", "TXN", "WDC", "YINN"]
+Jues401k_stocks = ["AAOI", "WDC", "TECS", "MRVL", "AMZA", "INTC", "COST", "NIO", "LRCX", "JD", "ADI", "TSM", "AMD", "EWS", "MCD", "TXN", "GLD", "SPYV", "BRK-B", "AAPL", "SPMO", "IWM", "SPYX", "QQQ", "NVDA", "AMZN", "AVGO", "CQQQ", "GOOGL", "PLTR", "BIDU", "TNA", "BABA", "TSLA", "TECL", "MSFT", "NKE", "META", "ALAB", "CRM", "SPYU", "SOFI", "CRDO", "YINN", "AFRM"]
+
 
 # new_highs1 = ["CSCO", "V", "MA", "AXP", "SAP", "TSM", "AMZN", "JPM", "NFLX", "GOOGL", "GOOG", "META", "AAPL", "WMT", "BAC", "AVGO", "MCD", "PG", "IBM", "BRK-B"]
 # new_highs2 = ["MS", "NOW", "BRK-A", "NVDA", "COST", "ACN", "WFC", "CRM", "DIS", "MSFT", "TMUS", "HD", "CVX", "ABBV", "BX", "JNJ", "XOM", "KO", "ORCL", "PEP"]        
@@ -517,7 +518,8 @@ comet_stocks = ["QQQ", "CRDO", "ALAB", "AMD", "INTC"]
 
 
 
-AI_semi_stocks = ["AAPL", "AMD", "AMAT", "AMKR", "AMZN", "ARM", "ASMIY", "ASML", "ASX", "ATEYY", "AVGO", "BESIY", "CAMT", "CDNS", "DD", "ENTG", "GOOG", "INTC", "KLAC", "LRCX", "META", "MRVL", "MSFT", "NVDA", "ONTO", "QCOM", "SHECY", "SIEGY", "SNPS", "SSNLF", "SUOPY", "TER", "TOELY", "TSM"]
+AI_semi_stocks = ["ARM", "LRCX", "CAMT", "AMAT", "BESIY", "INTC", "ASML", "ASMIY", "DD", "AMKR", "MRVL", "TSM", "AMD", "AAPL", "ATEYY", "NVDA", "AMZN", "AVGO", "CDNS", "GOOG", "MSFT", "META", "ASX", "ENTG", "KLAC", "ONTO", "QCOM", "SHECY", "SIEGY", "SNPS", "SSNLF", "SUOPY", "TER", "TOELY"]
+
 
 
 AA_spy_stocks = ["SPXU", "SPXS", "SPXD", "SPXC", "SPXT", "IVV", "SPXV", "SPY", "VOO", "SPXX", "SPXE", "TWLO", "SPXL"]
@@ -533,6 +535,8 @@ ticker_1_stocks = ["FBTC", "VOO", "QQQM", "OKTA", "TQQQ"]
 
 
 
+
+rs_stocks = []
 
 # Function to check if a ticker symbol is valid and suggest alternatives if not
 def validate_ticker(ticker):
@@ -707,33 +711,43 @@ if __name__ == '__main__':
 
 
 temp_stocks = [
-    "NEM",
-    "BARR",
-    "GLD",
+    "HDFCBANK.NS",
+    "ICICIBANK.NS",
+    "SBIN.NS",
+    "BHP",
+    "RIO",
+    "FMG.AX",
+    "LIN",
+    "FCX",
     "XOM",
     "CVX",
+    "SHEL",
     "LMT",
     "RTX",
-    "PANW",
-    "JPM",
-    "EA",
+    "TM",
+    "SONY",
+    "HMC",
+    "GLD",
+    "SYY",
+    "USFD",
+    "BLK",
+    "SGX",
+    "DBSM.SI",
+    "OCBC.SI",
+    "Z74.SI",
+    "SPY",
+    "QQQ",
+    "ASML",
+    "TSMC",
     "DAL",
     "UAL",
     "FDX",
     "UPS",
-    "TSLA",
-    "AMZN",
-    "HD",
-    "UBER",
-    "LYFT",
-    "GS",
-    "MS",
-    "ARCC",
-    "BXSL",
-    "SPY",
-    "QQQ",
-    "DIA"
+    "9501.T",
+    "ABNB",
+    "TSLA"
 ]
+
 
 
 
