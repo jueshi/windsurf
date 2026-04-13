@@ -215,7 +215,7 @@ class GeminiAnalyzer:
 import random
 
 # ----- Unified LLM Interface -----
-# Priority: OpenAI (if OPENAI_API_KEY is set) -> Gemini (fallback)
+# Priority: Gemini (if GEMINI_API_KEY is set) -> OpenAI (fallback)
 
 def _get_openai_client():
     """
@@ -275,74 +275,123 @@ def _call_openai(prompt: str, client=None) -> str:
         return None
 
 
-def _call_llm(prompt: str, use_openai_first: bool = True) -> str:
+def _call_llm(prompt: str, use_openai_first: bool = False) -> str:
     """
-    Unified LLM interface that tries OpenAI first, then falls back to Gemini.
-    
+    Unified LLM interface that tries Gemini first, then falls back to OpenAI.
+
     Args:
         prompt: The prompt to send to the LLM
-        use_openai_first: If True, try OpenAI first before Gemini (default: True)
-    
+        use_openai_first: If True, try OpenAI first before Gemini (default: False - Gemini first)
+
     Returns:
         The response text from the LLM
-    
+
     Raises:
-        Exception: If both OpenAI and Gemini fail
+        Exception: If both Gemini and OpenAI fail
     """
     load_dotenv()
-    
-    # Try OpenAI first if enabled and available
-    if use_openai_first:
-        openai_client = _get_openai_client()
-        if openai_client:
-            logging.info("Using OpenAI API as primary LLM...")
-            result = _call_openai(prompt, openai_client)
-            if result:
-                return result
-            logging.info("OpenAI call failed, falling back to Gemini...")
-    
-    # Fall back to Gemini
-    if not GEMINI_AVAILABLE:
-        raise Exception("Gemini API is not available. Install google-genai package or set OPENAI_API_KEY.")
 
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise Exception("No LLM API key available. Set OPENAI_API_KEY or GEMINI_API_KEY in environment variables.")
+    # Try Gemini first (default behavior)
+    if not use_openai_first:
+        if GEMINI_AVAILABLE:
+            api_key = os.getenv("GEMINI_API_KEY")
+            if api_key:
+                model_name = os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash")
+                print(f"🤖 Using Gemini API with model: {model_name}")
+                logging.info(f"Using Gemini API with model: {model_name}")
 
-    logging.info("Using Gemini API...")
-    rate_limiter = GeminiRateLimiter()
+                rate_limiter = GeminiRateLimiter()
 
-    try:
-        if _is_new_genai_sdk():
-            client = _get_genai_client()
-            model_name = _init_gemini_model_with_fallback()
-            response = rate_limiter.make_api_call_with_retry(
-                client.models.generate_content,
-                model=model_name, contents=prompt
-            )
-            return response.text
+                try:
+                    if _is_new_genai_sdk():
+                        client = _get_genai_client()
+                        model_name = _init_gemini_model_with_fallback()
+                        response = rate_limiter.make_api_call_with_retry(
+                            client.models.generate_content,
+                            model=model_name, contents=prompt
+                        )
+                        return response.text
+                    else:
+                        _genai_module.configure(api_key=api_key)
+                        model = _init_gemini_model_with_fallback()
+                        response = rate_limiter.make_api_call_with_retry(
+                            model.generate_content, prompt
+                        )
+                        return response.text
+                except Exception as e:
+                    logging.warning(f"Gemini API call failed: {e}")
+                    print(f"⚠️  Gemini API call failed, falling back to OpenAI...")
+                    logging.info("Falling back to OpenAI...")
+            else:
+                logging.info("GEMINI_API_KEY not set, trying OpenAI...")
         else:
-            _genai_module.configure(api_key=api_key)
-            model = _init_gemini_model_with_fallback()
-            response = rate_limiter.make_api_call_with_retry(
-                model.generate_content, prompt
-            )
-            return response.text
-    except Exception as e:
-        raise Exception(_format_gemini_error(e))
+            logging.info("Gemini SDK not available, trying OpenAI...")
+
+    # Fall back to OpenAI
+    openai_client = _get_openai_client()
+    if openai_client:
+        model_name = _get_openai_model_name()
+        print(f"🤖 Using OpenAI API with model: {model_name}")
+        logging.info(f"Using OpenAI API with model: {model_name}")
+
+        result = _call_openai(prompt, openai_client)
+        if result:
+            return result
+        raise Exception("OpenAI API call failed")
+
+    # If we get here, both APIs failed
+    raise Exception("No LLM API available. Set GEMINI_API_KEY or OPENAI_API_KEY in environment variables.")
 
 
 def get_active_llm_provider() -> str:
     """
     Returns the name of the LLM provider that will be used.
     Useful for displaying to users which API is active.
+    Now returns Gemini first (if available), then OpenAI as fallback.
     """
     load_dotenv()
-    if OPENAI_AVAILABLE and os.getenv("OPENAI_API_KEY"):
-        return f"OpenAI ({_get_openai_model_name()})"
-    elif os.getenv("GEMINI_API_KEY"):
+    if os.getenv("GEMINI_API_KEY"):
         return f"Gemini ({os.getenv('GEMINI_MODEL_NAME', 'gemini-2.5-flash')})"
+    elif OPENAI_AVAILABLE and os.getenv("OPENAI_API_KEY"):
+        return f"OpenAI ({_get_openai_model_name()})"
     return "No LLM configured"
+
+
+def get_llm_config():
+    """
+    Returns detailed configuration of the LLM setup.
+    Useful for debugging and displaying model information.
+
+    Returns:
+        dict: Configuration details including provider, model, SDK status, and API key status
+    """
+    load_dotenv()
+
+    config = {
+        'primary_provider': None,
+        'fallback_provider': None,
+        'gemini': {
+            'available': GEMINI_AVAILABLE,
+            'api_key_set': bool(os.getenv("GEMINI_API_KEY")),
+            'model': os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash"),
+            'sdk_type': 'google.genai (new)' if _is_new_genai_sdk() else 'google.generativeai (legacy)' if GEMINI_AVAILABLE else 'not installed'
+        },
+        'openai': {
+            'available': OPENAI_AVAILABLE,
+            'api_key_set': bool(os.getenv("OPENAI_API_KEY")),
+            'model': _get_openai_model_name() if OPENAI_AVAILABLE else None
+        }
+    }
+
+    # Determine priority order
+    if config['gemini']['api_key_set']:
+        config['primary_provider'] = f"Gemini ({config['gemini']['model']})"
+        if config['openai']['api_key_set']:
+            config['fallback_provider'] = f"OpenAI ({config['openai']['model']})"
+    elif config['openai']['api_key_set']:
+        config['primary_provider'] = f"OpenAI ({config['openai']['model']})"
+
+    return config
 
 
 class GeminiRateLimiter:
@@ -505,7 +554,7 @@ def _init_gemini_model_with_fallback():
 
 def analyze_ticker(ticker, company_info):
     """
-    Analyzes a stock ticker using OpenAI (first choice) or Gemini API with rate limiting.
+    Analyzes a stock ticker using Gemini (first choice) or OpenAI API with rate limiting.
 
     Args:
         ticker (str): The stock ticker symbol.
@@ -514,6 +563,8 @@ def analyze_ticker(ticker, company_info):
     Returns:
         str: The business analysis from LLM API.
     """
+    print(f"\n📊 Analyzing ticker: {ticker} ({company_info.get('longName', 'N/A')})")
+
     prompt = f"""
     对以下公司进行详细的商业分析，公司股票代码为 '{ticker}'。
     这是该公司的一些基本数据：
@@ -540,9 +591,12 @@ def analyze_ticker(ticker, company_info):
     """
 
     try:
-        # Use unified LLM interface - tries OpenAI first, falls back to Gemini
-        return _call_llm(prompt)
+        # Use unified LLM interface - tries Gemini first, falls back to OpenAI
+        result = _call_llm(prompt)
+        print(f"✅ Analysis completed for {ticker}")
+        return result
     except Exception as e:
+        print(f"❌ Error during analysis: {e}")
         return f"Error during analysis: {e}"
 
 def _get_filing_url(ticker, filing_type):
@@ -1091,11 +1145,11 @@ def _download_sec_filing(ticker, filing_type):
 def analyze_10k_report(ticker):
     """
     Finds the latest 10-K report from the web, analyzes it using Google Gemini API.
-    
+
     Uses edgartools to extract only the key sections (Business, Risk Factors, MD&A)
     to stay within Gemini's token limits.
     """
-    print(f"Starting 10-K analysis for {ticker}...")
+    print(f"\n📈 Starting 10-K analysis for {ticker}...")
     
     # Try using the new sec_filing_parser with edgartools first (much better extraction)
     try:
@@ -1178,11 +1232,11 @@ def analyze_10k_report(ticker):
 def analyze_10q_report(ticker):
     """
     Finds the latest 10-Q report from the web, analyzes it using Google Gemini API.
-    
+
     Uses edgartools to extract only the key sections (MD&A, Risk Factors)
     to stay within Gemini's token limits.
     """
-    print(f"Starting 10-Q analysis for {ticker}...")
+    print(f"\n📊 Starting 10-Q analysis for {ticker}...")
     
     # Try using the new sec_filing_parser with edgartools first (much better extraction)
     try:
@@ -1260,7 +1314,7 @@ def analyze_10q_report(ticker):
 
 def analyze_news(news_articles):
     """
-    Analyzes a list of news articles using OpenAI (first choice) or Gemini API.
+    Analyzes a list of news articles using Gemini (first choice) or OpenAI API.
 
     Args:
         news_articles (list): A list of news articles from Tavily.
@@ -1344,7 +1398,7 @@ def analyze_news(news_articles):
 
 def general_search(ticker, company_info, query):
     """
-    Performs a general AI search about a company using OpenAI (first choice) or Gemini API.
+    Performs a general AI search about a company using Gemini (first choice) or OpenAI API.
 
     Args:
         ticker (str): The stock ticker symbol.
@@ -1375,7 +1429,7 @@ def general_search(ticker, company_info, query):
 
 
 def summarize_market_news(articles, tickers=None):
-    """Use OpenAI (first choice) or Gemini to convert market news articles into a bilingual blog post."""
+    """Use Gemini (first choice) or OpenAI to convert market news articles into a bilingual blog post."""
     if not articles:
         return "未提供市场新闻数据。\nNo market news articles were provided."
 
@@ -1421,7 +1475,7 @@ def summarize_market_news(articles, tickers=None):
 
 
 def summarize_crypto_news(articles, tickers=None):
-    """Summarize Finviz v=5 crypto headlines into a bilingual blog using OpenAI (first choice) or Gemini."""
+    """Summarize Finviz v=5 crypto headlines into a bilingual blog using Gemini (first choice) or OpenAI."""
     if not articles:
         return "未找到任何加密货币新闻。\nNo crypto news items were provided."
 
@@ -1466,7 +1520,7 @@ def summarize_crypto_news(articles, tickers=None):
 
 
 def summarize_etf_news(articles, tickers=None):
-    """Summarize Finviz v=4 ETF headlines into a bilingual insights blog using OpenAI (first choice) or Gemini."""
+    """Summarize Finviz v=4 ETF headlines into a bilingual insights blog using Gemini (first choice) or OpenAI."""
     if not articles:
         return "未找到任何ETF新闻。\nNo ETF news items were provided."
 
@@ -1523,7 +1577,7 @@ def _collect_article_tickers(articles):
 
 
 def summarize_stock_news(articles, tickers=None):
-    """Summarize Finviz v=3 stock headlines (general feed) into a bilingual blog using OpenAI (first choice) or Gemini."""
+    """Summarize Finviz v=3 stock headlines (general feed) into a bilingual blog using Gemini (first choice) or OpenAI."""
     if not articles:
         return "未找到任何股票新闻。\nNo stock news items were provided."
 
@@ -1569,7 +1623,7 @@ def summarize_stock_news(articles, tickers=None):
 def summarize_clipboard_content(content, urls=None):
     """
     Summarize content from clipboard which may contain URLs or direct text.
-    Uses OpenAI (first choice) or Gemini API.
+    Uses Gemini (first choice) or OpenAI API.
     
     Args:
         content (str): The clipboard content (text or fetched webpage content).
@@ -1614,7 +1668,7 @@ def summarize_clipboard_content(content, urls=None):
 
 def general_ai_search(query):
     """
-    Performs a general AI search using OpenAI (first choice) or Gemini API without requiring ticker information.
+    Performs a general AI search using Gemini (first choice) or OpenAI API without requiring ticker information.
 
     Args:
         query (str): The user's search query.

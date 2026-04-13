@@ -7,7 +7,8 @@ import json
 
 A_ping_401k_ping = ["AAPL", "AMD", "AMZN", "AMZU", "APP", "ASAN", "AVGO", "CRDO", "ENVA", "FRMI", "GGLL", "GS", "INTC", "JPM", "LRCX", "META", "MSFU", "MSTR", "MSTX", "MU", "NVDA", "NVDL", "ORCL", "PLTR", "PRCT", "QQQ", "RDDT", "SPMO", "SPY", "TECS", "TQQQ", "TSLA", "TSLL", "UEC", "V"]
 
-A_jue_401k_2025 = ["MSTX", "AAOI", "LITE", "ARMG", "MU", "DBC", "COHR", "TECS", "JNJ", "ED", "INTC", "ATO", "CRCL", "COSW", "GSX", "ADI", "NFXL", "AMGN", "DOV", "AZN", "THD", "AMD", "GWW", "PG", "JD", "CRWV", "ESS", "AAPL", "DOXGX", "QQQ", "FXAIX", "VGT", "ABBV", "SPY", "FSSNX", "MCD", "GLD", "BEN", "GS", "NVDA", "HD", "VIGIX", "FIGR", "AMCR", "MA", "AVGO", "UBRL", "CELT", "CQQQ", "PLTR", "BIDU", "TMO", "CRCG", "BRKU", "FBTC", "DIS", "CRWD", "CTAS", "PLTU", "PLTG", "ORCL", "TNA", "ALAB", "CRM", "AVPT", "AMZU", "ORCX", "AVL", "FNGU", "CRDO", "AFRM", "YINN", "MSFX", "CELH", "CRWL", "APP", "BABX", "TSLL", "CRMG", "FIG", "FBL", "LABX", "CRDU", "APPX", "EDMCQ", "BRK-B"]
+A_jue_401k_2025 = ["MSTX", "AAOI", "LITE", "INTC", "ARMG", "COHR", "MU", "NFXL", "CRWV", "AMD", "ADI", "AVL", "THD", "DBC", "GWW", "GSX", "ATO", "COSW", "AVGO", "ED", "AZN", "JNJ", "TNA", "DOV", "AMZU", "GS", "FSSNX", "AMGN", "GLD", "PG", "BEN", "FXAIX", "NVDA", "DOXGX", "QQQ", "AAPL", "SPY", "VGT", "AMCR", "ESS", "MCD", "FBL", "BRK-B", "VIGIX", "HD", "JD", "ALAB", "ABBV", "CELT", "BRKU", "DIS", "MA", "FNGU", "FBTC", "TMO", "CTAS", "CQQQ", "TECS", "CRCL", "CRWD", "CRDO", "YINN", "LABX", "BIDU", "AFRM", "CELH", "ORCL", "UBRL", "BABX", "PLTR", "AVPT", "CRM", "MSFX", "APP", "FIGR", "CRWL", "CRDU", "CRCG", "TSLL", "ORCX", "FIG", "PLTU", "PLTG", "CRMG", "APPX", "EDMCQ"]
+
 
 
 
@@ -711,42 +712,27 @@ if __name__ == '__main__':
 
 
 temp_stocks = [
-    "HDFCBANK.NS",
-    "ICICIBANK.NS",
-    "SBIN.NS",
-    "BHP",
-    "RIO",
-    "FMG.AX",
-    "LIN",
-    "FCX",
-    "XOM",
-    "CVX",
-    "SHEL",
-    "LMT",
-    "RTX",
-    "TM",
-    "SONY",
-    "HMC",
-    "GLD",
-    "SYY",
-    "USFD",
-    "BLK",
-    "SGX",
-    "DBSM.SI",
-    "OCBC.SI",
-    "Z74.SI",
-    "SPY",
-    "QQQ",
-    "ASML",
-    "TSMC",
+    "PBR",
+    "EC",
+    "AA",
+    "MP",
+    "TSM",
+    "OTP",
     "DAL",
     "UAL",
-    "FDX",
-    "UPS",
-    "9501.T",
-    "ABNB",
-    "TSLA"
+    "INDY",
+    "EPI",
+    "TLT",
+    "SPY"
 ]
+
+
+
+
+
+
+
+
 
 
 
