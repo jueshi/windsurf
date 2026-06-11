@@ -7,7 +7,9 @@ import json
 
 A_ping_401k_ping = ["AAPL", "AMD", "AMZN", "AMZU", "APP", "ASAN", "AVGO", "CRDO", "ENVA", "FRMI", "GGLL", "GS", "INTC", "JPM", "LRCX", "META", "MSFU", "MSTR", "MSTX", "MU", "NVDA", "NVDL", "ORCL", "PLTR", "PRCT", "QQQ", "RDDT", "SPMO", "SPY", "TECS", "TQQQ", "TSLA", "TSLL", "UEC", "V"]
 
-A_jue_401k_2025 = ["MSTX", "AAOI", "LITE", "INTC", "ARMG", "COHR", "MU", "NFXL", "CRWV", "AMD", "ADI", "AVL", "THD", "DBC", "GWW", "GSX", "ATO", "COSW", "AVGO", "ED", "AZN", "JNJ", "TNA", "DOV", "AMZU", "GS", "FSSNX", "AMGN", "GLD", "PG", "BEN", "FXAIX", "NVDA", "DOXGX", "QQQ", "AAPL", "SPY", "VGT", "AMCR", "ESS", "MCD", "FBL", "BRK-B", "VIGIX", "HD", "JD", "ALAB", "ABBV", "CELT", "BRKU", "DIS", "MA", "FNGU", "FBTC", "TMO", "CTAS", "CQQQ", "TECS", "CRCL", "CRWD", "CRDO", "YINN", "LABX", "BIDU", "AFRM", "CELH", "ORCL", "UBRL", "BABX", "PLTR", "AVPT", "CRM", "MSFX", "APP", "FIGR", "CRWL", "CRDU", "CRCG", "TSLL", "ORCX", "FIG", "PLTU", "PLTG", "CRMG", "APPX", "EDMCQ"]
+A_jue_401k_2025 = ["MRVL", "AVL", "BB", "FBL", "AVGO", "NVDL", "MSTX", "AMDU", "GSX", "HIMS", "CRCL", "META", "NUGT", "MSTR", "COPX", "JD", "AAPB", "AAPU", "BEN", "GWW", "CRCG", "FSSNX", "AZN", "AAPL", "VIGIX", "VLO", "FXAIX", "GLD", "AMGN", "DOV", "ATO", "DOXGX", "EXT", "COSW", "COST", "DIS", "ED", "BABX", "ESS", "TSLL", "APP", "YINN", "CQQQ", "WAT", "FBTC", "CTAS", "APPX", "SNPX", "CELH", "TECS"]
+
+
 
 
 
@@ -33,7 +35,9 @@ index_tickers = ["SPX", "DJIA", "COMP", "RUT", "NYA", "INX", "DAX", "CAC", "^HSI
 tickers_comment_dict = {} #manually build a dictionary of tickers and comments
 
 # List of tickers to process
-Jues401k_stocks = ["AAOI", "WDC", "TECS", "MRVL", "AMZA", "INTC", "COST", "NIO", "LRCX", "JD", "ADI", "TSM", "AMD", "EWS", "MCD", "TXN", "GLD", "SPYV", "BRK-B", "AAPL", "SPMO", "IWM", "SPYX", "QQQ", "NVDA", "AMZN", "AVGO", "CQQQ", "GOOGL", "PLTR", "BIDU", "TNA", "BABA", "TSLA", "TECL", "MSFT", "NKE", "META", "ALAB", "CRM", "SPYU", "SOFI", "CRDO", "YINN", "AFRM"]
+Jues401k_stocks = ["AAOI", "INTC", "MRVL", "CRDO", "AMD", "WDC", "ALAB", "TXN", "TECL", "AVGO", "ADI", "TSM", "SPYU", "NIO", "LRCX", "TNA", "AMZN", "NVDA", "AFRM", "SPMO", "GOOGL", "QQQ", "META", "IWM", "AAPL", "SPYX", "AMZA", "COST", "SPYV", "MSFT", "JD", "EWS", "BIDU", "GLD", "CQQQ", "BRK-B", "MCD", "TSLA", "YINN", "BABA", "PLTR", "SOFI", "CRM", "NKE", "TECS", "NOW"]
+
+
 
 
 # new_highs1 = ["CSCO", "V", "MA", "AXP", "SAP", "TSM", "AMZN", "JPM", "NFLX", "GOOGL", "GOOG", "META", "AAPL", "WMT", "BAC", "AVGO", "MCD", "PG", "IBM", "BRK-B"]
@@ -371,7 +375,7 @@ bear_2x_etfs = [
     "SSG",   # ProShares UltraShort Semiconductors
     "SKF",   # ProShares UltraShort Financials
     "UREV",  # ProShares UltraShort Real Estate
-    "DUG",   # ProShares UltraShort Oil & Gas
+    "DUG",   # ProShares UltraShort Oil & Gassector
     "UBT",   # ProShares UltraShort 20+ Year Treasury (Bond Market)
 ]
 
@@ -538,6 +542,20 @@ ticker_1_stocks = ["FBTC", "VOO", "QQQM", "OKTA", "TQQQ"]
 
 
 rs_stocks = []
+
+jue_401k_stocks = ["MRVL", "AVL", "BB", "FBL", "AVGO", "NVDL", "MSTX", "AMDU", "GSX", "HIMS", "CRCL", "NUGT", "MSTR", "COPX", "META", "JD", "AAPB", "AAPU", "BEN", "GWW", "CRCG", "FSSNX", "AZN", "AAPL", "VIGIX", "VLO", "FXAIX", "GLD", "AMGN", "DOV", "ATO", "DOXGX", "EXT", "COSW", "COST", "DIS", "ED", "BABX", "ESS", "TSLL", "APP", "YINN", "CQQQ", "WAT", "FBTC", "CTAS", "APPX", "SNPX", "CELH", "TECS"]
+
+
+A_jue_401k_2026_stocks = ["ADI", "NVDL", "BEN", "DBC", "NVDA", "BIDU", "GWW", "JD", "DIS", "MGMT", "DOV", "BABA", "NFLX", "ED", "MA", "BABX", "ABBV", "DB", "NFXL", "CTAS", "HD", "TECS"]
+
+
+
+
+
+
+jue_fidelity_5_14_26_stocks = ["AMDG", "AAOI", "ARMG", "CRCG", "LABX", "INTC", "CRWL", "NVDL", "FNGU", "MSTX", "GGLL", "CRDU", "AVL", "AMZU", "CRWD", "CRDO", "ORCX", "AAPU", "NVDA", "AFRM", "AVGO", "TSMU", "ADI", "APPX", "BEN", "DBC", "TSLL", "ORCL", "TNA", "JD", "GWW", "VIGIX", "TSLA", "BIDU", "SPY", "CRWV", "ESS", "FSSNX", "COSW", "THD", "CQQQ", "XOMX", "UBRL", "DIS", "DUOL", "RDTL", "MSFU", "DAX", "CRWG", "PLTR", "MSFX", "FIG", "NFXL", "MA", "PG", "YINN", "AVPT", "BABX", "CTAS", "PLTU", "CRM", "FBL", "PLTG", "HD", "CRMG", "TECS", "EDMCQ", "BRKB", "NON40O32T", "NON40OXPV"]
+
+
 
 # Function to check if a ticker symbol is valid and suggest alternatives if not
 def validate_ticker(ticker):
@@ -712,19 +730,43 @@ if __name__ == '__main__':
 
 
 temp_stocks = [
-    "PBR",
-    "EC",
-    "AA",
-    "MP",
-    "TSM",
-    "OTP",
+    "XOM",
+    "CVX",
+    "LMT",
+    "RTX",
+    "BABA",
+    "JD",
+    "PDD",
+    "UNH",
+    "HUM",
     "DAL",
-    "UAL",
-    "INDY",
-    "EPI",
-    "TLT",
-    "SPY"
+    "FCX"
 ]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -91,7 +91,7 @@ def generate_chart_html(tickers: list[str], columns: int, output_filename: str =
 
         let allChartsHTML = '';
         for (const ticker of tickers) {{
-            const chartUrl = `https://charts2-node.finviz.com/chart.ashx?cs=&t=${{ticker.toUpperCase()}}&tf=${{tf}}&s=linear&pm=240&am=1200&ct=candle_stick&tm=d&o[0][ot]=sma&o[0][op]=50&o[0][oc]=FF8F33C6&o[1][ot]=sma&o[1][op]=200&o[1][oc]=DCB3326D&o[2][ot]=patterns&o[2][op]=&o[2][oc]=000`;
+            const chartUrl = `https://charts-node.finviz.com/chart?w=466&h=292&bw=1&bm=1&bb=1&t=${{ticker.toUpperCase()}}&tf=${{tf}}&s=linear&pm=240&am=1200&ct=candle_stick&tm=d&r=y1&o[0][ot]=sma&o[0][op]=20&o[0][oc]=DC32B363&o[1][ot]=sma&o[1][op]=50&o[1][oc]=FF8F33C6&o[2][ot]=sma&o[2][op]=200&o[2][oc]=DCB3326D&o[3][ot]=patterns&o[3][op]=&o[3][oc]=69C1EAFF&o[4][ot]=vp&o[4][op]=30%2C0.3&o[4][oc]=18B8475B&o[5][ot]=vwap&o[5][op]=&o[5][oc]=9467BDFF&i[0][it]=rsi&i[0][ip]=14&cc[dark][canvasFill]=22262f`;
             
             allChartsHTML += `
                 <div class="chart-container">

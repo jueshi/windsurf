@@ -51,7 +51,7 @@ from relative_strength import build_relative_strength_table, build_rolling_ranks
 import webbrowser
 import tempfile
 from live_chart_generator import generate_chart_html
-from multi_tf_charts import generate_multi_timeframe_chart_html, generate_multi_timeframe_linechart_html
+from multi_tf_charts import generate_multi_timeframe_chart_html, generate_multi_timeframe_linechart_html, generate_short_term_multi_timeframe_chart_html, generate_intraday_multi_timeframe_chart_html
 from generate_stockcharts_gallery import (
     generate_multi_timeframe_stockcharts_html,
     generate_multi_timeframe_stockcharts_line_html,
@@ -603,6 +603,14 @@ class StockDataGUI:
         self._attach_tooltip(monthly_btn, text="Monthly candlestick charts", tooltip_id="chart.monthly")
 
         # Gallery buttons
+        intraday_tf_btn = ttk.Button(row1, text="Intra-TF", command=self._open_intraday_multi_timeframe_gallery_for_current_list, width=7)
+        intraday_tf_btn.pack(side=tk.LEFT, padx=(Spacing.XS, 1))
+        self._attach_tooltip(intraday_tf_btn, text="Intraday gallery (15m/H/D)", tooltip_id="gallery.intraday_tf")
+
+        short_tf_btn = ttk.Button(row1, text="Short-TF", command=self._open_short_term_multi_timeframe_gallery_for_current_list, width=7)
+        short_tf_btn.pack(side=tk.LEFT, padx=(Spacing.XS, 1))
+        self._attach_tooltip(short_tf_btn, text="Short-Term gallery (H/D/W)", tooltip_id="gallery.short_tf")
+
         multi_tf_btn = ttk.Button(row1, text="Multi-TF", command=self._open_multi_timeframe_gallery_for_current_list, width=7)
         multi_tf_btn.pack(side=tk.LEFT, padx=(Spacing.XS, 1))
         self._attach_tooltip(multi_tf_btn, text="Multi-Timeframe gallery (D/W/M)", tooltip_id="gallery.multi_tf")
@@ -616,7 +624,7 @@ class StockDataGUI:
         sc_btn.pack(side=tk.LEFT, padx=(Spacing.XS, 1))
         self._attach_tooltip(sc_btn, text="StockCharts.com gallery", tooltip_id="gallery.stockcharts")
 
-        saved_style_id = self.settings.get("stockcharts_style_id", "t3327397499c")
+        saved_style_id = self.settings.get("stockcharts_style_id", "t5650818051c&r=1779510955578")
         self.stockcharts_line_style_var = tk.StringVar(value=saved_style_id)
         sc_style_entry = ttk.Entry(row1, textvariable=self.stockcharts_line_style_var, width=12)
         sc_style_entry.pack(side=tk.LEFT, padx=1)
@@ -811,6 +819,8 @@ class StockDataGUI:
         
         # Phase 2: Technical
         ttk.Label(workflow_row, text="2⃣", font=Fonts.small()).pack(side=tk.LEFT)
+        ttk.Button(workflow_row, text="Intra-TF", command=self._open_intraday_multi_timeframe_gallery_for_current_list, width=7).pack(side=tk.LEFT, padx=1)
+        ttk.Button(workflow_row, text="Short-TF", command=self._open_short_term_multi_timeframe_gallery_for_current_list, width=7).pack(side=tk.LEFT, padx=1)
         ttk.Button(workflow_row, text="Multi-TF", command=self._open_multi_timeframe_gallery_for_current_list, width=7).pack(side=tk.LEFT, padx=1)
         ttk.Button(workflow_row, text="SC", command=self._open_stockcharts_gallery_for_current_list, width=3).pack(side=tk.LEFT, padx=1)
         
@@ -2064,6 +2074,54 @@ Tabs:
             messagebox.showerror("Error", f"Error generating live charts: {str(e)}")
             self.status_var.set("Error generating live charts")
 
+    def _open_intraday_multi_timeframe_gallery_for_current_list(self):
+        try:
+            selected_list = self.ticker_list_var.get()
+            if not selected_list or selected_list not in self.ticker_lists:
+                messagebox.showwarning("No List Selected", "Please select a ticker list first.")
+                return
+            tickers = [t for t in self.current_tickers if isinstance(t, str) and t.strip()]
+            if not tickers:
+                messagebox.showwarning("Empty List", "The selected ticker list is empty.")
+                return
+            output_path = os.path.join(tempfile.gettempdir(), f"{selected_list}_intraday_multi_timeframe_charts.html")
+            generate_intraday_multi_timeframe_chart_html(tickers, output_filename=output_path)
+            try:
+                webbrowser.register('edge', None, webbrowser.BackgroundBrowser(r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'))
+                webbrowser.get('edge').open(f"file:///{os.path.abspath(output_path)}")
+                self.status_var.set(f"Intraday multi-timeframe gallery for {selected_list} opened in Edge browser")
+            except Exception as browser_error:
+                logging.warning(f"Could not open Edge browser: {browser_error}. Using default browser.")
+                webbrowser.open(f"file:///{os.path.abspath(output_path)}")
+                self.status_var.set(f"Intraday multi-timeframe gallery for {selected_list} opened in default browser")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error generating intraday multi-timeframe gallery: {str(e)}")
+            self.status_var.set("Error generating intraday multi-timeframe gallery")
+
+    def _open_short_term_multi_timeframe_gallery_for_current_list(self):
+        try:
+            selected_list = self.ticker_list_var.get()
+            if not selected_list or selected_list not in self.ticker_lists:
+                messagebox.showwarning("No List Selected", "Please select a ticker list first.")
+                return
+            tickers = [t for t in self.current_tickers if isinstance(t, str) and t.strip()]
+            if not tickers:
+                messagebox.showwarning("Empty List", "The selected ticker list is empty.")
+                return
+            output_path = os.path.join(tempfile.gettempdir(), f"{selected_list}_short_term_multi_timeframe_charts.html")
+            generate_short_term_multi_timeframe_chart_html(tickers, output_filename=output_path)
+            try:
+                webbrowser.register('edge', None, webbrowser.BackgroundBrowser(r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'))
+                webbrowser.get('edge').open(f"file:///{os.path.abspath(output_path)}")
+                self.status_var.set(f"Short-term multi-timeframe gallery for {selected_list} opened in Edge browser")
+            except Exception as browser_error:
+                logging.warning(f"Could not open Edge browser: {browser_error}. Using default browser.")
+                webbrowser.open(f"file:///{os.path.abspath(output_path)}")
+                self.status_var.set(f"Short-term multi-timeframe gallery for {selected_list} opened in default browser")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error generating short-term multi-timeframe gallery: {str(e)}")
+            self.status_var.set("Error generating short-term multi-timeframe gallery")
+
     def _open_multi_timeframe_gallery_for_current_list(self):
         try:
             selected_list = self.ticker_list_var.get()
@@ -2142,9 +2200,9 @@ Tabs:
 
             # Use the current StockCharts style ID from the GUI entry (fallback to default if empty)
             style_id = getattr(self, "stockcharts_line_style_var", None)
-            style_id_value = style_id.get().strip() if style_id is not None else "t3327397499c"
+            style_id_value = style_id.get().strip() if style_id is not None else "t5650818051c&r=1779510955578"
             if not style_id_value:
-                style_id_value = "t3327397499c"
+                style_id_value = "t5650818051c&r=1779510955578"
 
             generate_multi_timeframe_stockcharts_line_html(
                 tickers,
