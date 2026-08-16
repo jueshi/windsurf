@@ -7,7 +7,8 @@ import json
 
 A_ping_401k_ping = ["AAPL", "AMD", "AMZN", "AMZU", "APP", "ASAN", "AVGO", "CRDO", "ENVA", "FRMI", "GGLL", "GS", "INTC", "JPM", "LRCX", "META", "MSFU", "MSTR", "MSTX", "MU", "NVDA", "NVDL", "ORCL", "PLTR", "PRCT", "QQQ", "RDDT", "SPMO", "SPY", "TECS", "TQQQ", "TSLA", "TSLL", "UEC", "V"]
 
-A_jue_401k_2025 = ["MRVL", "AVL", "BB", "FBL", "AVGO", "NVDL", "MSTX", "AMDU", "GSX", "HIMS", "CRCL", "META", "NUGT", "MSTR", "COPX", "JD", "AAPB", "AAPU", "BEN", "GWW", "CRCG", "FSSNX", "AZN", "AAPL", "VIGIX", "VLO", "FXAIX", "GLD", "AMGN", "DOV", "ATO", "DOXGX", "EXT", "COSW", "COST", "DIS", "ED", "BABX", "ESS", "TSLL", "APP", "YINN", "CQQQ", "WAT", "FBTC", "CTAS", "APPX", "SNPX", "CELH", "TECS"]
+A_jue_401k_2025 = ["AAPB", "AAPL", "AAPU", "AMDU", "AMGN", "APP", "APPX", "ATO", "AVGO", "AVL", "AZN", "BABX", "BB", "BEN", "CELH", "COPX", "COST", "COSW", "CQQQ", "CRCG", "CRCL", "CTAS", "DIS", "DOV", "DOXGX", "ED", "ESS", "EXT", "FBL", "FBTC", "FSSNX", "FXAIX", "GLD", "GSX", "GWW", "HIMS", "JD", "META", "MRVL", "MSTR", "MSTX", "NUGT", "NVDL", "SNPX", "TECS", "TSLL", "VIGIX", "VLO", "WAT", "YINN"]
+
 
 
 
@@ -295,7 +296,9 @@ watch_list = ["0700.HK", "ALAB", "AMZN", "APH", "APP", "ARM", "ARMG", "ASML", "A
 
 
 
-Jues401k_stocks_stocks = ["ALAB", "QQQ", "IWM", "GLD", "AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "META", "NVDA", "BRK-B", "AVGO", "COST", "BABA", "AMD", "NIO", "AFRM", "CQQQ", "SPYX", "SPYV", "SPYU", "CRM", "ADI", "AAOI", "EWS", "YINN", "JD", "BIDU", "TNA", "TECS", "TECL", "INTC", "TSM", "LRCX", "MRVL", "SPMO", "WDC", "GS", "PLTR", "ORCL", "IVV", "IEMG", "PG", "JNJ", "KO", "PEP", "MCD", "WMT", "VT", "TLT", "IEF", "DBC", "VTI", "VOO", "CRWD", "CRDO", "SNDK", "AKBA", "ASND", "DVAX", "PRCT", "SNPS", "MAGS", "V", "MA", "AVGX", "AVL", "TSLL", "ORCX", "FNGU", "ARMG", "APED", "GGLL", "FNGO", "UBRL", "CRWL", "MSFX", "FBL", "BRKU", "LABX", "ENOR"]
+Jues401k_stocks_stocks = ["AAOI", "AAPL", "ADI", "AFRM", "AKBA", "ALAB", "AMD", "AMZN", "APED", "ARMG", "ASND", "AVGO", "AVGX", "AVL", "BABA", "BIDU", "BRK-B", "BRKU", "COST", "CQQQ", "CRDO", "CRM", "CRWD", "CRWL", "DBC", "DVAX", "ENOR", "EWS", "FBL", "FNGO", "FNGU", "GGLL", "GLD", "GOOGL", "GS", "IEF", "IEMG", "INTC", "IVV", "IWM", "JD", "JNJ", "KO", "LABX", "LRCX", "MA", "MAGS", "MCD", "META", "MRVL", "MSFT", "MSFX", "NIO", "NVDA", "ORCL", "ORCX", "PEP", "PG", "PLTR", "PRCT", "QQQ", "SNDK", "SNPS", "SPMO", "SPYU", "SPYV", "SPYX", "TECL", "TECS", "TLT", "TNA", "TSLA", "TSLL", "TSM", "UBRL", "V", "VOO", "VT", "VTI", "WDC", "WMT", "YINN", "LITE"]
+
+
 
 
 nucleus_stock_stocks = ["BX", "CEG", "SMR", "NLR", "URA", "CCJ", "URNM", "URAN", "BWXT"]
@@ -543,7 +546,8 @@ ticker_1_stocks = ["FBTC", "VOO", "QQQM", "OKTA", "TQQQ"]
 
 rs_stocks = []
 
-jue_401k_stocks = ["MRVL", "AVL", "BB", "FBL", "AVGO", "NVDL", "MSTX", "AMDU", "GSX", "HIMS", "CRCL", "NUGT", "MSTR", "COPX", "META", "JD", "AAPB", "AAPU", "BEN", "GWW", "CRCG", "FSSNX", "AZN", "AAPL", "VIGIX", "VLO", "FXAIX", "GLD", "AMGN", "DOV", "ATO", "DOXGX", "EXT", "COSW", "COST", "DIS", "ED", "BABX", "ESS", "TSLL", "APP", "YINN", "CQQQ", "WAT", "FBTC", "CTAS", "APPX", "SNPX", "CELH", "TECS"]
+jue_401k_stocks = ["AAPB", "AAPL", "AAPU", "AMDU", "AMGN", "APP", "APPX", "ATO", "AVGO", "AVL", "AZN", "BABX", "BB", "BEN", "CELH", "COPX", "COST", "COSW", "CQQQ", "CRCG", "CRCL", "CTAS", "DIS", "DOV", "DOXGX", "ED", "ESS", "EXT", "FBL", "FBTC", "FSSNX", "FXAIX", "GLD", "GSX", "GWW", "HIMS", "JD", "META", "MRVL", "MSTR", "MSTX", "NUGT", "NVDL", "SNPX", "TECS", "TSLL", "VIGIX", "VLO", "WAT", "YINN"]
+
 
 
 A_jue_401k_2026_stocks = ["ADI", "NVDL", "BEN", "DBC", "NVDA", "BIDU", "GWW", "JD", "DIS", "MGMT", "DOV", "BABA", "NFLX", "ED", "MA", "BABX", "ABBV", "DB", "NFXL", "CTAS", "HD", "TECS"]
@@ -730,17 +734,19 @@ if __name__ == '__main__':
 
 
 temp_stocks = [
+    "NVDA",
+    "MSFT",
+    "GOOGL",
+    "JPM",
+    "GS",
+    "AAPL",
+    "AMZN",
     "XOM",
     "CVX",
-    "LMT",
-    "RTX",
-    "BABA",
-    "JD",
-    "PDD",
-    "UNH",
-    "HUM",
+    "KRE",
     "DAL",
-    "FCX"
+    "UAL",
+    "EWU"
 ]
 
 
