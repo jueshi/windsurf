@@ -33,3 +33,5 @@ Thumbs.db
 # windsurf rules
 .windsurfrules
 .env
+# Blackout earnings-dates cache (runtime)
+earnings_cache/

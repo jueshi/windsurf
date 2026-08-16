@@ -19,6 +19,7 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import yfinance as yf
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog, simpledialog
@@ -48,6 +49,10 @@ import news_fetcher
 import sec_filing_extractor
 import sec_api_wrapper
 from relative_strength import build_relative_strength_table, build_rolling_ranks, BENCHMARK
+from blackout_analysis import (analyze_ticker, extend_result_horizon,
+                               build_blackout_figure,
+                               build_daily_equity_figure, HORIZONS,
+                               DEFAULT_BLACKOUT_START_DAYS)
 import webbrowser
 import tempfile
 from live_chart_generator import generate_chart_html
@@ -130,7 +135,7 @@ class StockDataGUI:
         self._create_widgets()
         
         # Auto-load the first ticker list after GUI is created
-        self.root.after(200, self._load_first_ticker_list)
+        self.root.after(200, self._load_startup_ticker_list)
 
     def _update_tooltip_state(self, *args):
         try:
@@ -1122,6 +1127,181 @@ class StockDataGUI:
             self.bc_content.bind('<Configure>', _adjust_bc_sash_once)
         except Exception:
             pass
+
+        # Create Blackout performance tab
+        self.blackout_frame = ttk.Frame(self.chart_notebook)
+        self.chart_notebook.add(self.blackout_frame, text="⏳ Blackout")
+
+        # Layout for Blackout tab
+        bo_outer = ttk.Frame(self.blackout_frame, padding="10")
+        bo_outer.pack(fill=tk.BOTH, expand=True)
+
+        bo_controls = ttk.Frame(bo_outer)
+        bo_controls.pack(fill=tk.X, pady=(0, 5))
+        ttk.Button(bo_controls, text="Analyze Selected",
+                   command=lambda: self._run_blackout_analysis()).pack(side=tk.LEFT)
+        ttk.Button(bo_controls, text="Refresh Price Data",
+                   command=lambda: self._run_blackout_analysis(refresh=True)).pack(side=tk.LEFT, padx=(5, 0))
+        ttk.Label(bo_controls, text="Blackout starts days before earnings:").pack(side=tk.LEFT, padx=(15, 3))
+        self.blackout_start_days_var = tk.IntVar(value=DEFAULT_BLACKOUT_START_DAYS)
+        ttk.Spinbox(bo_controls, from_=1, to=90, width=4,
+                    textvariable=self.blackout_start_days_var).pack(side=tk.LEFT)
+
+        # Chart view toggle: quarter-boundary compounding vs daily mark-to-market
+        self.blackout_view_var = tk.StringVar(value="daily")
+        ttk.Radiobutton(bo_controls, text="By Quarter", value="quarter",
+                        variable=self.blackout_view_var,
+                        command=self._on_blackout_view_changed).pack(side=tk.LEFT, padx=(15, 0))
+        ttk.Radiobutton(bo_controls, text="Daily Equity", value="daily",
+                        variable=self.blackout_view_var,
+                        command=self._on_blackout_view_changed).pack(side=tk.LEFT, padx=(5, 0))
+
+        # Entry point: buy at blackout end (earnings day) vs blackout start
+        ttk.Label(bo_controls, text="Buy at:").pack(side=tk.LEFT, padx=(15, 0))
+        self.blackout_entry_var = tk.StringVar(value="end")
+        ttk.Radiobutton(bo_controls, text="Blackout End", value="end",
+                        variable=self.blackout_entry_var,
+                        command=self._on_blackout_entry_changed).pack(side=tk.LEFT, padx=(3, 0))
+        ttk.Radiobutton(bo_controls, text="Blackout Start", value="start",
+                        variable=self.blackout_entry_var,
+                        command=self._on_blackout_entry_changed).pack(side=tk.LEFT, padx=(3, 0))
+
+        # Horizon filter: one checkbox per holding period (21d by default)
+        # plus a free-form entry for any holding period (may exceed 1 quarter)
+        bo_horizons = ttk.Frame(bo_outer)
+        bo_horizons.pack(fill=tk.X, pady=(0, 5))
+        ttk.Label(bo_horizons, text="Holding periods:").pack(side=tk.LEFT)
+        self.blackout_horizon_vars = {n: tk.BooleanVar(value=(n == 21))
+                                      for n in HORIZONS}
+        for n in HORIZONS:
+            ttk.Checkbutton(bo_horizons, text=f"{n}d",
+                            variable=self.blackout_horizon_vars[n],
+                            command=self._on_blackout_redraw
+                            ).pack(side=tk.LEFT, padx=(6, 0))
+        self._blackout_custom_horizon = None
+        ttk.Label(bo_horizons, text="Custom (days):").pack(side=tk.LEFT,
+                                                           padx=(12, 2))
+        self.blackout_custom_var = tk.StringVar()
+        bo_custom_entry = ttk.Entry(bo_horizons, width=6,
+                                    textvariable=self.blackout_custom_var)
+        bo_custom_entry.pack(side=tk.LEFT)
+        bo_custom_entry.bind('<Return>',
+                             lambda e: self._on_blackout_custom_horizon())
+        ttk.Label(bo_horizons, text="(Enter to apply; clear + Enter to remove)",
+                  font=("Helvetica", 8)).pack(side=tk.LEFT, padx=5)
+
+        # Display options: scatter style + buy-and-hold price overlay
+        self.blackout_scatter_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(bo_horizons, text="Scatter",
+                        variable=self.blackout_scatter_var,
+                        command=self._on_blackout_redraw
+                        ).pack(side=tk.LEFT, padx=(25, 0))
+        self.blackout_overlay_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(bo_horizons, text="Overlay Price (Buy & Hold)",
+                        variable=self.blackout_overlay_var,
+                        command=self._on_blackout_redraw
+                        ).pack(side=tk.LEFT, padx=(6, 0))
+        self.blackout_highlight_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(bo_horizons, text="Yellow in Blackout (Daily)",
+                        variable=self.blackout_highlight_var,
+                        command=self._on_blackout_redraw
+                        ).pack(side=tk.LEFT, padx=(6, 0))
+        self.blackout_vlines_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(bo_horizons, text="V-Lines (Daily)",
+                        variable=self.blackout_vlines_var,
+                        command=self._on_blackout_redraw
+                        ).pack(side=tk.LEFT, padx=(6, 0))
+        self.blackout_status_var = tk.StringVar(
+            value="Select a ticker and click Analyze, or select while this tab is active.")
+        ttk.Label(bo_controls, textvariable=self.blackout_status_var,
+                  font=("Helvetica", 8)).pack(side=tk.LEFT, padx=10)
+
+        # Date-range zoom row (Daily view): quarter-count dropdown (default
+        # 8) plus typed From/To entries for exact custom ranges
+        bo_dates = ttk.Frame(bo_outer)
+        bo_dates.pack(fill=tk.X, pady=(0, 5))
+        ttk.Label(bo_dates, text="Show last").pack(side=tk.LEFT)
+        self.blackout_quarters_var = tk.StringVar(value='8')
+        bo_quarters_combo = ttk.Combobox(
+            bo_dates, textvariable=self.blackout_quarters_var,
+            values=['4', '6', '8', '12', '16', '20', 'All'],
+            width=5, state='readonly')
+        bo_quarters_combo.pack(side=tk.LEFT, padx=(3, 3))
+        bo_quarters_combo.bind('<<ComboboxSelected>>',
+                               lambda e: self._on_blackout_quarters_changed())
+        ttk.Label(bo_dates, text="quarters  |  Zoom dates:").pack(side=tk.LEFT)
+        self.blackout_from_var = tk.StringVar()
+        self.blackout_to_var = tk.StringVar()
+        ttk.Label(bo_dates, text="From").pack(side=tk.LEFT, padx=(10, 2))
+        bo_from_entry = ttk.Entry(bo_dates, textvariable=self.blackout_from_var,
+                                  width=11)
+        bo_from_entry.pack(side=tk.LEFT)
+        bo_from_entry.bind('<Return>', lambda e: self._apply_blackout_date_zoom())
+        ttk.Label(bo_dates, text="To").pack(side=tk.LEFT, padx=(6, 2))
+        bo_to_entry = ttk.Entry(bo_dates, textvariable=self.blackout_to_var,
+                                width=11)
+        bo_to_entry.pack(side=tk.LEFT)
+        bo_to_entry.bind('<Return>', lambda e: self._apply_blackout_date_zoom())
+        ttk.Button(bo_dates, text="Zoom",
+                   command=self._apply_blackout_date_zoom).pack(side=tk.LEFT,
+                                                                padx=(8, 0))
+        ttk.Button(bo_dates, text="Reset",
+                   command=self._reset_blackout_date_zoom).pack(side=tk.LEFT,
+                                                                padx=(4, 0))
+        ttk.Label(bo_dates, text="(Daily view; toolbar Back undoes)",
+                  font=("Helvetica", 8)).pack(side=tk.LEFT, padx=8)
+
+        # Sub-tabs: chart | per-quarter details (pattern: Compare tab's
+        # sub-notebook), so each view gets the full pane width
+        self.bo_notebook = ttk.Notebook(bo_outer)
+        self.bo_notebook.pack(fill=tk.BOTH, expand=True)
+        # Redraw the canvas when tabs switch so it resizes to the mapped
+        # geometry (zoom state is preserved — no figure rebuild)
+        try:
+            self.bo_notebook.bind('<<NotebookTabChanged>>',
+                                  lambda e: self._refresh_blackout_canvas())
+        except Exception:
+            pass
+
+        # Chart tab: compounded-gain chart, embedded as a live matplotlib
+        # canvas (native toolbar: drag a rectangle to zoom to a date period,
+        # pan, back/forward/home buttons)
+        bo_left = ttk.Frame(self.bo_notebook)
+        self.bo_notebook.add(bo_left, text="📈 Chart")
+        self.blackout_chart_container = bo_left
+        self.blackout_canvas = None          # FigureCanvasTkAgg, created on first render
+        self.blackout_toolbar = None         # NavigationToolbar2Tk
+        self._blackout_last_ticker = None
+        self._blackout_last_result = None
+
+        # Details tab: per-quarter data table
+        bo_right = ttk.Frame(self.bo_notebook)
+        self.bo_notebook.add(bo_right, text="📋 Per-Quarter Detail")
+
+        bo_tree_frame = ttk.Frame(bo_right)
+        bo_tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        bo_cols = ("Quarter", "Blackout Start", "Blackout End", "Baseline",
+                   *[f"{n}d %" for n in HORIZONS])
+        self.blackout_tree = ttk.Treeview(bo_tree_frame, columns=bo_cols,
+                                          show="headings", style="Custom.Treeview")
+        bo_col_widths = {"Quarter": 70, "Blackout Start": 95, "Blackout End": 95,
+                         "Baseline": 70}
+        for col in bo_cols:
+            self.blackout_tree.heading(col, text=col)
+            self.blackout_tree.column(col, width=bo_col_widths.get(col, 62),
+                                      anchor="center")
+
+        bo_vsb = ttk.Scrollbar(bo_tree_frame, orient="vertical",
+                               command=self.blackout_tree.yview)
+        self.blackout_tree.configure(yscrollcommand=bo_vsb.set)
+        bo_vsb.pack(side=tk.RIGHT, fill=tk.Y)
+        self.blackout_tree.pack(fill=tk.BOTH, expand=True)
+
+        # Color tags (green/red, consistent with the Relative Strength table)
+        self.blackout_tree.tag_configure("positive", foreground=Colors.SUCCESS)
+        self.blackout_tree.tag_configure("negative", foreground=Colors.ERROR)
+        self.blackout_tree.tag_configure("neutral", foreground=Colors.TEXT_PRIMARY)
 
         # Create SEC filings tab
         self.sec_filings_frame = ttk.Frame(self.chart_notebook)
@@ -2302,14 +2482,25 @@ Tabs:
         else:
             self.status_var.set(f"Showing all {len(tickers)} tickers from {selected_list}")
 
-    def _load_first_ticker_list(self):
-        """Automatically load the first ticker list on startup"""
-        if self.ticker_lists:
-            # Get the first list name
+    def _load_startup_ticker_list(self):
+        """Load the last used ticker list at startup (falls back to the first list).
+
+        The last loaded list name is persisted in gui_settings.json whenever
+        a list is loaded; if it no longer exists (e.g., a runtime-only list
+        such as an ETF-holdings scan), the first list is loaded instead.
+        """
+        last = None
+        try:
+            last = self.settings.get('last_ticker_list')
+        except Exception:
+            last = None
+        if last and last in self.ticker_lists:
+            self.ticker_list_var.set(last)
+            self._load_ticker_list()
+            logging.info(f"Restored last used ticker list: {last}")
+        elif self.ticker_lists:
             first_list = list(self.ticker_lists.keys())[0]
-            # Set it as the selected value in the combobox
             self.ticker_list_var.set(first_list)
-            # Load the list
             self._load_ticker_list()
             logging.info(f"Auto-loaded first ticker list: {first_list}")
 
@@ -2323,6 +2514,14 @@ Tabs:
         if selected_list in self.ticker_lists:
             tickers = self.ticker_lists[selected_list]
             self.current_tickers = tickers
+
+            # Remember the last loaded list so startup can restore it
+            try:
+                if self.settings.get('last_ticker_list') != selected_list:
+                    self.settings['last_ticker_list'] = selected_list
+                    self._save_settings()
+            except Exception as e:
+                logging.debug(f"Could not persist last ticker list: {e}")
 
             # Reset filter when loading a new list
             if hasattr(self, 'filter_var'):
@@ -3680,6 +3879,16 @@ Tabs:
                         self.bc_status_var.set("Idle. Not re-running automatically.")
                 return
 
+            # If Blackout tab is active, prompt for analysis; do not auto re-run
+            if hasattr(self, 'blackout_frame') and str(self.chart_notebook.select()) == str(self.blackout_frame):
+                if selected_tickers:
+                    if self._blackout_last_result is not None and self._blackout_last_ticker == selected_tickers[0]:
+                        self._refresh_blackout_canvas()
+                        self.blackout_status_var.set(f"Showing cached analysis for {self._blackout_last_ticker}")
+                    else:
+                        self.blackout_status_var.set(f"Ready to analyze {selected_tickers[0]}. Click Analyze Selected.")
+                return
+
             # Tab indices: 0=Chart, 1=Compare, 2=Sectors, 3=Seasonal, 4=Fundamentals, 5=Business
             if current_tab_index == 5:
                 if selected_tickers:
@@ -3713,6 +3922,12 @@ Tabs:
             if hasattr(self, 'buffett_canslim_frame') and str(self.chart_notebook.select()) == str(self.buffett_canslim_frame):
                 if selected_tickers:
                     self._analyze_buffett_canslim_current()
+                return
+
+            # If Blackout tab is active, run analysis and return (same convention)
+            if hasattr(self, 'blackout_frame') and str(self.chart_notebook.select()) == str(self.blackout_frame):
+                if selected_tickers:
+                    self._run_blackout_analysis()
                 return
 
             # Tab indices: 0=Chart, 1=Compare, 2=Sectors, 3=Seasonal, 4=Fundamentals, 5=Business
@@ -3861,6 +4076,10 @@ Tabs:
                         selected_tab == str(self.buffett_canslim_frame):
                     self.active_tab = "buffett_canslim"
                     logging.info("Switched to Buffett & CANSLIM tab")
+                elif hasattr(self, 'blackout_frame') and self.blackout_frame.winfo_exists() and \
+                        selected_tab == str(self.blackout_frame):
+                    self.active_tab = "blackout"
+                    logging.info("Switched to Blackout tab")
                 elif hasattr(self, 'sector_rotation_frame') and self.sector_rotation_frame.winfo_exists() and \
                         selected_tab == str(self.sector_rotation_frame):
                     self.active_tab = "sector_rotation"
@@ -3931,6 +4150,20 @@ Tabs:
                     self.bc_status_var.set("Waiting for ticker selection")
                 else:
                     self.bc_status_var.set(f"Cached chart available for {self._bc_last_ticker}" if self._bc_base_image is not None else "Select Analyze to run study")
+            elif self.active_tab == "blackout":
+                # Buffett-style: do not auto-run (network involved); the
+                # embedded canvas persists, so just redraw (keeps zoom state)
+                # when re-entering with the same ticker selected.
+                if selected_tickers and self._blackout_last_ticker == selected_tickers[0] \
+                   and self._blackout_last_result is not None:
+                    self._refresh_blackout_canvas()
+                    self.blackout_status_var.set(
+                        f"Showing cached analysis for {self._blackout_last_ticker}")
+                elif not selected_tickers:
+                    self.blackout_status_var.set("Select a ticker, then click Analyze Selected.")
+                else:
+                    self.blackout_status_var.set(
+                        f"Ready to analyze {selected_tickers[0]}. Click Analyze Selected.")
             elif selected_tickers: # For other tabs, only update if there is a selection
                 if self.active_tab == "comparison":
                     self._compare_percentage_performance(tickers=selected_tickers)
@@ -4136,6 +4369,451 @@ Tabs:
                 self._zoom_chart_out()
         except Exception as e:
             logging.error(f"Mouse wheel zoom error: {e}")
+
+    # ------------------------------------------------------------------
+    # Blackout performance tab
+    # ------------------------------------------------------------------
+
+    def _run_blackout_analysis(self, refresh=False):
+        """Run post-blackout performance analysis for the selected ticker.
+
+        Uses the queue + polling pattern (same as the Relative Strength tab):
+        the daemon worker thread makes NO Tkinter calls — calling
+        root.after()/variable.set() from a worker thread causes
+        'Tcl_AsyncDelete: async handler deleted by the wrong thread' crashes.
+        The UI thread polls a queue for results.
+        """
+        try:
+            ticker = self._get_selected_single_ticker()
+            if not ticker:
+                self.blackout_status_var.set("No ticker selected")
+                return
+            try:
+                start_days = int(self.blackout_start_days_var.get())
+            except Exception:
+                start_days = DEFAULT_BLACKOUT_START_DAYS
+            suffix = " (refreshing price data)" if refresh else ""
+            self.blackout_status_var.set(f"Analyzing {ticker}{suffix} ...")
+
+            result_queue = Queue()
+
+            def worker():
+                try:
+                    result = analyze_ticker(ticker, self.manager,
+                                            blackout_start_days=start_days,
+                                            refresh_prices=refresh)
+                    result_queue.put(('ok', result))
+                except Exception as e:
+                    logging.error(f"Error in blackout analysis: {e}")
+                    result_queue.put(('error', str(e)))
+
+            def check_result():
+                try:
+                    if not result_queue.empty():
+                        status, payload = result_queue.get()
+                        if status == 'error':
+                            self.blackout_status_var.set(f"Error: {payload}")
+                            return
+                        # Merge the custom holding period (if the entry holds
+                        # a valid value) so fresh analyses include it without
+                        # requiring Enter to be pressed again
+                        try:
+                            text = self.blackout_custom_var.get().strip()
+                            if text:
+                                n = int(text)
+                                if n >= 1:
+                                    self._blackout_custom_horizon = n
+                                    extend_result_horizon(payload, n)
+                        except (ValueError, TypeError):
+                            pass  # invalid entry: keep last valid custom (if any)
+                        self._blackout_last_result = payload
+                        self._blackout_last_ticker = ticker
+                        # Figures are built on the UI thread from the cached
+                        # result so the horizon checkboxes can re-render cheaply
+                        # (widget-existence is guarded inside _render_blackout_view)
+                        self._render_blackout_view(self.blackout_view_var.get())
+                        self._populate_blackout_table(payload)
+                    else:
+                        self.root.after(100, check_result)
+                except Exception as e:
+                    logging.error(f"Blackout result polling error: {e}")
+
+            threading.Thread(target=worker, daemon=True).start()
+            self.root.after(100, check_result)
+        except Exception as e:
+            logging.error(f"Error starting blackout analysis: {e}")
+
+    def _on_blackout_custom_horizon(self):
+        """Entry handler: set (or clear) the custom holding period.
+
+        Any positive number of days is allowed — periods longer than one
+        quarter make the daily equity curve skip buy signals that arrive
+        while still holding. The value is merged into the cached result
+        without re-fetching; invalid input only updates the status line.
+        """
+        try:
+            text = self.blackout_custom_var.get().strip()
+            result = getattr(self, '_blackout_last_result', None)
+            if not text:
+                self._blackout_custom_horizon = None
+                self.blackout_status_var.set("Custom holding period removed")
+            else:
+                try:
+                    n = int(text)
+                except ValueError:
+                    self.blackout_status_var.set(
+                        "Custom holding period must be a whole number of days")
+                    return
+                if n < 1:
+                    self.blackout_status_var.set(
+                        "Custom holding period must be at least 1 day")
+                    return
+                self._blackout_custom_horizon = n
+                if result is not None:
+                    extend_result_horizon(result, n)
+                self.blackout_status_var.set(
+                    f"Custom holding period set to {n} days")
+            if result is not None:
+                self._render_blackout_view(self.blackout_view_var.get())
+                self._populate_blackout_table(result)
+        except Exception as e:
+            logging.error(f"Error setting custom holding period: {e}")
+
+    def _get_selected_blackout_horizons(self):
+        """Return the horizons whose checkbox is currently checked, plus the
+        custom holding period (if set), sorted ascending."""
+        try:
+            selected = [n for n in HORIZONS
+                        if self.blackout_horizon_vars[n].get()]
+            custom = getattr(self, '_blackout_custom_horizon', None)
+            if custom is not None and custom not in selected:
+                selected.append(custom)
+            return sorted(selected)
+        except Exception:
+            return list(HORIZONS)
+
+    def _on_blackout_redraw(self):
+        """Handler for horizon/scatter/overlay checkboxes: re-render the chart."""
+        try:
+            if getattr(self, '_blackout_last_result', None) is None:
+                return
+            self._render_blackout_view(self.blackout_view_var.get())
+        except Exception as e:
+            logging.error(f"Error redrawing blackout chart: {e}")
+
+    def _on_blackout_view_changed(self):
+        """Radio-toggle handler: swap the displayed chart between views."""
+        try:
+            if not hasattr(self, 'blackout_view_var'):
+                return
+            if getattr(self, '_blackout_last_result', None) is None:
+                return
+            self._render_blackout_view(self.blackout_view_var.get())
+        except Exception as e:
+            logging.error(f"Error switching blackout view: {e}")
+
+    def _on_blackout_entry_changed(self):
+        """Radio handler: flip entry between blackout end and blackout start."""
+        try:
+            result = getattr(self, '_blackout_last_result', None)
+            if result is None:
+                return
+            self._render_blackout_view(self.blackout_view_var.get())
+            self._populate_blackout_table(result)
+        except Exception as e:
+            logging.error(f"Error switching blackout entry mode: {e}")
+
+    def _get_blackout_mode_data(self, result):
+        """Return the quarter-gain data dict for the current entry mode.
+
+        Both 'end' and 'start' modes are precomputed in the analysis result,
+        so flipping the entry radio is instant (no refetch).
+        """
+        modes = result.get('modes', {})
+        try:
+            mode = self.blackout_entry_var.get()
+        except Exception:
+            mode = 'end'
+        return modes.get(mode) or modes.get('end') or {}
+
+    def _on_blackout_quarters_changed(self):
+        """Combobox handler: show the last N quarters (or All)."""
+        try:
+            if self.blackout_quarters_var.get() == 'All':
+                # Full range: clear entries and rebuild
+                self.blackout_from_var.set("")
+                self.blackout_to_var.set("")
+                if getattr(self, '_blackout_last_result', None) is not None:
+                    self._render_blackout_view(self.blackout_view_var.get())
+            else:
+                self._apply_blackout_quarter_range()
+        except Exception as e:
+            logging.error(f"Error changing blackout quarter range: {e}")
+
+    def _apply_blackout_quarter_range(self, silent=False):
+        """Zoom the daily chart to the last N quarters (N from the dropdown).
+
+        The range starts at the blackout-start date of the Nth-from-last
+        quarter (from the current entry mode's data), so all N blackouts are
+        fully visible; the right edge stays at the data end.
+        """
+        try:
+            result = getattr(self, '_blackout_last_result', None)
+            if result is None:
+                return
+            try:
+                n = int(self.blackout_quarters_var.get())
+            except (TypeError, ValueError):
+                return  # 'All' or 'Custom' — nothing to compute
+            mode_data = self._get_blackout_mode_data(result)
+            rows = mode_data.get('quarter_gains') or []
+            if not rows or n <= 0:
+                return
+            n = min(n, len(rows))
+            from_date = rows[-n]['blackout_start']
+            self.blackout_from_var.set(from_date.isoformat())
+            self.blackout_to_var.set("")
+            self._apply_blackout_date_zoom(silent=True)
+            if not silent:
+                self.blackout_status_var.set(
+                    f"Showing last {n} quarters (from {from_date})")
+        except Exception as e:
+            logging.error(f"Error applying blackout quarter range: {e}")
+
+    def _apply_blackout_date_zoom(self, silent=False):
+        """Zoom the daily chart to the From/To dates entered in the entries.
+
+        Guard-then-act: invalid or incomplete input only updates the status
+        line and returns. The toolbar's current view is pushed first so its
+        Back button undoes the zoom.
+        """
+        try:
+            if self.blackout_view_var.get() != 'daily':
+                if not silent:
+                    self.blackout_status_var.set(
+                        "Date zoom applies to the Daily Equity view")
+                return
+            canvas = getattr(self, 'blackout_canvas', None)
+            if canvas is None or not canvas.figure.axes:
+                return
+            from_str = self.blackout_from_var.get().strip()
+            to_str = self.blackout_to_var.get().strip()
+            if not from_str and not to_str:
+                return
+            try:
+                x0 = pd.Timestamp(from_str) if from_str else None
+                x1 = pd.Timestamp(to_str) if to_str else None
+            except Exception:
+                self.blackout_status_var.set("Invalid date(s) — use YYYY-MM-DD")
+                return
+            if x0 is not None and x1 is not None and x0 > x1:
+                self.blackout_status_var.set("From date is after To date")
+                return
+            ax = canvas.figure.axes[0]
+            cur = ax.get_xlim()
+            try:
+                if self.blackout_toolbar is not None:
+                    self.blackout_toolbar.push_current()
+            except Exception:
+                pass
+            # Convert explicitly: set_xlim with Timestamps is unreliable on
+            # date-unit axes (can yield epoch-zero limits)
+            ax.set_xlim(mdates.date2num(x0) if x0 is not None else cur[0],
+                        mdates.date2num(x1) if x1 is not None else cur[1])
+            canvas.draw()
+            if not silent:
+                # A hand-typed range overrides the quarter dropdown
+                self.blackout_quarters_var.set('Custom')
+                self.blackout_status_var.set(
+                    f"Zoomed to {from_str or 'start'} – {to_str or 'end'}")
+        except Exception as e:
+            logging.error(f"Error applying blackout date zoom: {e}")
+
+    def _reset_blackout_date_zoom(self):
+        """Clear the date entries/dropdown and restore the full-range view."""
+        try:
+            self.blackout_from_var.set("")
+            self.blackout_to_var.set("")
+            self.blackout_quarters_var.set('All')
+            if getattr(self, '_blackout_last_result', None) is not None:
+                self._render_blackout_view(self.blackout_view_var.get())
+        except Exception as e:
+            logging.error(f"Error resetting blackout date zoom: {e}")
+
+    def _render_blackout_view(self, view):
+        """Build and display the chart for a view, filtered by the horizon checkboxes.
+
+        Uses the cached analysis result — no refetching, so toggling views,
+        horizons, or entry mode only costs one matplotlib render. The figure
+        is embedded as a live canvas with a zoom/pan toolbar; re-renders swap
+        the figure in place (zoom state resets to home).
+        """
+        try:
+            result = getattr(self, '_blackout_last_result', None)
+            container = getattr(self, 'blackout_chart_container', None)
+            if result is None or container is None or \
+               not container.winfo_exists():
+                return
+            mode_data = self._get_blackout_mode_data(result)
+            try:
+                entry_mode = self.blackout_entry_var.get()
+            except Exception:
+                entry_mode = 'end'
+            horizons = self._get_selected_blackout_horizons()
+            try:
+                scatter = self.blackout_scatter_var.get()
+            except Exception:
+                scatter = False
+            try:
+                overlay = self.blackout_overlay_var.get() and \
+                    result.get('price_series', {}).get('dates')
+            except Exception:
+                overlay = False
+            overlay_series = result.get('price_series') if overlay else None
+            try:
+                highlight_blackout = self.blackout_highlight_var.get()
+            except Exception:
+                highlight_blackout = False
+            try:
+                show_vlines = self.blackout_vlines_var.get()
+            except Exception:
+                show_vlines = False
+            if view == 'daily':
+                fig = build_daily_equity_figure(result['ticker'],
+                                                mode_data['daily_curves'],
+                                                horizons=horizons,
+                                                scatter=scatter,
+                                                overlay_series=overlay_series,
+                                                highlight_blackout=highlight_blackout,
+                                                blackout_intervals=mode_data.get('blackout_intervals'),
+                                                entry_mode=entry_mode,
+                                                show_blackout_lines=show_vlines)
+            else:
+                fig = build_blackout_figure(result['ticker'],
+                                            mode_data['quarter_gains'],
+                                            mode_data['curves'],
+                                            horizons=horizons,
+                                            scatter=scatter,
+                                            overlay_series=overlay_series,
+                                            entry_mode=entry_mode)
+            self._embed_blackout_figure(fig)
+            # Re-apply the range after a rebuild: the quarter dropdown drives
+            # the default (last N quarters); a hand-typed range wins only
+            # when the dropdown is All/Custom
+            if view == 'daily':
+                if self.blackout_quarters_var.get() not in ('All', 'Custom'):
+                    self._apply_blackout_quarter_range(silent=True)
+                elif self.blackout_from_var.get().strip() or \
+                        self.blackout_to_var.get().strip():
+                    self._apply_blackout_date_zoom(silent=True)
+        except Exception as e:
+            logging.error(f"Error rendering blackout view '{view}': {e}")
+
+    def _embed_blackout_figure(self, fig):
+        """Attach a figure to the tab's embedded canvas (or create it first).
+
+        On subsequent renders the canvas's figure is swapped and the old one
+        closed, so figures don't accumulate. The native navigation toolbar
+        provides rectangle-drag zoom (e.g. into a specific date period),
+        pan, and back/forward/home navigation.
+        """
+        try:
+            canvas = getattr(self, 'blackout_canvas', None)
+            widget_ok = False
+            if canvas is not None:
+                try:
+                    widget_ok = canvas.get_tk_widget().winfo_exists()
+                except Exception:
+                    widget_ok = False
+            if canvas is None or not widget_ok:
+                canvas = FigureCanvasTkAgg(
+                    fig, master=self.blackout_chart_container)
+                self.blackout_toolbar = NavigationToolbar2Tk(
+                    canvas, self.blackout_chart_container, pack_toolbar=False)
+                self.blackout_toolbar.pack(side=tk.TOP, fill=tk.X)
+                canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH,
+                                            expand=True)
+                self.blackout_canvas = canvas
+            else:
+                old_fig = canvas.figure
+                # Adopt the widget's current pixel size AFTER the swap — a
+                # freshly built figure keeps its intrinsic figsize and would
+                # otherwise render narrower than the canvas it replaces
+                wpx = max(1, canvas.get_tk_widget().winfo_width())
+                hpx = max(1, canvas.get_tk_widget().winfo_height())
+                canvas.figure = fig
+                if wpx > 1 and hpx > 1:
+                    fig.set_size_inches(wpx / fig.dpi, hpx / fig.dpi)
+                # old_fig was built as a plain Figure (no pyplot manager),
+                # so dropping the reference is enough — no plt.close needed
+                del old_fig
+            canvas.draw()
+        except Exception as e:
+            logging.error(f"Error embedding blackout figure: {e}")
+
+    def _refresh_blackout_canvas(self):
+        """Redraw the embedded canvas without rebuilding (keeps zoom state)."""
+        try:
+            canvas = getattr(self, 'blackout_canvas', None)
+            if canvas is not None:
+                canvas.draw()
+        except Exception as e:
+            logging.debug(f"Blackout canvas refresh: {e}")
+
+    def _populate_blackout_table(self, result):
+        """Fill the per-quarter Treeview and status line from an analysis result."""
+        try:
+            if not hasattr(self, 'blackout_tree') or not self.blackout_tree.winfo_exists():
+                return
+            # Column set: base horizons + the custom holding period (if set)
+            custom = getattr(self, '_blackout_custom_horizon', None)
+            col_horizons = HORIZONS + ([custom] if custom is not None else [])
+            col_names = ("Quarter", "Blackout Start", "Blackout End", "Baseline",
+                         *[f"{n}d %" for n in col_horizons])
+            if self.blackout_tree['columns'] != col_names:
+                self.blackout_tree['columns'] = col_names
+                widths = {"Quarter": 70, "Blackout Start": 95,
+                          "Blackout End": 95, "Baseline": 70}
+                for col in col_names:
+                    self.blackout_tree.heading(col, text=col)
+                    self.blackout_tree.column(col, width=widths.get(col, 62),
+                                              anchor="center")
+            for row in self.blackout_tree.get_children():
+                self.blackout_tree.delete(row)
+
+            mode_data = self._get_blackout_mode_data(result)
+            quarter_gains = mode_data.get('quarter_gains', [])
+            for row in quarter_gains:
+                gains = row['gains']
+                fmt = lambda v: "-" if v is None else f"{v * 100:+.1f}%"
+                values = [row['label'],
+                          row['blackout_start'].strftime('%Y-%m-%d'),
+                          row['blackout_end'].strftime('%Y-%m-%d'),
+                          f"{row['baseline_close']:.2f}"] + \
+                         [fmt(gains.get(n)) for n in col_horizons]
+                # Color the row by the average of its completed-window gains
+                completed = [v for v in gains.values() if v is not None]
+                if completed and sum(completed) / len(completed) > 0:
+                    tag = "positive"
+                elif completed:
+                    tag = "negative"
+                else:
+                    tag = "neutral"
+                self.blackout_tree.insert("", tk.END, values=values, tags=(tag,))
+
+            if self._blackout_last_ticker:
+                entry_note = "blackout start" if self.blackout_entry_var.get() == 'start' \
+                    else "blackout end"
+                curves = mode_data.get('curves', {})
+                window_counts = ", ".join(
+                    f"{n}d×{curves[n]['count']}" for n in col_horizons
+                    if curves.get(n))
+                self.blackout_status_var.set(
+                    f"{self._blackout_last_ticker}: {len(quarter_gains)} quarters "
+                    f"analyzed (buy at {entry_note}). Completed windows: {window_counts}")
+        except Exception as e:
+            logging.error(f"Error populating blackout table: {e}")
+
     def _compare_percentage_performance0(self, tickers=None):
         """Generate and display an interactive comparison chart showing percentage performance of multiple stocks"""
         try:

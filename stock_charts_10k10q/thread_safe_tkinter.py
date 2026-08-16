@@ -12,6 +12,28 @@ import functools
 # Queue for thread-safe Tkinter operations
 tk_update_queue = queue.Queue()
 
+# Bridge queue for root.after() calls made from worker threads. Calling
+# after() from a non-main thread creates a Tcl timer from the wrong thread,
+# which crashes with "Tcl_AsyncDelete: async handler deleted by the wrong
+# thread". Bridged calls are re-scheduled on the main thread by the poller.
+_after_bridge_queue = queue.Queue()
+_original_after = None
+
+
+def _patched_after(self, ms, func=None, *args):
+    """Thread-safe replacement for tk.Misc.after.
+
+    Main-thread calls behave exactly like the original (same timer id
+    returned). Calls from worker threads with a callback are pushed onto the
+    bridge queue; the main-thread poller re-schedules them with the real
+    after(). (Timer ids from worker threads are not returned — legacy worker
+    call sites never cancel them.)
+    """
+    if threading.current_thread() is threading.main_thread() or func is None:
+        return _original_after(self, ms, func, *args)
+    _after_bridge_queue.put((ms, func, args))
+    return None
+
 def setup_thread_safe_tkinter(root):
     """
     Set up thread-safe Tkinter updates by scheduling periodic queue processing.
@@ -19,9 +41,26 @@ def setup_thread_safe_tkinter(root):
     Args:
         root: The Tkinter root window
     """
+    global _original_after
+    # Patch after() once so any worker-thread call is bridged to the main
+    # thread instead of creating a Tcl timer from the wrong thread.
+    if _original_after is None:
+        _original_after = tk.Misc.after
+        tk.Misc.after = _patched_after
+
     def process_tk_queue():
         """Process all pending Tkinter update requests in the queue."""
         try:
+            # Re-schedule any after() calls that arrived from worker threads
+            for _ in range(_after_bridge_queue.qsize()):
+                try:
+                    ms, func, args = _after_bridge_queue.get_nowait()
+                    _original_after(root, ms, func, *args)
+                except queue.Empty:
+                    break
+                except Exception as e:
+                    logging.error(f"Error bridging after() call: {e}")
+
             # Process all current items in the queue
             for _ in range(tk_update_queue.qsize()):
                 try:

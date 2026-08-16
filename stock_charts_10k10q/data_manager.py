@@ -1770,6 +1770,54 @@ class StockDataManager:
                 # Return empty DataFrame as fallback
                 return pd.DataFrame()
 
+    def load_full_history(self, ticker: str, refresh: bool = False) -> Optional[pd.DataFrame]:
+        """
+        Load the full available (period='max') daily price history for a ticker.
+
+        Reuses the standard per-ticker TSV cache. Because the default cached
+        window is ~5 years, a marker file records whether a max-period fetch
+        has already been performed; if not (or when refresh=True), the cache
+        is upgraded via a full force download. Other tabs are unaffected —
+        they simply see more rows and slice by date.
+
+        Args:
+            ticker (str): Stock ticker symbol
+            refresh (bool): If True, force a fresh max-period download
+
+        Returns:
+            Optional[pd.DataFrame]: Full history in load_data() format, or None
+        """
+        try:
+            ticker = ticker.upper()
+            marker_path = os.path.join(self.data_dir, f'{ticker}_full_history.json')
+            marker_ok = False
+            if not refresh and os.path.exists(marker_path):
+                try:
+                    with open(marker_path, 'r') as f:
+                        marker = json.load(f)
+                    marker_ok = bool(marker.get('max_fetched', False))
+                except Exception as marker_err:
+                    logging.warning(f"Invalid full-history marker for {ticker}: {marker_err}")
+                    marker_ok = False
+
+            if not marker_ok:
+                logging.info(f"Upgrading {ticker} cache to full history (period='max')")
+                data = self.update_data(ticker, force_download=True)
+                if data is not None and not data.empty:
+                    try:
+                        with open(marker_path, 'w') as f:
+                            json.dump({'max_fetched': True,
+                                       'last_fetch': datetime.now().isoformat()}, f)
+                    except Exception as marker_err:
+                        logging.warning(f"Could not write full-history marker for {ticker}: {marker_err}")
+                else:
+                    logging.warning(f"Full-history download failed for {ticker}")
+
+            return self.load_data(ticker)
+        except Exception as e:
+            logging.error(f"Error loading full history for {ticker}: {e}")
+            return None
+
     def get_fundamental_data(self, ticker: str) -> Optional[Dict[str, Any]]:
         """
         Get fundamental data for a given ticker.
